@@ -48,9 +48,10 @@ export function diffToOps(
       const was = before.assignments.find((x) => x.person === a.person);
       if (!was) continue;
       if (was.status !== a.status) out.push(ops.setAssignment(task.id, a.person, a.status));
-      for (const step of a.steps) {
+      for (const [index, step] of a.steps.entries()) {
         const prevStep = was.steps.find((s) => s.id === step.id);
-        if (prevStep && prevStep.done !== step.done) out.push(ops.toggleStep(step.id, step.done));
+        if (!prevStep) out.push(ops.saveStep(task.id, a.person, step, index));
+        else if (prevStep.done !== step.done) out.push(ops.toggleStep(step.id, step.done));
       }
     }
   }

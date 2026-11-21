@@ -5,9 +5,11 @@ import {
   isShared,
   isTaskDone,
   openTasksSorted,
+  parseTaskDate,
   setAssignmentStatus,
   sharedTasks,
   taskProgress,
+  taskProgressLabel,
   tasksFor,
   toggleStep,
   waitingOn,
@@ -121,8 +123,10 @@ describe('tasks', () => {
     t = setAssignmentStatus(t, 'nikita', 'done', 'nikita');
     expect(isTaskDone(t)).toBe(false);
     expect(taskProgress(t)).toEqual({ done: 1, total: 2 });
+    expect(taskProgressLabel(t)).toBe('1 of 2 done');
     t = setAssignmentStatus(t, 'daryna', 'done', 'daryna');
     expect(isTaskDone(t)).toBe(true);
+    expect(taskProgressLabel(t)).toBe('2 of 2 done');
   });
 
   it('marking one person done leaves the other untouched', () => {
@@ -134,6 +138,15 @@ describe('tasks', () => {
     expect(waitingOn(shared())).toEqual([]);
     const t = setAssignmentStatus(shared(), 'nikita', 'done', 'nikita');
     expect(waitingOn(t)).toEqual(['daryna']);
+    expect(waitingOn(setAssignmentStatus(t, 'daryna', 'done', 'daryna'))).toEqual([]);
+  });
+
+  it('accepts real dates from the due date input', () => {
+    expect(parseTaskDate(' 20280229 ')).toBe('2028-02-29');
+    expect(parseTaskDate('2028-02-29')).toBe('2028-02-29');
+    expect(parseTaskDate('20270229')).toBeUndefined();
+    expect(parseTaskDate('20281301')).toBeUndefined();
+    expect(parseTaskDate('2028113')).toBeUndefined();
   });
 
   it('steps are per person', () => {

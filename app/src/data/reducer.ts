@@ -1,5 +1,5 @@
 import { advance, markGot, setStatus } from '../domain/items';
-import { setAssignmentStatus, toggleStep } from '../domain/tasks';
+import { addStep, setAssignmentStatus, toggleStep } from '../domain/tasks';
 import type { Actor, FlatNote, Item, ItemStatus, NoteKind, Person, Task, TaskStatus } from '../domain/types';
 import { newId } from './mappers';
 
@@ -39,6 +39,7 @@ export type Action =
   | { type: 'updateTask'; id: string; patch: TaskPatch }
   | { type: 'setTaskStatus'; id: string; person: Person; status: TaskStatus }
   | { type: 'toggleStep'; id: string; person: Person; stepId: string }
+  | { type: 'addStep'; id: string; title: string }
   | { type: 'addNote'; title: string; body?: string; reference?: string; kind?: NoteKind }
   | { type: 'updateNote'; id: string; patch: NotePatch };
 
@@ -46,6 +47,11 @@ export type Action =
 function patched<T extends object>(obj: T, patch: NoInfer<Partial<T>>, actor: Actor): T {
   const changed = (Object.keys(patch) as (keyof T)[]).some((k) => obj[k] !== patch[k]);
   return changed ? { ...obj, ...patch, updatedBy: actor } : obj;
+}
+
+function editTask(state: State, id: string, edit: (task: Task) => Task): State {
+  const tasks = state.tasks.map((t) => (t.id === id ? edit(t) : t));
+  return tasks.some((t, n) => t !== state.tasks[n]) ? { ...state, tasks } : state;
 }
 
 export function reducer(state: State, action: Action): State {
@@ -93,13 +99,16 @@ export function reducer(state: State, action: Action): State {
         patch.title = patch.title.trim();
         if (!patch.title) return state;
       }
-      const tasks = state.tasks.map((t) => (t.id === action.id ? patched(t, patch, actor) : t));
-      return tasks.some((t, n) => t !== state.tasks[n]) ? { ...state, tasks } : state;
+      return editTask(state, action.id, (task) => patched(task, patch, actor));
     }
     case 'setTaskStatus':
-      return { ...state, tasks: state.tasks.map((t) => (t.id === action.id ? setAssignmentStatus(t, action.person, action.status, actor) : t)) };
+      if (action.person !== state.me) return state;
+      return editTask(state, action.id, (task) => setAssignmentStatus(task, state.me, action.status, actor));
     case 'toggleStep':
-      return { ...state, tasks: state.tasks.map((t) => (t.id === action.id ? toggleStep(t, action.person, action.stepId, actor) : t)) };
+      if (action.person !== state.me) return state;
+      return editTask(state, action.id, (task) => toggleStep(task, state.me, action.stepId, actor));
+    case 'addStep':
+      return editTask(state, action.id, (task) => addStep(task, state.me, { id: newId(), title: action.title }, actor));
     case 'addNote': {
       const title = action.title.trim();
       if (!title) return state;

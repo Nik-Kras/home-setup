@@ -73,7 +73,7 @@ export function TextSheet(props: TextSheetProps) {
   );
 }
 
-function TextSheetBody({ title, initial, placeholder, helper, keyboardType, autoCapitalize = 'sentences', validate, onSave, onClose }: TextSheetProps) {
+export function TextSheetBody({ title, initial, placeholder, helper, keyboardType, autoCapitalize = 'sentences', validate, onSave, onClose }: Omit<TextSheetProps, 'visible'>) {
   const [text, setText] = useState(initial);
   const error = validate(text);
   const save = () => {

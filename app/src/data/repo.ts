@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { FlatNote, Item, Person, Task, TaskStatus } from '../domain/types';
+import type { FlatNote, Item, Person, Task, TaskStatus, TaskStep } from '../domain/types';
 import { itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
 import type { Op, Outcome } from './queue';
 
@@ -15,7 +15,7 @@ export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
   const [rooms, items, tasks, notes] = await Promise.all([
     db.from('rooms').select('id,name').order('sort'),
     db.from('items').select('*').is('deleted_at', null).order('added_at', { ascending: false }),
-    db.from('tasks').select('*, task_assignments(person,status, task_steps(id,title,done,sort))').is('deleted_at', null).order('created_at', { ascending: false }),
+    db.from('tasks').select('*, task_assignments(person,status,updated_by,updated_at, task_steps(id,title,done,sort))').is('deleted_at', null).order('created_at', { ascending: false }),
     db.from('flat_notes').select('id,title,body,reference,kind,sort,updated_by').is('deleted_at', null).order('sort').order('created_at'),
   ]);
   const err = rooms.error ?? items.error ?? tasks.error;
@@ -53,7 +53,7 @@ export const ops = {
     const out: Op[] = [{ id: newId(), kind: 'upsert', table: 'tasks', ignoreDuplicates: true, row: taskToRow(task) }];
     for (const a of task.assignments) {
       out.push({ id: newId(), kind: 'upsert', table: 'task_assignments', onConflict: 'task_id,person', ignoreDuplicates: true, row: { task_id: task.id, person: a.person, status: a.status } });
-      a.steps.forEach((s, i) => out.push({ id: newId(), kind: 'upsert', table: 'task_steps', ignoreDuplicates: true, row: { id: s.id, task_id: task.id, person: a.person, title: s.title, done: s.done, sort: i } }));
+      a.steps.forEach((s, i) => out.push(saveStep(task.id, a.person, s, i, true)));
     }
     return out;
   },
@@ -64,6 +64,7 @@ export const ops = {
   setAssignment(taskId: string, person: Person, status: TaskStatus): Op {
     return { id: newId(), kind: 'patch', table: 'task_assignments', match: { task_id: taskId, person }, row: { status } };
   },
+  saveStep,
   toggleStep(stepId: string, done: boolean): Op {
     return { id: newId(), kind: 'patch', table: 'task_steps', match: { id: stepId }, row: { done } };
   },
@@ -78,6 +79,10 @@ export const ops = {
     return { id: newId(), kind: 'patch', table: table, match: { id }, row: { deleted_at: new Date().toISOString() } };
   },
 };
+
+function saveStep(taskId: string, person: Person, step: TaskStep, index: number, ignoreDuplicates = false): Op {
+  return { id: newId(), kind: 'upsert', table: 'task_steps', ...(ignoreDuplicates ? { ignoreDuplicates: true } : {}), row: { id: step.id, task_id: taskId, person, title: step.title, done: step.done, sort: step.sort ?? index } };
+}
 
 /** Run one op against Supabase and say what the queue should do next. */
 export function makeExecutor(db: SupabaseClient) {

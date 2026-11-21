@@ -29,6 +29,7 @@ interface Store extends State {
   updateTask: (id: string, patch: TaskPatch) => void;
   setTaskStatus: (id: string, person: Person, status: TaskStatus) => void;
   toggleStep: (id: string, person: Person, stepId: string) => void;
+  addStep: (id: string, title: string) => void;
   addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => void;
   updateNote: (id: string, patch: NotePatch) => void;
 }
@@ -145,6 +146,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateTask: (id, patch) => act({ type: 'updateTask', id, patch }),
       setTaskStatus: (id, person, status) => act({ type: 'setTaskStatus', id, person, status }),
       toggleStep: (id, person, stepId) => act({ type: 'toggleStep', id, person, stepId }),
+      addStep: (id, title) => act({ type: 'addStep', id, title }),
       addNote: (title, opts) => act({ type: 'addNote', title, ...opts }),
       updateNote: (id, patch) => act({ type: 'updateNote', id, patch }),
     }),

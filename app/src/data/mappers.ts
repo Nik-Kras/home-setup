@@ -9,9 +9,12 @@ export interface ItemRow {
 }
 export interface TaskRow {
   id: string; title: string; grp: string | null; due: string | null; urgent: boolean;
-  reference: string | null; notes: string | null; updated_by: string;
+  reference: string | null; notes: string | null; updated_by: string; updated_at: string;
   /** Steps hang off each person's assignment, not off the task. */
-  task_assignments: { person: Person; status: TaskStatus; task_steps: { id: string; title: string; done: boolean; sort: number }[] }[];
+  task_assignments: {
+    person: Person; status: TaskStatus; updated_by: string; updated_at: string;
+    task_steps: { id: string; title: string; done: boolean; sort: number }[];
+  }[];
 }
 
 const opt = <T>(v: T | null): T | undefined => (v === null ? undefined : v);
@@ -54,14 +57,18 @@ export function itemChangedColumns(before: Item, after: Item, roomIds: ReadonlyM
 }
 
 export function taskFromRow(r: TaskRow): Task {
+  const latest = r.task_assignments.reduce<{ updated_at: string; updated_by: string }>(
+    (prev, assignment) => Date.parse(assignment.updated_at) > Date.parse(prev.updated_at) ? assignment : prev,
+    r,
+  );
   const assignments: Assignment[] = r.task_assignments.map((a) => ({
     person: a.person,
     status: a.status,
-    steps: [...a.task_steps].sort((x, y) => x.sort - y.sort).map((s) => ({ id: s.id, title: s.title, done: s.done })),
+    steps: [...a.task_steps].sort((x, y) => x.sort - y.sort || x.id.localeCompare(y.id)),
   }));
   return {
     id: r.id, title: r.title, group: opt(r.grp), due: opt(r.due), urgent: r.urgent,
-    reference: opt(r.reference), notes: opt(r.notes), assignments, updatedBy: asActor(r.updated_by),
+    reference: opt(r.reference), notes: opt(r.notes), assignments, updatedBy: asActor(latest.updated_by),
   };
 }
 
