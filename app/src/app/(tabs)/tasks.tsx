@@ -3,57 +3,18 @@ import { useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NotesChip } from '../../components/NotesChip';
 import { Screen } from '../../components/Screen';
-import { CheckCircle, Icon, PersonDisc, SectionHeading, Segmented, StatusChip, Sub, Title, UrgentBadge } from '../../components/ui';
+import { GroupChips } from '../../components/GroupChips';
+import { NAME, TaskRow } from '../../components/TaskRow';
+import { Icon, SectionHeading, Segmented, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { assignmentFor, daysLeft, isShared, openTasksSorted, sharedTasks, tasksFor, waitingOn } from '../../domain/tasks';
-import type { Person, Task } from '../../domain/types';
-import { colors, fonts, radius, TARGET } from '../../theme/tokens';
+import { groupsFor } from '../../domain/taskOptions';
+import { openTasksSorted, sharedTasks, tasksFor } from '../../domain/tasks';
+import type { Person } from '../../domain/types';
+import { colors, fonts, TARGET } from '../../theme/tokens';
 
 type View_ = 'nikita' | 'daryna' | 'both';
-const NAME: Record<Person, string> = { nikita: 'Nikita', daryna: 'Daryna' };
-const TODAY = () => new Date().toISOString().slice(0, 10);
 
-function dueLabel(due: string): { text: string; tone: 'coral' | 'amber' | 'neutral' } {
-  const d = daysLeft(due, TODAY());
-  if (d < 0) return { text: 'Overdue', tone: 'coral' };
-  if (d === 0) return { text: 'Today', tone: 'coral' };
-  if (d <= 7) return { text: `${d} days`, tone: 'amber' };
-  return { text: new Date(`${due}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }), tone: 'neutral' };
-}
-
-function TaskRow({ task, viewer, me, onToggle }: { task: Task; viewer: Person | null; me: Person; onToggle: (p: Person, done: boolean) => void }) {
-  const shared = isShared(task);
-  const subject = viewer ?? me;
-  const mine = assignmentFor(task, subject);
-  const canTick = mine !== undefined && subject === me;
-  const wait = waitingOn(task);
-  const meta = shared
-    ? task.assignments.map((a) => `${a.person === me ? 'You' : NAME[a.person]}: ${a.status === 'done' ? 'done' : a.status === 'in_progress' ? 'in progress' : wait.includes(a.person) ? 'waiting' : 'to do'}`).join(' · ')
-    : task.group ?? '';
-  const due = task.due ? dueLabel(task.due) : undefined;
-  const status = !shared && mine && mine.status !== 'todo' ? (mine.status === 'done' ? 'done' : mine.status === 'in_progress' ? 'in progress' : 'waiting') : null;
-  const label = [task.title, task.urgent ? 'Urgent' : null, meta || null, status, due ? `due ${due.text}` : null].filter(Boolean).join(', ');
-  return (
-    <View style={s.row}>
-      <CheckCircle done={mine?.status === 'done'} label={`${mine?.status === 'done' ? 'Mark not done' : 'Mark done'}: ${task.title}`} onPress={canTick ? () => onToggle(subject, mine?.status !== 'done') : undefined} />
-      <Pressable onPress={() => router.push(`/task/${task.id}`)} accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Opens details" style={s.mid}>
-        <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{task.title}</Text>{task.urgent ? <UrgentBadge /> : null}</View>
-        {meta ? <Text style={s.meta} numberOfLines={1}>{meta}</Text> : null}
-      </Pressable>
-      {shared ? (
-        <View style={{ flexDirection: 'row' }}>
-          {task.assignments.map((a, i) => <View key={a.person} style={{ marginLeft: i ? -6 : 0 }}><PersonDisc person={a.person} done={a.status === 'done'} /></View>)}
-        </View>
-      ) : due ? (
-        <View style={[s.due, due.tone === 'coral' && { backgroundColor: colors.coralFill }, due.tone === 'amber' && { backgroundColor: colors.amberFill }]}>
-          <Text style={[s.dueText, due.tone === 'coral' && { color: colors.coral }, due.tone === 'amber' && { color: colors.amber }]}>{due.text}</Text>
-        </View>
-      ) : mine && mine.status !== 'todo' ? <StatusChip status={mine.status} /> : null}
-    </View>
-  );
-}
-
-function AddTaskBar({ onAdd }: { onAdd: (title: string, both: boolean) => void }) {
+function AddTaskBar({ onAdd, onMore }: { onAdd: (title: string, both: boolean) => void; onMore: (title: string, both: boolean) => void }) {
   const [text, setText] = useState('');
   const [both, setBoth] = useState(false);
   const ref = useRef<ComponentRef<typeof TextInput>>(null);
@@ -63,16 +24,25 @@ function AddTaskBar({ onAdd }: { onAdd: (title: string, both: boolean) => void }
     setText('');
     ref.current?.focus();
   };
+  const more = () => {
+    onMore(text.trim(), both);
+    setText('');
+  };
   return (
     <View style={{ gap: 8, marginVertical: 4 }}>
       <View style={s.addBar}>
         <TextInput ref={ref} value={text} onChangeText={setText} onSubmitEditing={submit} submitBehavior="submit" returnKeyType="done" placeholder="Add a task..." placeholderTextColor={colors.textSecondary} accessibilityLabel="Add a task" style={s.addInput} />
         <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Add task" style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></Pressable>
       </View>
-      <Pressable onPress={() => setBoth((v) => !v)} accessibilityRole="switch" accessibilityState={{ checked: both }} accessibilityLabel="Each of us does it" style={s.toggle}>
-        <View style={[s.box, both && s.boxOn]}>{both ? <Icon name="check" size={13} color={colors.onMint} stroke={3.5} /> : null}</View>
-        <Text style={s.toggleText}>Each of us does it, and ticks it separately</Text>
-      </Pressable>
+      <View style={s.optionsLine}>
+        <Pressable onPress={() => setBoth((v) => !v)} accessibilityRole="switch" accessibilityState={{ checked: both }} accessibilityLabel="Each of us does it" style={s.toggle}>
+          <View style={[s.box, both && s.boxOn]}>{both ? <Icon name="check" size={13} color={colors.onMint} stroke={3.5} /> : null}</View>
+          <Text style={s.toggleText}>Each of us does it, and ticks it separately</Text>
+        </Pressable>
+        <Pressable onPress={more} accessibilityRole="button" accessibilityLabel="More options" accessibilityHint="Due date, group, who and urgent" style={s.more}>
+          <Text style={s.moreText}>More options</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -89,6 +59,9 @@ export default function Tasks() {
   const viewer = view === 'both' ? null : view;
 
   const toggle = (id: string) => (p: Person, done: boolean) => setTaskStatus(id, p, done ? 'done' : 'todo');
+  const groupPerson = viewer ?? me;
+  const openOptions = (title: string, both: boolean) =>
+    router.push({ pathname: '/add-task', params: { title, who: both ? 'both' : view === other ? 'other' : 'me' } });
 
   return (
     <Screen
@@ -110,31 +83,28 @@ export default function Tasks() {
         </View>
       }
     >
-      <AddTaskBar onAdd={(title, both) => addTask(title, both ? ['nikita', 'daryna'] : [view === 'both' ? me : view])} />
+      <AddTaskBar onAdd={(title, both) => addTask(title, both ? ['nikita', 'daryna'] : [view === 'both' ? me : view])} onMore={openOptions} />
       {urgent.length > 0 ? <SectionHeading meta={`${urgent.length}`}>Most urgent</SectionHeading> : null}
       {urgent.map((t) => <TaskRow key={t.id} task={t} viewer={viewer} me={me} onToggle={toggle(t.id)} />)}
       {rest.length > 0 ? <SectionHeading>{view === 'both' ? 'Each of you ticks it' : 'Next up'}</SectionHeading> : null}
       {rest.map((t) => <TaskRow key={t.id} task={t} viewer={viewer} me={me} onToggle={toggle(t.id)} />)}
       {list.length === 0 ? <Text style={s.empty}>Nothing open here.</Text> : null}
+      <GroupChips groups={groupsFor(tasks, groupPerson)} person={groupPerson} />
       <NotesChip />
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 58, paddingVertical: 6, paddingLeft: 4, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
-  mid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },
-  nameLine: { flexDirection: 'row', alignItems: 'center' },
-  name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },
-  meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
-  due: { height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: 'center', backgroundColor: colors.neutralFill },
-  dueText: { fontFamily: fonts.medium, fontSize: 13, color: '#D5DBD7' },
   addBar: { flexDirection: 'row', alignItems: 'center', height: 54, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5 },
   addInput: { flex: 1, fontFamily: fonts.medium, fontSize: 16, color: colors.text, height: '100%' },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: TARGET, paddingHorizontal: 4 },
+  optionsLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  toggle: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: TARGET, paddingHorizontal: 4 },
   box: { width: 22, height: 22, borderRadius: 7, borderWidth: 2, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
   boxOn: { backgroundColor: colors.mint, borderColor: colors.mint },
   toggleText: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, flexShrink: 1 },
+  more: { minHeight: TARGET, paddingHorizontal: 8, justifyContent: 'center' },
+  moreText: { fontFamily: fonts.medium, fontSize: 14, color: colors.mint },
   empty: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
 });
