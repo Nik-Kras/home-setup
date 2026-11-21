@@ -1,58 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { advance, markGot } from '../domain/items';
-import { setAssignmentStatus, toggleStep } from '../domain/tasks';
-import type { Actor, Item, Person, Task, TaskStatus } from '../domain/types';
+import type { ItemStatus, Person, TaskStatus } from '../domain/types';
 import { diffToOps } from './diff';
-import { newId } from './mappers';
 import { OpQueue } from './queue';
+import { reducer, type Action, type ItemPatch, type State, type TaskPatch } from './reducer';
 import { loadAll, makeExecutor, subscribe } from './repo';
 import { seedItems, seedTasks } from './seed';
 import { db, kv } from './supabase';
-
-interface State {
-  me: Person;
-  items: Item[];
-  tasks: Task[];
-}
-
-type Action =
-  | { type: 'replace'; items: Item[]; tasks: Task[] }
-  | { type: 'advanceItem'; id: string }
-  | { type: 'gotItem'; id: string }
-  | { type: 'addItem'; name: string; room?: string; urgent?: boolean; assignedTo?: Person }
-  | { type: 'addTask'; title: string; assignees: Person[]; due?: string; urgent?: boolean }
-  | { type: 'setTaskStatus'; id: string; person: Person; status: TaskStatus }
-  | { type: 'toggleStep'; id: string; person: Person; stepId: string };
-
-export function reducer(state: State, action: Action): State {
-  const actor: Actor = state.me;
-  const now = new Date().toISOString();
-  switch (action.type) {
-    case 'replace':
-      return { ...state, items: action.items, tasks: action.tasks };
-    case 'advanceItem':
-      return { ...state, items: state.items.map((i) => (i.id === action.id ? advance(i, now, actor) : i)) };
-    case 'gotItem':
-      return { ...state, items: state.items.map((i) => (i.id === action.id ? markGot(i, now, actor) : i)) };
-    case 'addItem': {
-      const name = action.name.trim();
-      if (!name) return state;
-      const item: Item = { id: newId(), name, status: 'needed', quantity: 1, urgent: action.urgent ?? false, needsInstall: false, room: action.room, assignedTo: action.assignedTo, addedAt: now, updatedBy: actor };
-      return { ...state, items: [item, ...state.items] };
-    }
-    case 'addTask': {
-      const title = action.title.trim();
-      if (!title || action.assignees.length === 0) return state;
-      const task: Task = { id: newId(), title, due: action.due, urgent: action.urgent ?? false, updatedBy: actor, assignments: action.assignees.map((person) => ({ person, status: 'todo', steps: [] })) };
-      return { ...state, tasks: [task, ...state.tasks] };
-    }
-    case 'setTaskStatus':
-      return { ...state, tasks: state.tasks.map((t) => (t.id === action.id ? setAssignmentStatus(t, action.person, action.status, actor) : t)) };
-    case 'toggleStep':
-      return { ...state, tasks: state.tasks.map((t) => (t.id === action.id ? toggleStep(t, action.person, action.stepId, actor) : t)) };
-  }
-}
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 export type SyncStatus = 'demo' | 'synced' | 'pending' | 'offline';
@@ -65,7 +19,10 @@ interface Store extends State {
   advanceItem: (id: string) => void;
   gotItem: (id: string) => void;
   addItem: (name: string, opts?: { room?: string; urgent?: boolean; assignedTo?: Person }) => void;
+  updateItem: (id: string, patch: ItemPatch) => void;
+  setItemStatus: (id: string, status: ItemStatus) => void;
   addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean }) => void;
+  updateTask: (id: string, patch: TaskPatch) => void;
   setTaskStatus: (id: string, person: Person, status: TaskStatus) => void;
   toggleStep: (id: string, person: Person, stepId: string) => void;
 }
@@ -173,7 +130,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       advanceItem: (id) => act({ type: 'advanceItem', id }),
       gotItem: (id) => act({ type: 'gotItem', id }),
       addItem: (name, opts) => act({ type: 'addItem', name, ...opts }),
+      updateItem: (id, patch) => act({ type: 'updateItem', id, patch }),
+      setItemStatus: (id, status) => act({ type: 'setItemStatus', id, status }),
       addTask: (title, assignees, opts) => act({ type: 'addTask', title, assignees, ...opts }),
+      updateTask: (id, patch) => act({ type: 'updateTask', id, patch }),
       setTaskStatus: (id, person, status) => act({ type: 'setTaskStatus', id, person, status }),
       toggleStep: (id, person, stepId) => act({ type: 'toggleStep', id, person, stepId }),
     }),

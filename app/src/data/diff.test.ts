@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { diffToOps } from './diff';
 import { setAssignmentStatus, toggleStep } from '../domain/tasks';
-import { markGot } from '../domain/items';
+import { markGot, setStatus } from '../domain/items';
 import type { Item, Task } from '../domain/types';
 
 const rooms = new Map([['Kitchen', 'room-1']]);
@@ -37,6 +37,26 @@ describe('diffToOps', () => {
     const out = diffToOps({ items: [], tasks: [task] }, { items: [], tasks: [next] }, rooms);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ kind: 'patch', table: 'task_steps', match: { id: 's2' }, row: { done: true } });
+  });
+
+  it('a task field change is one patch on tasks with only the changed columns', () => {
+    const next: Task = { ...task, due: '2026-12-01', group: 'Address', updatedBy: 'nikita' };
+    const out = diffToOps({ items: [], tasks: [task] }, { items: [], tasks: [next] }, rooms);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual({ id: expect.any(String), kind: 'patch', table: 'tasks', match: { id: 't1' }, row: { due: '2026-12-01', grp: 'Address' } });
+  });
+
+  it('clearing a task field sends null', () => {
+    const before: Task = { ...task, notes: 'Bring ID' };
+    const out = diffToOps({ items: [], tasks: [before] }, { items: [], tasks: [{ ...before, notes: undefined }] }, rooms);
+    expect(out).toEqual([expect.objectContaining({ kind: 'patch', table: 'tasks', row: { notes: null } })]);
+  });
+
+  it('an item status change is one upsert with the new status and timestamp', () => {
+    const next = setStatus(item, 'installed', '2026-11-23T00:00:00Z', 'daryna');
+    const out = diffToOps({ items: [item], tasks: [] }, { items: [next], tasks: [] }, rooms);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'upsert', table: 'items', row: { id: 'i1', status: 'installed', installed_at: '2026-11-23T00:00:00Z', delivered_at: '2026-11-23T00:00:00Z' } });
   });
 
   it('a new task sends the task, each assignment and each step', () => {

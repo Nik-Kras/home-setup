@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Screen } from '../components/Screen';
-import { Card, PersonDisc, Sub, Title } from '../components/ui';
-import { useStore } from '../data/store';
-import { budget } from '../domain/items';
-import { colors, fonts, personColor } from '../theme/tokens';
+import { Screen } from '../../components/Screen';
+import { Card, PersonDisc, Sub, Title } from '../../components/ui';
+import { useStore } from '../../data/store';
+import { budget } from '../../domain/items';
+import { colors, fonts, personColor } from '../../theme/tokens';
 
 const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
 

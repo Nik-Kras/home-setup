@@ -1,9 +1,9 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { Screen } from '../components/Screen';
-import { Icon, PersonDisc, Sub, Title, glyphFor } from '../components/ui';
-import { useStore } from '../data/store';
-import { isItemDone } from '../domain/items';
-import { colors, fonts, radius } from '../theme/tokens';
+import { Screen } from '../../components/Screen';
+import { Icon, PersonDisc, Sub, Title, glyphFor } from '../../components/ui';
+import { useStore } from '../../data/store';
+import { isItemDone } from '../../domain/items';
+import { colors, fonts, radius } from '../../theme/tokens';
 
 /** Inventory of what is in place. Photos replace the glyphs once added (phase 3). */
 export default function Home() {

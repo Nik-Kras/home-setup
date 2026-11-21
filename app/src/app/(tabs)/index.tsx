@@ -1,12 +1,13 @@
+import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { Screen } from '../components/Screen';
-import { Card, Icon, IconTile, SectionHeading, StatusChip, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../components/ui';
-import { useStore } from '../data/store';
-import { counts, guessRoom, isItemDone, leftByRoom, nextUp } from '../domain/items';
-import type { Item } from '../domain/types';
-import { colors, fonts, radius, TARGET } from '../theme/tokens';
+import { Screen } from '../../components/Screen';
+import { Card, Icon, IconTile, SectionHeading, StatusChip, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../../components/ui';
+import { useStore } from '../../data/store';
+import { counts, guessRoom, isItemDone, leftByRoom, nextUp } from '../../domain/items';
+import type { Item } from '../../domain/types';
+import { colors, fonts, radius, TARGET } from '../../theme/tokens';
 
 const today = () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -64,13 +65,13 @@ function ItemRow({ item, onGot }: { item: Item; onGot: () => void }) {
       <Pressable onPress={onGot} accessibilityRole="button" accessibilityLabel={`Mark ${item.name} as got`} hitSlop={2}>
         <IconTile icon={glyphFor(item.name)} />
       </Pressable>
-      <View style={s.rowMid}>
+      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} style={s.rowMid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
           {item.assignedTo ? <PersonDisc person={item.assignedTo} size={16} /> : null}
           <Text style={s.meta}>{meta}{item.urgent ? ' · Urgent' : ''}</Text>
         </View>
-      </View>
+      </Pressable>
       <StatusChip status={item.status} />
     </View>
   );
@@ -137,7 +138,7 @@ const s = StyleSheet.create({
   addInput: { flex: 1, fontFamily: fonts.medium, fontSize: 16, color: colors.text, height: '100%' },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
-  rowMid: { flex: 1, gap: 1 },
+  rowMid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },

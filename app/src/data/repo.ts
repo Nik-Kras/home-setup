@@ -39,6 +39,10 @@ export const ops = {
     }
     return out;
   },
+  /** Only the changed task columns. Never touches assignments. */
+  patchTask(taskId: string, row: Record<string, unknown>): Op {
+    return { id: newId(), kind: 'patch', table: 'tasks', match: { id: taskId }, row };
+  },
   setAssignment(taskId: string, person: Person, status: TaskStatus): Op {
     return { id: newId(), kind: 'patch', table: 'task_assignments', match: { task_id: taskId, person }, row: { status } };
   },

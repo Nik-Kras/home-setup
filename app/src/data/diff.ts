@@ -2,6 +2,9 @@ import type { Item, Task } from '../domain/types';
 import type { Op } from './queue';
 import { ops } from './repo';
 
+/** Editable task fields and their database columns. Assignments are diffed separately. */
+const TASK_COLUMNS = [['title', 'title'], ['due', 'due'], ['urgent', 'urgent'], ['notes', 'notes'], ['reference', 'reference'], ['group', 'grp']] as const satisfies readonly (readonly [keyof Task, string])[];
+
 /**
  * Turn "state before, state after" into the minimal ops to send.
  * A person's edit sends only the thing that person changed. In particular, changing my part of a
@@ -27,6 +30,11 @@ export function diffToOps(
       out.push(...ops.saveTask(task));
       continue;
     }
+    const fields: Record<string, unknown> = {};
+    for (const [key, col] of TASK_COLUMNS) {
+      if (before[key] !== task[key]) fields[col] = task[key] ?? null;
+    }
+    if (Object.keys(fields).length > 0) out.push(ops.patchTask(task.id, fields));
     for (const a of task.assignments) {
       const was = before.assignments.find((x) => x.person === a.person);
       if (!was) continue;

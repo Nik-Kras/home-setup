@@ -27,6 +27,7 @@ const PATHS: Record<string, string> = {
   home: 'M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z',
   budget: 'M5 20V10M12 20V4M19 20v-7',
   plus: 'M12 5v14M5 12h14',
+  back: 'M15 5l-7 7 7 7',
   check: 'M5 12l5 5 9-10',
   kettle: 'M6 10h9v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM15 12l4-3M6 12H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2M8 7h5',
   microwave: 'M3 6h18v12H3zM6 9h8v6H6zM17.5 10h.01M17.5 14h.01',

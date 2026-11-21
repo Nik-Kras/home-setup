@@ -1,11 +1,12 @@
+import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Screen } from '../components/Screen';
-import { CheckCircle, Icon, PersonDisc, SectionHeading, Segmented, StatusChip, Sub, Title, UrgentBadge } from '../components/ui';
-import { useStore } from '../data/store';
-import { assignmentFor, daysLeft, isShared, openTasksSorted, sharedTasks, tasksFor, waitingOn } from '../domain/tasks';
-import type { Person, Task } from '../domain/types';
-import { colors, fonts, radius, TARGET } from '../theme/tokens';
+import { Screen } from '../../components/Screen';
+import { CheckCircle, Icon, PersonDisc, SectionHeading, Segmented, StatusChip, Sub, Title, UrgentBadge } from '../../components/ui';
+import { useStore } from '../../data/store';
+import { assignmentFor, daysLeft, isShared, openTasksSorted, sharedTasks, tasksFor, waitingOn } from '../../domain/tasks';
+import type { Person, Task } from '../../domain/types';
+import { colors, fonts, radius, TARGET } from '../../theme/tokens';
 
 type View_ = 'nikita' | 'daryna' | 'both';
 const NAME: Record<Person, string> = { nikita: 'Nikita', daryna: 'Daryna' };
@@ -32,10 +33,10 @@ function TaskRow({ task, viewer, me, onToggle }: { task: Task; viewer: Person | 
   return (
     <View style={s.row}>
       <CheckCircle done={mine?.status === 'done'} label={`${mine?.status === 'done' ? 'Mark not done' : 'Mark done'}: ${task.title}`} onPress={canTick ? () => onToggle(subject, mine?.status !== 'done') : undefined} />
-      <View style={s.mid}>
+      <Pressable onPress={() => router.push(`/task/${task.id}`)} accessibilityRole="button" accessibilityLabel={`Open ${task.title}`} style={s.mid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{task.title}</Text>{task.urgent ? <UrgentBadge /> : null}</View>
         {meta ? <Text style={s.meta} numberOfLines={1}>{meta}</Text> : null}
-      </View>
+      </Pressable>
       {shared ? (
         <View style={{ flexDirection: 'row' }}>
           {task.assignments.map((a, i) => <View key={a.person} style={{ marginLeft: i ? -6 : 0 }}><PersonDisc person={a.person} done={a.status === 'done'} /></View>)}
@@ -118,7 +119,7 @@ export default function Tasks() {
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 58, paddingVertical: 6, paddingLeft: 4, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
-  mid: { flex: 1, gap: 1 },
+  mid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },

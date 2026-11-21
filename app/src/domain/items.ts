@@ -36,6 +36,22 @@ export function markGot(item: Item, now: string, actor: Item['updatedBy']): Item
   return { ...item, status: 'delivered', deliveredAt: now, updatedBy: actor };
 }
 
+/**
+ * Set any status directly (detail screen). Reaching delivered or installed stamps that time;
+ * going back clears the timestamps of the steps no longer reached.
+ */
+export function setStatus(item: Item, status: ItemStatus, now: string, actor: Item['updatedBy']): Item {
+  if (status === item.status) return item;
+  const at = ITEM_STATUSES.indexOf(status);
+  return {
+    ...item,
+    status,
+    updatedBy: actor,
+    deliveredAt: status === 'delivered' ? now : at > ITEM_STATUSES.indexOf('delivered') ? item.deliveredAt ?? now : undefined,
+    installedAt: status === 'installed' ? now : undefined,
+  };
+}
+
 export function counts(items: readonly Item[]): { done: number; left: number; total: number } {
   const done = items.filter(isItemDone).length;
   return { done, left: items.length - done, total: items.length };
