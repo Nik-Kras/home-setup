@@ -115,3 +115,83 @@ export function guessRoom(name: string): string | undefined {
   ];
   return rules.find(([re]) => re.test(n))?.[1];
 }
+
+/* ---------- Item detail screen ---------- */
+
+export const ITEM_STATUS_LABEL: Record<ItemStatus, string> = { needed: 'Needed', looking: 'Looking', ordered: 'Ordered', delivered: 'Delivered', installed: 'Installed' };
+
+/** Display name of a person or Claude. */
+export function actorName(actor: Item['updatedBy']): string {
+  return actor === 'nikita' ? 'Nikita' : actor === 'daryna' ? 'Daryna' : 'Claude';
+}
+
+/**
+ * Statuses that do not apply to this item: 'installed' for things that need no installing. Kept when
+ * the item already sits there, so its current status never disappears from the stepper.
+ */
+export function skippedStatuses(item: Item): ItemStatus[] {
+  return !item.needsInstall && item.status !== 'installed' ? ['installed'] : [];
+}
+
+/** The steps the stepper shows, in order, each as done, current or pending. */
+export function itemSteps(item: Item): { status: ItemStatus; state: 'done' | 'current' | 'pending' }[] {
+  const skipped = skippedStatuses(item);
+  const at = ITEM_STATUSES.indexOf(item.status);
+  return ITEM_STATUSES.filter((s) => !skipped.includes(s)).map((status) => {
+    const i = ITEM_STATUSES.indexOf(status);
+    return { status, state: i < at ? 'done' : i === at ? 'current' : 'pending' };
+  });
+}
+
+/** Label of the one primary button, or undefined when the item is finished. */
+export function nextActionLabel(item: Item): string | undefined {
+  if (isItemDone(item)) return undefined;
+  const next = nextStatus(item);
+  if (next === item.status) return undefined;
+  return next === 'looking' ? 'Start looking' : `Mark as ${ITEM_STATUS_LABEL[next].toLowerCase()}`;
+}
+
+/** £90 for whole pounds, £84.99 otherwise. */
+export function formatMoney(n: number): string {
+  return Number.isInteger(n) ? `£${n}` : `£${n.toFixed(2)}`;
+}
+
+/** "Kitchen · 1 item · £90 est.", leaving out what is missing. */
+export function itemMeta(item: Item): string {
+  return [
+    item.room,
+    `${item.quantity} ${item.quantity === 1 ? 'item' : 'items'}`,
+    item.estPrice !== undefined ? `${formatMoney(item.estPrice)} est.` : undefined,
+  ].filter(Boolean).join(' · ');
+}
+
+/**
+ * A typed price. Empty means "no price" (undefined); anything that is not a non-negative amount is
+ * null (invalid). Accepts "84.99", "84,99" and a leading £. Rounded to pence.
+ */
+export function parsePrice(text: string): number | undefined | null {
+  const t = text.trim().replace(/^£\s*/, '').replace(',', '.');
+  if (t === '') return undefined;
+  if (!/^(\d+(\.\d*)?|\.\d+)$/.test(t)) return null;
+  const n = Math.round(Number(t) * 100) / 100;
+  return n >= 100_000_000 ? null : n; // numeric(10, 2) in the database
+}
+
+/**
+ * A typed product link. Empty means none (undefined); a bare address gets https://. Only http and
+ * https links with a dotted host are accepted (null otherwise), so the app never opens other schemes.
+ */
+export function parseLink(text: string): string | undefined | null {
+  const t = text.trim();
+  if (t === '') return undefined;
+  const url = /^https?:\/\//i.test(t) ? t : /^[a-z][a-z0-9+.-]*:(?!\d)/i.test(t) ? null : `https://${t}`;
+  return url && /^https?:\/\/[^\s/?#.]+(\.[^\s/?#.]+)+(:\d+)?([/?#]\S*)?$/i.test(url) ? url : null;
+}
+
+/** Room choices: the starter rooms (seeded in the database), then any other room an item uses. */
+export const STARTER_ROOMS: readonly string[] = ['Kitchen', 'Living room', 'Bedroom', 'Bathroom', 'Hallway'];
+export function roomOptions(items: readonly Item[]): string[] {
+  const out = [...STARTER_ROOMS];
+  for (const i of items) if (i.room && !out.includes(i.room)) out.push(i.room);
+  return out;
+}
