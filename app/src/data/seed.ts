@@ -44,6 +44,7 @@ export const seedTasks: Task[] = [
 
 /** Demo notes, generic on purpose. Real notes live only in Supabase. */
 export const seedNotes: FlatNote[] = [
-  { id: 'n1', title: 'Demo: is there a gas supply?', body: 'Demo note. Not confirmed yet; check the meter cupboard.', kind: 'to_confirm', sort: 1, updatedBy: 'claude' },
-  { id: 'n2', title: 'Demo: no smoking inside', body: 'Demo note. An example house rule.', reference: 'Example clause 1.1', kind: 'info', sort: 2, updatedBy: 'claude' },
+  { id: 'n1', title: 'Demo: which day is bin collection?', body: 'Demo note. Ask a neighbour or check the council website.', kind: 'to_confirm', sort: 1, updatedBy: 'claude' },
+  { id: 'n2', title: 'Demo: who holds the spare key?', body: 'Demo note. Not sure yet.', kind: 'check', sort: 2, updatedBy: 'claude' },
+  { id: 'n3', title: 'Demo: wifi router location', body: 'Demo note. In the hall cupboard, password on the sticker.', reference: 'Example source', kind: 'info', sort: 3, updatedBy: 'claude' },
 ];

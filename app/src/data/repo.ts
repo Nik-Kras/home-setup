@@ -90,6 +90,8 @@ export function makeExecutor(db: SupabaseClient) {
     // Network trouble has no Postgres code; 5xx and auth expiry are worth retrying. Anything else is a refusal.
     const status = error.status ?? 0;
     if (!error.code || status >= 500 || status === 401 || status === 408 || status === 429) return 'retry';
+    // A table not created yet (migration pending): keep the op queued instead of losing the write.
+    if (isMissingTable(error)) return 'retry';
     return 'drop';
   };
 }

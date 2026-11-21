@@ -18,7 +18,8 @@ export function NotesChip() {
 }
 
 const s = StyleSheet.create({
-  chip: { alignSelf: 'flex-start', minHeight: TARGET + 4, paddingHorizontal: 18, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', justifyContent: 'center', marginTop: 8 },
-  text: { fontFamily: fonts.medium, fontSize: 15, color: colors.text },
+  // Sits first in the group chip row, so same height and shape as a group chip.
+  chip: { height: TARGET, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', backgroundColor: colors.surface, justifyContent: 'center' },
+  text: { fontFamily: fonts.medium, fontSize: 14, color: colors.text },
   count: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
 });

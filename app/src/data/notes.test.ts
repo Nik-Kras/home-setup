@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { notesSorted, toConfirmCount } from '../domain/notes';
-import type { FlatNote } from '../domain/types';
+import { hasOpenTask, noteDraftChanges, notesSorted, toConfirmCount, type NoteDraft } from '../domain/notes';
+import type { FlatNote, Task } from '../domain/types';
 import { diffToOps } from './diff';
 import { noteFromRow, noteToRow } from './mappers';
 import { reducer, type State } from './reducer';
 
-const note: FlatNote = { id: 'n1', title: 'Demo: gas supply', body: 'Check the meter.', kind: 'to_confirm', sort: 1, updatedBy: 'claude' };
+const note: FlatNote = { id: 'n1', title: 'Demo: spare key holder', body: 'Ask the neighbour.', kind: 'to_confirm', sort: 1, updatedBy: 'claude' };
 const state: State = { me: 'nikita', items: [], tasks: [], notes: [note] };
 const rooms = new Map<string, string>();
 
@@ -20,10 +20,46 @@ describe('notes domain', () => {
   });
 });
 
+describe('noteDraftChanges', () => {
+  const draftOf = (n: FlatNote): NoteDraft => ({ title: n.title, body: n.body ?? '', reference: n.reference ?? '', kind: n.kind });
+
+  it('an untouched form changes nothing, even with surrounding spaces', () => {
+    expect(noteDraftChanges(note, draftOf(note))).toEqual({});
+    expect(noteDraftChanges(note, { ...draftOf(note), title: ` ${note.title} `, reference: '  ' })).toEqual({});
+  });
+
+  it('sends only the fields the person changed', () => {
+    expect(noteDraftChanges(note, { ...draftOf(note), kind: 'info' })).toEqual({ kind: 'info' });
+    expect(noteDraftChanges(note, { ...draftOf(note), body: '', reference: 'Hall cupboard' })).toEqual({ body: '', reference: 'Hall cupboard' });
+  });
+
+  it('a stale form does not revert another person\'s edit made meanwhile', () => {
+    const opened = note;
+    const draft = { ...draftOf(opened), kind: 'info' as const };
+    // Meanwhile the other person changed the body. Only kind goes out, so their body stays.
+    const changes = noteDraftChanges(opened, draft);
+    const theirs: State = { ...state, notes: [{ ...note, body: 'Their new body.' }] };
+    const next = reducer(theirs, { type: 'updateNote', id: 'n1', patch: changes });
+    expect(next.notes[0]).toMatchObject({ kind: 'info', body: 'Their new body.' });
+  });
+});
+
+describe('hasOpenTask', () => {
+  const task = (title: string, status: 'todo' | 'done'): Task => ({ id: title, title, urgent: false, updatedBy: 'nikita', assignments: [{ person: 'nikita', status, steps: [] }] });
+
+  it('finds an open task with the same title, ignoring case and spaces', () => {
+    expect(hasOpenTask([task(' demo: spare key holder ', 'todo')], note.title)).toBe(true);
+  });
+
+  it('a finished task or a different title does not count', () => {
+    expect(hasOpenTask([task(note.title, 'done'), task('Something else', 'todo')], note.title)).toBe(false);
+  });
+});
+
 describe('note mappers', () => {
   it('round-trips a note and never sends updated_by', () => {
-    expect(noteToRow(note)).toEqual({ id: 'n1', title: 'Demo: gas supply', body: 'Check the meter.', reference: null, kind: 'to_confirm', sort: 1 });
-    expect(noteFromRow({ id: 'n1', title: 'Demo: gas supply', body: 'Check the meter.', reference: null, kind: 'to_confirm', sort: 1, updated_by: 'claude' })).toEqual(note);
+    expect(noteToRow(note)).toEqual({ id: 'n1', title: 'Demo: spare key holder', body: 'Ask the neighbour.', reference: null, kind: 'to_confirm', sort: 1 });
+    expect(noteFromRow({ id: 'n1', title: 'Demo: spare key holder', body: 'Ask the neighbour.', reference: null, kind: 'to_confirm', sort: 1, updated_by: 'claude' })).toEqual(note);
   });
 
   it('a null sort reads as 0 and an unknown actor as claude', () => {
@@ -54,7 +90,7 @@ describe('addNote', () => {
 describe('updateNote', () => {
   it('patches only the changed columns', () => {
     const next = reducer(state, { type: 'updateNote', id: 'n1', patch: { kind: 'info', body: 'Checked: yes.' } });
-    expect(next.notes[0]).toMatchObject({ kind: 'info', body: 'Checked: yes.', title: 'Demo: gas supply', updatedBy: 'nikita' });
+    expect(next.notes[0]).toMatchObject({ kind: 'info', body: 'Checked: yes.', title: 'Demo: spare key holder', updatedBy: 'nikita' });
     expect(diffToOps(state, next, rooms)).toEqual([{ id: expect.any(String), kind: 'patch', table: 'flat_notes', match: { id: 'n1' }, row: { kind: 'info', body: 'Checked: yes.' } }]);
   });
 
@@ -68,7 +104,7 @@ describe('updateNote', () => {
     const sneaky = { id: 'other', updatedBy: 'daryna' } as unknown as { title: string };
     expect(reducer(state, { type: 'updateNote', id: 'n1', patch: sneaky })).toBe(state);
     expect(reducer(state, { type: 'updateNote', id: 'n1', patch: { title: ' ' } })).toBe(state);
-    expect(reducer(state, { type: 'updateNote', id: 'n1', patch: { title: ' Demo: gas supply ', kind: 'to_confirm' } })).toBe(state);
+    expect(reducer(state, { type: 'updateNote', id: 'n1', patch: { title: ' Demo: spare key holder ', kind: 'to_confirm' } })).toBe(state);
     expect(reducer(state, { type: 'updateNote', id: 'nope', patch: { title: 'X' } })).toBe(state);
   });
 

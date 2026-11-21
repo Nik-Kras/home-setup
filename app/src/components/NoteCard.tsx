@@ -66,7 +66,7 @@ export function NoteCard({ note, onEdit, onMakeTask, taskAdded }: { note: FlatNo
           onPress={onMakeTask}
           disabled={taskAdded}
           accessibilityRole="button"
-          accessibilityLabel={taskAdded ? `Added to your tasks: ${note.title}` : `Make it a task: ${note.title}`}
+          accessibilityLabel={taskAdded ? `Already in tasks: ${note.title}` : `Make it a task: ${note.title}`}
           accessibilityState={{ disabled: taskAdded }}
           style={[s.taskBtn, taskAdded && s.taskBtnDone]}
         >
@@ -89,7 +89,7 @@ const s = StyleSheet.create({
   body: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 20, color: colors.textSecondary },
   ref: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textMuted },
   pill: { height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: 'center', backgroundColor: colors.neutralFill },
-  pillText: { fontFamily: fonts.medium, fontSize: 13, color: '#D5DBD7' },
+  pillText: { fontFamily: fonts.medium, fontSize: 13, color: colors.text },
   taskBtn: { alignSelf: 'flex-start', marginLeft: TILE + 14, minHeight: TARGET, paddingHorizontal: 16, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairlineStrong, justifyContent: 'center' },
   taskBtnDone: { borderColor: 'rgba(94,224,184,0.40)', backgroundColor: colors.mintFill },
   taskBtnText: { fontFamily: fonts.medium, fontSize: 15, color: colors.text },
