@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actorName, formatMoney, itemMeta, itemSteps, nextActionLabel, parseLink, parsePrice, roomOptions, skippedStatuses } from './items';
+import { actorName, clearedDatesWarning, currentStepTone, formatMoney, itemMeta, itemSteps, nextActionLabel, parseLink, parsePrice, roomOptions, skippedStatuses } from './items';
 import type { Item } from './types';
 
 const item = (over: Partial<Item> = {}): Item => ({
@@ -25,6 +25,26 @@ describe('item detail helpers', () => {
     const steps = itemSteps(item({ status: 'ordered', needsInstall: true }));
     expect(steps.map((s) => s.state)).toEqual(['done', 'done', 'current', 'pending', 'pending']);
     expect(itemSteps(item({ status: 'delivered' })).map((s) => s.status)).toEqual(['needed', 'looking', 'ordered', 'delivered']);
+  });
+
+  it('uses amber only for an ordered current step, mint once finished, neutral otherwise', () => {
+    expect(currentStepTone(item())).toBe('neutral');
+    expect(currentStepTone(item({ status: 'looking' }))).toBe('neutral');
+    expect(currentStepTone(item({ status: 'ordered' }))).toBe('transit');
+    expect(currentStepTone(item({ status: 'delivered' }))).toBe('done');
+    expect(currentStepTone(item({ status: 'delivered', needsInstall: true }))).toBe('neutral');
+    expect(currentStepTone(item({ status: 'installed', needsInstall: true }))).toBe('done');
+  });
+
+  it('asks for confirmation only when a stepper tap would clear a date', () => {
+    const delivered = item({ status: 'delivered', needsInstall: true, deliveredAt: '2026-11-22T09:00:00Z' });
+    expect(clearedDatesWarning(delivered, 'ordered')).toBe('This clears the delivered date.');
+    expect(clearedDatesWarning(delivered, 'installed')).toBeUndefined();
+    const installed = { ...delivered, status: 'installed' as const, installedAt: '2026-11-23T09:00:00Z' };
+    expect(clearedDatesWarning(installed, 'delivered')).toBe('This clears the installed date.');
+    expect(clearedDatesWarning(installed, 'needed')).toBe('This clears the delivered and installed dates.');
+    expect(clearedDatesWarning(item({ status: 'ordered' }), 'needed')).toBeUndefined();
+    expect(clearedDatesWarning(delivered, 'delivered')).toBeUndefined();
   });
 
   it('names the next action and hides it once finished', () => {
@@ -56,6 +76,20 @@ describe('item detail helpers', () => {
     expect(parsePrice('100000000')).toBeNull();
   });
 
+  it('reads a comma before exactly three digits as thousands, any other comma as the decimal point', () => {
+    expect(parsePrice('1,200')).toBe(1200);
+    expect(parsePrice('12,345.50')).toBe(12345.5);
+    expect(parsePrice('1,234,567')).toBe(1234567);
+    expect(parsePrice('1,20')).toBe(1.2);
+    expect(parsePrice('12,5')).toBe(12.5);
+    expect(parsePrice('12.50')).toBe(12.5);
+    expect(parsePrice('abc')).toBeNull();
+    expect(parsePrice('')).toBeUndefined();
+    expect(parsePrice('-5')).toBeNull();
+    expect(parsePrice('1,2,3')).toBeNull();
+    expect(parsePrice('1,20.5')).toBeNull();
+  });
+
   it('parses a product link and refuses other schemes', () => {
     expect(parseLink('example.com/p/1')).toBe('https://example.com/p/1');
     expect(parseLink('http://shop.example.co.uk')).toBe('http://shop.example.co.uk');
@@ -66,8 +100,10 @@ describe('item detail helpers', () => {
     expect(parseLink('localhost')).toBeNull();
   });
 
-  it('lists starter rooms then rooms items already use', () => {
-    expect(roomOptions([item({ room: 'Kitchen' }), item({ room: 'Study' })])).toEqual(['Kitchen', 'Living room', 'Bedroom', 'Bathroom', 'Hallway', 'Study']);
+  it('lists the loaded rooms, plus the item room if it is not among them', () => {
+    expect(roomOptions(['Kitchen', 'Hallway'], 'Kitchen')).toEqual(['Kitchen', 'Hallway']);
+    expect(roomOptions(['Kitchen', 'Hallway'], 'Study')).toEqual(['Kitchen', 'Hallway', 'Study']);
+    expect(roomOptions(['Kitchen'])).toEqual(['Kitchen']);
   });
 
   it('names actors', () => {

@@ -5,10 +5,12 @@ import { colors, fonts, TARGET } from '../theme/tokens';
 import { Icon } from './ui';
 
 /**
- * Small bottom sheet on an RN Modal. Tapping the scrim or the Android back button closes it.
+ * Small bottom sheet on an RN Modal. Tapping the scrim, the Android back button or the visible close
+ * button closes it. The sheet is marked modal, which hides the scrim from screen readers, so the close
+ * button is always there for them.
  * Android is edge-to-edge, so the keyboard does not resize the window; padding keeps inputs visible.
  */
-export function Sheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: ReactNode }) {
+export function Sheet({ visible, title, onClose, children, closeLabel = 'Close' }: { visible: boolean; title: string; onClose: () => void; children: ReactNode; closeLabel?: string }) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
@@ -18,6 +20,9 @@ export function Sheet({ visible, title, onClose, children }: { visible: boolean;
           <View style={s.grabber} />
           <Text style={s.title} accessibilityRole="header">{title}</Text>
           {children}
+          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel={closeLabel} style={({ pressed }) => [s.close, pressed && s.pressed]}>
+            <Text style={s.closeText}>{closeLabel}</Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -62,7 +67,7 @@ interface TextSheetProps {
 /** A sheet with one text input and Save. The text starts from `initial` each time it opens. */
 export function TextSheet(props: TextSheetProps) {
   return (
-    <Sheet visible={props.visible} title={props.title} onClose={props.onClose}>
+    <Sheet visible={props.visible} title={props.title} onClose={props.onClose} closeLabel="Cancel">
       {props.visible ? <TextSheetBody {...props} /> : null}
     </Sheet>
   );
@@ -92,7 +97,12 @@ function TextSheetBody({ title, initial, placeholder, helper, keyboardType, auto
         accessibilityLabel={title}
         style={[s.input, error && text.trim() !== '' && s.inputError]}
       />
-      {error && text.trim() !== '' ? <Text style={s.error} accessibilityLiveRegion="polite">{error}</Text> : helper ? <Text style={s.helper}>{helper}</Text> : null}
+      {error && text.trim() !== '' ? (
+        <View style={s.errorRow} accessible accessibilityLabel={error} accessibilityLiveRegion="polite">
+          <Text style={s.errorGlyph}>!</Text>
+          <Text style={s.error}>{error}</Text>
+        </View>
+      ) : helper ? <Text style={s.helper}>{helper}</Text> : null}
       <SheetButton label="Save" onPress={save} primary disabled={!!error} />
     </View>
   );
@@ -101,9 +111,14 @@ function TextSheetBody({ title, initial, placeholder, helper, keyboardType, auto
 const s = StyleSheet.create({
   form: { gap: 10, paddingTop: 2 },
   input: { height: 52, borderRadius: 26, borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)', backgroundColor: colors.bg, paddingHorizontal: 18, fontFamily: fonts.regular, fontSize: 16, color: colors.text },
-  inputError: { borderColor: colors.amber },
+  // Validation is neutral: amber means in transit and coral means urgent, so neither is used here.
+  inputError: { borderColor: colors.text },
   helper: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary, paddingHorizontal: 18 },
-  error: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.amber, paddingHorizontal: 18 },
+  errorRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, paddingHorizontal: 18 },
+  errorGlyph: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: colors.text, textAlign: 'center', fontFamily: fonts.semibold, fontSize: 13, lineHeight: 15, color: colors.text },
+  error: { flex: 1, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.text },
+  close: { minHeight: TARGET, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+  closeText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.textSecondary },
   root: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.55)' },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: 1, borderBottomWidth: 0, borderColor: colors.hairline, paddingHorizontal: 16, paddingTop: 8, gap: 6 },
   grabber: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, backgroundColor: colors.track, marginBottom: 6 },

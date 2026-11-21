@@ -42,12 +42,14 @@ export function itemToRow(i: Item, roomIds: ReadonlyMap<string, string>): Record
 /**
  * Only the item columns that differ between two versions of the same item, for a field-level patch.
  * id never changes and updated_by is never sent. Empty when nothing would change in the database.
+ * A room name with no known id is never sent: mapping it to null would silently clear the room.
  */
 export function itemChangedColumns(before: Item, after: Item, roomIds: ReadonlyMap<string, string>): Record<string, unknown> {
   const was = itemToRow(before, roomIds);
   const now = itemToRow(after, roomIds);
   const out: Record<string, unknown> = {};
   for (const col of Object.keys(now)) if (col !== 'id' && now[col] !== was[col]) out[col] = now[col];
+  if (after.room !== undefined && !roomIds.has(after.room)) delete out.room_id;
   return out;
 }
 

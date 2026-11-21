@@ -5,13 +5,17 @@ import { diffToOps } from './diff';
 import { OpQueue } from './queue';
 import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
 import { loadAll, makeExecutor, subscribe } from './repo';
-import { seedItems, seedNotes, seedTasks } from './seed';
+import { seedItems, seedNotes, seedRooms, seedTasks } from './seed';
 import { db, kv } from './supabase';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 export type SyncStatus = 'demo' | 'synced' | 'pending' | 'offline';
 
+export type Room = { id: string; name: string };
+
 interface Store extends State {
+  /** Rooms in their sort order: loaded from the database, or the demo rooms. */
+  rooms: Room[];
   auth: AuthStatus;
   sync: SyncStatus;
   signIn: (email: string, password: string) => Promise<string | null>;
@@ -41,6 +45,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthStatus>(LIVE ? 'loading' : 'signedIn');
   const [sync, setSync] = useState<SyncStatus>(LIVE ? 'pending' : 'demo');
   const ref = useRef(state);
+  const [rooms, setRooms] = useState<Room[]>(LIVE ? [] : seedRooms);
   const roomIds = useRef(new Map<string, string>());
   const queue = useRef<OpQueue | null>(null);
 
@@ -60,6 +65,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if ((await queue.current.size()) > 0) return setSync('pending'); // never overwrite unsent local edits
       const snap = await loadAll(db);
       roomIds.current = new Map(snap.rooms.map((r) => [r.name, r.id]));
+      setRooms(snap.rooms);
       set({ ...ref.current, items: snap.items, tasks: snap.tasks, notes: snap.notes });
       setSync('synced');
     } catch {
@@ -119,6 +125,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value = useMemo<Store>(
     () => ({
       ...state,
+      rooms,
       auth,
       sync,
       signIn: async (email, password) => {
@@ -141,7 +148,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addNote: (title, opts) => act({ type: 'addNote', title, ...opts }),
       updateNote: (id, patch) => act({ type: 'updateNote', id, patch }),
     }),
-    [state, auth, sync, act],
+    [state, rooms, auth, sync, act],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
