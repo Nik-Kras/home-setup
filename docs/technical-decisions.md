@@ -36,3 +36,9 @@ Status: proposed on 2026-11-21, to be confirmed while building.
 
 ## Privacy
 - The repository is public. It must hold no addresses, names, secrets or personal documents. Keys live in environment files that are git-ignored.
+
+## Decisions confirmed 2026-11-21
+- Backend: Supabase (Postgres, Realtime, Storage, RLS). Claude gets its own scoped key, actor "Claude", no hard delete.
+- iPhone distribution: TestFlight with a paid Apple Developer account.
+- v1 scope: everything designed (Buy list, Tasks with shared tasks, Home, Budget, flat notes, widgets).
+- Design changes adopted from the review: live add input (type, press Enter, keyboard stays open) and cleaner colour meaning (coral only for urgent; owners as initial discs; neutral room tiles; amber only for in-transit and to-confirm). Not adopted: check circle on Buy rows, removing glows.
