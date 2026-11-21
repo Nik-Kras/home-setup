@@ -85,3 +85,14 @@ Each iteration: render every screen to a PNG, run an automated overflow/overlap 
 - Photos on Home are placeholders until real photos exist.
 - Row-complete animation (strike, then collapse in 240ms), ring draw-on and stepper fill are specified, not shown.
 - A light theme.
+
+## Tasks screens (added 2026-11-21)
+Same look and tokens as the rest. The tab bar has four tabs: Buy, Tasks, Home, Budget; the active tab shows its label.
+8. **Tasks (my list)**: Mine / Daryna / Both switch, the urgent deadline card (the one accent glow), most urgent tasks, shared tasks with two person dots, and group chips (utilities, address, safety, flat notes).
+9. **Task detail**: title, due and reference chips, status switch, a checklist with a photo count per item, a note with why it matters, and a primary action (ask Claude to draft the message).
+10. **Task group**: progress bar, a tip banner, and a dense checklist with tags (proof needed, paid service).
+11. **Add task**: Item or Task switch; when, group, who (Me, Daryna, Each of us), and a reminder toggle.
+12. **Flat notes**: contract facts as cards; unconfirmed items are highlighted and can become tasks.
+13. **Task widgets**: Android and iPhone, small (deadline countdown, tasks due today or shared progress) and medium (my tasks with due chips).
+14. **Tasks, other person's view**: a card for what is waiting on that person (the other person has finished a shared task), their own tasks, and shared tasks.
+15. **Shared task**: one card per person with status, progress and their own steps; a note that the task closes when both are done; activity; actions: mark mine done, nudge.

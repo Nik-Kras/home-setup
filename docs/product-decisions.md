@@ -57,3 +57,32 @@ Services and setup tasks (internet, TV licence, insurance quote) live in the sam
 - Price search / shopping comparison.
 - Multi-household, public users, accounts for others.
 - Cost splitting between the two members (possible later).
+
+## Tasks (added 2026-11-21)
+The app tracks things to do as well as things to buy. Moving-in jobs: register for council tax, take meter readings, set up utilities, change address everywhere, insurance and safety checks, and checking the move-in inventory against the contract deadline.
+
+### Separate lists, shared tasks
+- Each person has their own task list. The Tasks screen has a switch: **Mine**, **Daryna** (the other person), **Both**.
+- A task has one or more assignees. **Each of us** means both people get the task and each ticks it off separately (for example "register with a new GP").
+- Each assignee has their own status and their own steps. The task is finished only when every assignee is done. The task shows "1 of 2 done" and who is waiting.
+- Shared tasks appear in both lists, marked with two small person dots (filled = done, outline = waiting). A person can nudge the other.
+- Tasks assigned to one person appear only on that person's list (and in the Both view only if shared).
+
+### Task fields
+| Field | Required | Notes |
+|---|---|---|
+| Title | yes | |
+| Assignees | yes | me, the other person, or each of us |
+| Due | no | today, this week, a date, or none; shows days left |
+| Group | no | utilities, address changes, safety, other |
+| Status per assignee | yes | To do, In progress, Waiting, Done |
+| Steps | no | a checklist; shared tasks have one set per person |
+| Photos and notes | no | e.g. inventory photos per room |
+| Reference | no | a contract clause or link |
+| Reminder | no | e.g. 2 days before |
+
+### Related
+- **Flat notes**: facts from the tenancy contract (rules, who pays for what, things still unconfirmed). Unconfirmed items can be turned into tasks.
+- Things to buy for the move stay on the Buy list.
+- Claude can add and tick tasks like a person, and can draft messages for a task (for example the letter to the agent).
+- Widgets: next deadline countdown, tasks due today, shared-task progress, and a list of my tasks.
