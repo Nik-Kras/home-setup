@@ -1,4 +1,4 @@
-import type { Actor, Assignment, Person, Task, TaskStatus } from './types';
+import type { Actor, Assignment, Person, Task, TaskStatus, TaskStep } from './types';
 
 /** A task is finished only when every assignee has finished their part. */
 export function isTaskDone(task: Task): boolean {
@@ -9,12 +9,16 @@ export function isShared(task: Task): boolean {
   return task.assignments.length > 1;
 }
 
-/** "1 of 2 done" for shared tasks; "0 of 1" for a single-person task. */
 export function taskProgress(task: Task): { done: number; total: number } {
   return {
     done: task.assignments.filter((a) => a.status === 'done').length,
     total: task.assignments.length,
   };
+}
+
+export function taskProgressLabel(task: Task): string {
+  const { done, total } = taskProgress(task);
+  return `${done} of ${total} done`;
 }
 
 export function assignmentFor(task: Task, person: Person): Assignment | undefined {
@@ -38,7 +42,8 @@ export function setAssignmentStatus(
   status: TaskStatus,
   actor: Actor,
 ): Task {
-  if (!assignmentFor(task, person)) return task;
+  const assignment = assignmentFor(task, person);
+  if (!assignment || assignment.status === status) return task;
   return {
     ...task,
     updatedBy: actor,
@@ -52,6 +57,7 @@ export function toggleStep(
   stepId: string,
   actor: Actor,
 ): Task {
+  if (!assignmentFor(task, person)?.steps.some((s) => s.id === stepId)) return task;
   return {
     ...task,
     updatedBy: actor,
@@ -63,12 +69,34 @@ export function toggleStep(
   };
 }
 
+/** Append one step without changing any existing step or the other assignment. */
+export function addStep(task: Task, person: Person, step: Pick<TaskStep, 'id' | 'title'>, actor: Actor): Task {
+  const assignment = assignmentFor(task, person);
+  const title = step.title.trim();
+  if (!assignment || !title) return task;
+  const lastSort = assignment.steps.reduce((max, s, i) => Math.max(max, s.sort ?? i), -1);
+  const steps = [...assignment.steps, { id: step.id, title, done: false, sort: lastSort + 1 }];
+  return {
+    ...task,
+    updatedBy: actor,
+    assignments: task.assignments.map((a) => (a === assignment ? { ...a, steps } : a)),
+  };
+}
+
 /** The person who still has to act on a shared task after someone finished. */
 export function waitingOn(task: Task): Person[] {
   if (!isShared(task)) return [];
   const anyDone = task.assignments.some((a) => a.status === 'done');
   if (!anyDone) return [];
   return task.assignments.filter((a) => a.status !== 'done').map((a) => a.person);
+}
+
+/** Accept a compact numeric date or an ISO date pasted into the due date field. */
+export function parseTaskDate(value: string): string | undefined {
+  const date = value.trim().replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
+  if (!/^[1-9]\d{3}-\d{2}-\d{2}$/.test(date)) return undefined;
+  const ms = Date.parse(`${date}T00:00:00Z`);
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === date ? date : undefined;
 }
 
 /** Whole days from `today` to `due` (both YYYY-MM-DD). Negative when overdue. */

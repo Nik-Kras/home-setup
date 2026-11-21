@@ -38,6 +38,8 @@ export interface TaskStep {
   id: string;
   title: string;
   done: boolean;
+  /** Stored order. Older in-memory steps use their position in the checklist. */
+  sort?: number;
 }
 
 /** One person's share of a task. A shared task has one assignment per person. */

@@ -156,3 +156,47 @@ describe('addTask', () => {
     expect(reducer(state, { type: 'addTask', title: 'GP', assignees: [] })).toBe(state);
   });
 });
+
+describe('task assignment edits', () => {
+  const withSteps: State = {
+    ...state,
+    tasks: [{
+      ...task,
+      assignments: task.assignments.map((a) => ({
+        ...a,
+        steps: [{ id: `step-${a.person}`, title: 'Check details', done: false, sort: 10 }],
+      })),
+    }],
+  };
+
+  it('appends my step in stored order and queues only that step', () => {
+    const next = reducer(withSteps, { type: 'addStep', id: 't1', title: '  Send form  ' });
+    const before = withSteps.tasks[0]!;
+    const after = next.tasks[0]!;
+    expect(after.assignments[0]).toBe(before.assignments[0]);
+    expect(after.assignments[1]!.steps[0]).toBe(before.assignments[1]!.steps[0]);
+    const added = after.assignments[1]!.steps[1]!;
+    expect(added).toMatchObject({ title: 'Send form', done: false, sort: 11 });
+    expect(diffToOps(withSteps, next, new Map())).toEqual([{
+      id: expect.any(String), kind: 'upsert', table: 'task_steps',
+      row: { id: added.id, task_id: 't1', person: state.me, title: 'Send form', done: false, sort: 11 },
+    }]);
+  });
+
+  it('leaves the other assignment untouched when I tick a step or update my status', () => {
+    const updated = reducer(withSteps, { type: 'toggleStep', id: 't1', person: state.me, stepId: `step-${state.me}` });
+    const latest = reducer(updated, { type: 'setTaskStatus', id: 't1', person: state.me, status: 'waiting' });
+    expect(latest.tasks[0]!.assignments[0]).toBe(withSteps.tasks[0]!.assignments[0]);
+    expect(diffToOps(withSteps, latest, new Map())).toEqual([
+      { id: expect.any(String), kind: 'patch', table: 'task_assignments', match: { task_id: 't1', person: state.me }, row: { status: 'waiting' } },
+      { id: expect.any(String), kind: 'patch', table: 'task_steps', match: { id: `step-${state.me}` }, row: { done: true } },
+    ]);
+  });
+
+  it('ignores other-assignee edits and blank additions', () => {
+    const other = withSteps.tasks[0]!.assignments[0]!;
+    expect(reducer(withSteps, { type: 'setTaskStatus', id: 't1', person: other.person, status: 'done' })).toBe(withSteps);
+    expect(reducer(withSteps, { type: 'toggleStep', id: 't1', person: other.person, stepId: other.steps[0]!.id })).toBe(withSteps);
+    expect(reducer(withSteps, { type: 'addStep', id: 't1', title: ' ' })).toBe(withSteps);
+  });
+});
