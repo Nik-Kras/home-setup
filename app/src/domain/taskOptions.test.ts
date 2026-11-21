@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, assigneesFor, dueFor, endOfWeek, groupsFor, groupTasks, localDate, monthGrid } from './taskOptions';
+import { addDays, addedSince, assigneesFor, dueFor, dueLabel, endOfWeek, groupFromParam, groupsFor, groupTasks, groupToParam, localDate, monthGrid } from './taskOptions';
 import type { Assignment, Task } from './types';
 
 const a = (person: Assignment['person'], status: Assignment['status'] = 'todo'): Assignment => ({ person, status, steps: [] });
@@ -35,6 +35,57 @@ describe('dates', () => {
     expect(weeks.at(-1)).toEqual(['2026-11-30', null, null, null, null, null, null]);
     expect(weeks.flat().filter(Boolean)).toHaveLength(30);
     expect(monthGrid(2027, 2).flat().filter(Boolean)).toHaveLength(28);
+  });
+});
+
+describe('dueLabel', () => {
+  it('reads Overdue, Today, Tomorrow, N days, then the date', () => {
+    expect(dueLabel('2026-11-20', '2026-11-21')).toEqual({ text: 'Overdue', tone: 'coral' });
+    expect(dueLabel('2026-11-21', '2026-11-21')).toEqual({ text: 'Today', tone: 'coral' });
+    expect(dueLabel('2026-11-22', '2026-11-21')).toEqual({ text: 'Tomorrow', tone: 'amber' });
+    expect(dueLabel('2026-11-23', '2026-11-21')).toEqual({ text: '2 days', tone: 'amber' });
+    expect(dueLabel('2026-11-28', '2026-11-21')).toEqual({ text: '7 days', tone: 'amber' });
+    expect(dueLabel('2026-11-29', '2026-11-21')).toEqual({ text: '29 Nov', tone: 'neutral' });
+  });
+
+  it('turns over at local midnight, not UTC midnight', () => {
+    const lateEvening = localDate(new Date(2026, 10, 21, 23, 59));
+    const justAfterMidnight = localDate(new Date(2026, 10, 22, 0, 1));
+    expect(dueLabel('2026-11-22', lateEvening).text).toBe('Tomorrow');
+    expect(dueLabel('2026-11-22', justAfterMidnight).text).toBe('Today');
+    expect(dueLabel('2026-11-21', justAfterMidnight).text).toBe('Overdue');
+  });
+
+  it('crosses month and year ends', () => {
+    expect(dueLabel('2026-12-01', '2026-11-30').text).toBe('Tomorrow');
+    expect(dueLabel('2026-11-30', '2026-12-01').text).toBe('Overdue');
+    expect(dueLabel('2027-01-01', '2026-12-31').text).toBe('Tomorrow');
+    expect(dueLabel('2027-03-01', '2027-02-28').text).toBe('Tomorrow');
+    expect(dueLabel('2027-01-08', '2026-12-31').text).toBe('8 Jan');
+  });
+});
+
+describe('addedSince', () => {
+  const before = new Set(['t1']);
+  it('is true only for a new task added by that person', () => {
+    expect(addedSince(before, [task('t1', undefined, [a('nikita')], { updatedBy: 'nikita' })], 'nikita')).toBe(false);
+    expect(addedSince(before, [task('t2', undefined, [a('nikita')], { updatedBy: 'daryna' })], 'nikita')).toBe(false);
+    expect(addedSince(before, [task('t2', undefined, [a('nikita')], { updatedBy: 'nikita' })], 'nikita')).toBe(true);
+  });
+});
+
+describe('group route param', () => {
+  it('round-trips names with route characters', () => {
+    for (const name of ['Move-in', 'Gas / electric', '100% done', 'Why?', 'Flat #2', 'a%2Fb']) {
+      const param = groupToParam(name);
+      expect(param).not.toMatch(/[/?#]/);
+      expect(groupFromParam(param)).toBe(name);
+    }
+  });
+
+  it('keeps a segment that is not valid encoding, and an empty one', () => {
+    expect(groupFromParam('100%')).toBe('100%');
+    expect(groupFromParam(undefined)).toBe('');
   });
 });
 

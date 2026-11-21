@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChoiceChip } from '../components/ChoiceChip';
 import { DatePickerSheet, shortDate } from '../components/DatePickerSheet';
@@ -85,7 +85,11 @@ export default function AddTask() {
               label={c.label}
               a11yLabel={c.a11y}
               selected={when === c.value}
-              onPress={() => (c.value === 'date' ? setPicking(true) : setWhen(c.value))}
+              onPress={() => {
+                if (c.value !== 'date') return setWhen(c.value);
+                Keyboard.dismiss(); // otherwise the keyboard can cover the calendar sheet
+                setPicking(true);
+              }}
             />
           ))}
         </ScrollView>

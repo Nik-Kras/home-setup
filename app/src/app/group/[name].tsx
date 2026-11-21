@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NAME, TaskRow } from '../../components/TaskRow';
 import { Icon, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { groupTasks } from '../../domain/taskOptions';
+import { groupFromParam, groupTasks } from '../../domain/taskOptions';
 import type { Person, Task } from '../../domain/types';
 import { colors, fonts, TARGET } from '../../theme/tokens';
 
@@ -14,7 +14,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 /** One task group: progress, the viewer's open tasks, and their done ones collapsed at the end. */
 export default function GroupDetail() {
   const params = useLocalSearchParams<{ name: string; person?: string }>();
-  const name = one(params.name) ?? '';
+  const name = groupFromParam(one(params.name));
   const { tasks, me, setTaskStatus } = useStore();
   const insets = useSafeAreaInsets();
   const p = one(params.person);

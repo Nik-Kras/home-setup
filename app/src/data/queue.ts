@@ -9,7 +9,8 @@ export interface KV {
 }
 
 export type Op =
-  | { id: string; kind: 'upsert'; table: string; row: Record<string, unknown>; onConflict?: string }
+  /** ignoreDuplicates: insert only, never overwrite an existing row (creation ops, so a retry cannot undo a later edit). */
+  | { id: string; kind: 'upsert'; table: string; row: Record<string, unknown>; onConflict?: string; ignoreDuplicates?: boolean }
   | { id: string; kind: 'patch'; table: string; match: Record<string, string>; row: Record<string, unknown> };
 
 /** ok: done. retry: network or server trouble, keep the Op. drop: the server refused it for good. */

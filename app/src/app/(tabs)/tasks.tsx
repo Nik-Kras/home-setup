@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useRef, useState, type ComponentRef } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { NotesChip } from '../../components/NotesChip';
 import { Screen } from '../../components/Screen';
@@ -7,15 +7,15 @@ import { GroupChips } from '../../components/GroupChips';
 import { NAME, TaskRow } from '../../components/TaskRow';
 import { Icon, SectionHeading, Segmented, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { groupsFor } from '../../domain/taskOptions';
+import { addedSince, groupsFor } from '../../domain/taskOptions';
 import { openTasksSorted, sharedTasks, tasksFor } from '../../domain/tasks';
 import type { Person } from '../../domain/types';
 import { colors, fonts, TARGET } from '../../theme/tokens';
 
 type View_ = 'nikita' | 'daryna' | 'both';
 
-function AddTaskBar({ onAdd, onMore }: { onAdd: (title: string, both: boolean) => void; onMore: (title: string, both: boolean) => void }) {
-  const [text, setText] = useState('');
+/** The typed text lives with the screen, so "More options" can keep it until a task is really added. */
+function AddTaskBar({ text, setText, onAdd, onMore }: { text: string; setText: (t: string) => void; onAdd: (title: string, both: boolean) => void; onMore: (title: string, both: boolean) => void }) {
   const [both, setBoth] = useState(false);
   const ref = useRef<ComponentRef<typeof TextInput>>(null);
   const submit = () => {
@@ -24,10 +24,7 @@ function AddTaskBar({ onAdd, onMore }: { onAdd: (title: string, both: boolean) =
     setText('');
     ref.current?.focus();
   };
-  const more = () => {
-    onMore(text.trim(), both);
-    setText('');
-  };
+  const more = () => onMore(text.trim(), both);
   return (
     <View style={{ gap: 8, marginVertical: 4 }}>
       <View style={s.addBar}>
@@ -60,8 +57,23 @@ export default function Tasks() {
 
   const toggle = (id: string) => (p: Person, done: boolean) => setTaskStatus(id, p, done ? 'done' : 'todo');
   const groupPerson = viewer ?? me;
-  const openOptions = (title: string, both: boolean) =>
+  // "More options" keeps the typed text; it is cleared only once a new task of mine shows up (backing out keeps it).
+  const [text, setText] = useState('');
+  const optionsFrom = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (optionsFrom.current && addedSince(optionsFrom.current, tasks, me)) {
+      optionsFrom.current = null;
+      setText('');
+    }
+  }, [tasks, me]);
+  const openOptions = (title: string, both: boolean) => {
+    optionsFrom.current = new Set(tasks.map((t) => t.id));
     router.push({ pathname: '/add-task', params: { title, who: both ? 'both' : view === other ? 'other' : 'me' } });
+  };
+  const quickAdd = (title: string, both: boolean) => {
+    optionsFrom.current = null;
+    addTask(title, both ? ['nikita', 'daryna'] : [view === 'both' ? me : view]);
+  };
 
   return (
     <Screen
@@ -83,7 +95,7 @@ export default function Tasks() {
         </View>
       }
     >
-      <AddTaskBar onAdd={(title, both) => addTask(title, both ? ['nikita', 'daryna'] : [view === 'both' ? me : view])} onMore={openOptions} />
+      <AddTaskBar text={text} setText={setText} onAdd={quickAdd} onMore={openOptions} />
       {urgent.length > 0 ? <SectionHeading meta={`${urgent.length}`}>Most urgent</SectionHeading> : null}
       {urgent.map((t) => <TaskRow key={t.id} task={t} viewer={viewer} me={me} onToggle={toggle(t.id)} />)}
       {rest.length > 0 ? <SectionHeading>{view === 'both' ? 'Each of you ticks it' : 'Next up'}</SectionHeading> : null}

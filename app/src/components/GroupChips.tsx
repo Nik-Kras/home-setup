@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
-import type { GroupSummary } from '../domain/taskOptions';
+import { groupToParam, type GroupSummary } from '../domain/taskOptions';
 import type { Person } from '../domain/types';
 import { colors, fonts, TARGET } from '../theme/tokens';
 
@@ -12,7 +12,7 @@ export function GroupChips({ groups, person }: { groups: GroupSummary[]; person:
       {groups.map((g) => (
         <Pressable
           key={g.name}
-          onPress={() => router.push({ pathname: '/group/[name]', params: { name: g.name, person } })}
+          onPress={() => router.push({ pathname: '/group/[name]', params: { name: groupToParam(g.name), person } })}
           accessibilityRole="button"
           accessibilityLabel={`${g.name}, ${g.open} open`}
           accessibilityHint="Opens the group"
