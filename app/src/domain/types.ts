@@ -47,6 +47,22 @@ export interface Assignment {
   steps: TaskStep[];
 }
 
+/** info: a plain fact. to_confirm: not known yet, can become a task. check: something to verify. */
+export type NoteKind = 'info' | 'to_confirm' | 'check';
+export const NOTE_KINDS: readonly NoteKind[] = ['info', 'to_confirm', 'check'];
+
+/** A fact about the home or the tenancy, shared by both people. */
+export interface FlatNote {
+  id: string;
+  title: string;
+  body?: string;
+  /** Where it comes from, such as a contract clause. */
+  reference?: string;
+  kind: NoteKind;
+  sort: number;
+  updatedBy: Actor;
+}
+
 export interface Task {
   id: string;
   title: string;

@@ -1,4 +1,4 @@
-import type { Item, Task } from '../domain/types';
+import type { FlatNote, Item, Task } from '../domain/types';
 
 /** Demo data shown before Supabase is connected. Generic on purpose: no addresses or real names. */
 const now = '2026-11-21T10:00:00Z';
@@ -40,4 +40,10 @@ export const seedTasks: Task[] = [
     ],
   },
   { id: 't7', title: 'Update bank address', group: 'Address', urgent: false, updatedBy: 'claude', assignments: [{ person: 'daryna', status: 'todo', steps: [] }] },
+];
+
+/** Demo notes, generic on purpose. Real notes live only in Supabase. */
+export const seedNotes: FlatNote[] = [
+  { id: 'n1', title: 'Demo: is there a gas supply?', body: 'Demo note. Not confirmed yet; check the meter cupboard.', kind: 'to_confirm', sort: 1, updatedBy: 'claude' },
+  { id: 'n2', title: 'Demo: no smoking inside', body: 'Demo note. An example house rule.', reference: 'Example clause 1.1', kind: 'info', sort: 2, updatedBy: 'claude' },
 ];

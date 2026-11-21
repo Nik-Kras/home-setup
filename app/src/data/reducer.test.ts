@@ -7,7 +7,7 @@ const task: Task = {
   id: 't1', title: 'Register with a new GP', urgent: false, updatedBy: 'claude',
   assignments: [{ person: 'nikita', status: 'todo', steps: [] }, { person: 'daryna', status: 'done', steps: [] }],
 };
-const state: State = { me: 'daryna', items: [item], tasks: [task] };
+const state: State = { me: 'daryna', items: [item], tasks: [task], notes: [] };
 
 describe('updateItem', () => {
   it('applies the patch, keeps the id and stamps who changed it', () => {

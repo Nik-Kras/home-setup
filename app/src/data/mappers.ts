@@ -1,4 +1,4 @@
-import type { Assignment, Item, Person, Task, TaskStatus } from '../domain/types';
+import type { Assignment, FlatNote, Item, Person, Task, TaskStatus } from '../domain/types';
 
 /** Row shapes as PostgREST returns them. Only the columns the app reads. */
 export interface ItemRow {
@@ -65,6 +65,28 @@ export function taskFromRow(r: TaskRow): Task {
 
 export function taskToRow(t: Task): Record<string, unknown> {
   return { id: t.id, title: t.title, grp: t.group ?? null, due: t.due ?? null, urgent: t.urgent, reference: t.reference ?? null, notes: t.notes ?? null };
+}
+
+export interface FlatNoteRow {
+  id: string; title: string; body: string | null; reference: string | null; kind: FlatNote['kind']; sort: number | null; updated_by: string;
+}
+
+export function noteFromRow(r: FlatNoteRow): FlatNote {
+  return { id: r.id, title: r.title, body: opt(r.body), reference: opt(r.reference), kind: r.kind, sort: r.sort ?? 0, updatedBy: asActor(r.updated_by) };
+}
+
+/** Domain note to a row for upsert. updated_by is stamped by the server. */
+export function noteToRow(n: FlatNote): Record<string, unknown> {
+  return { id: n.id, title: n.title, body: n.body ?? null, reference: n.reference ?? null, kind: n.kind, sort: n.sort };
+}
+
+/** Only the note columns that differ, for a field-level patch. Empty when nothing changed. */
+export function noteChangedColumns(before: FlatNote, after: FlatNote): Record<string, unknown> {
+  const was = noteToRow(before);
+  const now = noteToRow(after);
+  const out: Record<string, unknown> = {};
+  for (const col of Object.keys(now)) if (col !== 'id' && now[col] !== was[col]) out[col] = now[col];
+  return out;
 }
 
 /** v4-style id made on the device, so an offline-created row keeps the same id once it syncs. */

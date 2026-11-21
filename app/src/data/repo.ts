@@ -1,29 +1,39 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Item, Person, Task, TaskStatus } from '../domain/types';
-import { itemFromRow, itemToRow, newId, taskFromRow, taskToRow, type ItemRow, type TaskRow } from './mappers';
+import type { FlatNote, Item, Person, Task, TaskStatus } from '../domain/types';
+import { itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
 import type { Op, Outcome } from './queue';
 
 export interface Snapshot {
   rooms: { id: string; name: string }[];
   items: Item[];
   tasks: Task[];
+  notes: FlatNote[];
 }
 
 /** Read everything the app shows. Deleted rows are hidden. */
 export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
-  const [rooms, items, tasks] = await Promise.all([
+  const [rooms, items, tasks, notes] = await Promise.all([
     db.from('rooms').select('id,name').order('sort'),
     db.from('items').select('*').is('deleted_at', null).order('added_at', { ascending: false }),
     db.from('tasks').select('*, task_assignments(person,status, task_steps(id,title,done,sort))').is('deleted_at', null).order('created_at', { ascending: false }),
+    db.from('flat_notes').select('id,title,body,reference,kind,sort,updated_by').is('deleted_at', null).order('sort').order('created_at'),
   ]);
   const err = rooms.error ?? items.error ?? tasks.error;
   if (err) throw err;
+  // Until migration 0005 is run the table does not exist; show no notes rather than failing the whole load.
+  if (notes.error && !isMissingTable(notes.error)) throw notes.error;
   const roomNames = new Map((rooms.data ?? []).map((r) => [r.id as string, r.name as string]));
   return {
     rooms: (rooms.data ?? []) as Snapshot['rooms'],
     items: ((items.data ?? []) as ItemRow[]).map((r) => itemFromRow(r, roomNames)),
     tasks: ((tasks.data ?? []) as TaskRow[]).map(taskFromRow),
+    notes: notes.error ? [] : ((notes.data ?? []) as FlatNoteRow[]).map(noteFromRow),
   };
+}
+
+/** PostgREST says PGRST205 (Postgres 42P01) when a table is not in the schema yet. */
+export function isMissingTable(error: { code?: string }): boolean {
+  return error.code === 'PGRST205' || error.code === '42P01';
 }
 
 /** Ops for the offline queue. Each is idempotent, so a retry after a dropped connection is safe. */
@@ -53,7 +63,14 @@ export const ops = {
   toggleStep(stepId: string, done: boolean): Op {
     return { id: newId(), kind: 'patch', table: 'task_steps', match: { id: stepId }, row: { done } };
   },
-  softDelete(table: 'items' | 'tasks', id: string): Op {
+  saveNote(note: FlatNote): Op {
+    return { id: newId(), kind: 'upsert', table: 'flat_notes', row: noteToRow(note) };
+  },
+  /** Only the changed note columns, so two people editing different fields of a note do not clash. */
+  patchNote(noteId: string, row: Record<string, unknown>): Op {
+    return { id: newId(), kind: 'patch', table: 'flat_notes', match: { id: noteId }, row };
+  },
+  softDelete(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
     return { id: newId(), kind: 'patch', table: table, match: { id }, row: { deleted_at: new Date().toISOString() } };
   },
 };
@@ -77,7 +94,7 @@ export function makeExecutor(db: SupabaseClient) {
   };
 }
 
-/** Call onChange whenever another device changes items, tasks or assignments. Returns an unsubscribe. */
+/** Call onChange whenever another device changes items, tasks, assignments or flat notes. Returns an unsubscribe. */
 export function subscribe(db: SupabaseClient, onChange: () => void): () => void {
   const channel = db
     .channel('household')
@@ -86,5 +103,10 @@ export function subscribe(db: SupabaseClient, onChange: () => void): () => void 
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignments' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_steps' }, onChange)
     .subscribe();
-  return () => void db.removeChannel(channel);
+  // Own channel, so realtime for the other tables keeps working if migration 0005 has not been run yet.
+  const notes = db.channel('household-notes').on('postgres_changes', { event: '*', schema: 'public', table: 'flat_notes' }, onChange).subscribe();
+  return () => {
+    void db.removeChannel(channel);
+    void db.removeChannel(notes);
+  };
 }
