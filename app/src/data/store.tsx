@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import type { ItemStatus, Person, TaskStatus } from '../domain/types';
+import type { ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { diffToOps } from './diff';
 import { OpQueue } from './queue';
-import { reducer, type Action, type ItemPatch, type State, type TaskPatch } from './reducer';
+import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
 import { loadAll, makeExecutor, subscribe } from './repo';
-import { seedItems, seedTasks } from './seed';
+import { seedItems, seedNotes, seedTasks } from './seed';
 import { db, kv } from './supabase';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -25,6 +25,8 @@ interface Store extends State {
   updateTask: (id: string, patch: TaskPatch) => void;
   setTaskStatus: (id: string, person: Person, status: TaskStatus) => void;
   toggleStep: (id: string, person: Person, stepId: string) => void;
+  addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => void;
+  updateNote: (id: string, patch: NotePatch) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -35,7 +37,7 @@ const LIVE = db !== null;
  * Supabase. Without Supabase keys it runs on demo data. Other devices' changes arrive by realtime.
  */
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<State>({ me: 'nikita', items: LIVE ? [] : seedItems, tasks: LIVE ? [] : seedTasks });
+  const [state, setState] = useState<State>({ me: 'nikita', items: LIVE ? [] : seedItems, tasks: LIVE ? [] : seedTasks, notes: LIVE ? [] : seedNotes });
   const [auth, setAuth] = useState<AuthStatus>(LIVE ? 'loading' : 'signedIn');
   const [sync, setSync] = useState<SyncStatus>(LIVE ? 'pending' : 'demo');
   const ref = useRef(state);
@@ -58,7 +60,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if ((await queue.current.size()) > 0) return setSync('pending'); // never overwrite unsent local edits
       const snap = await loadAll(db);
       roomIds.current = new Map(snap.rooms.map((r) => [r.name, r.id]));
-      set({ ...ref.current, items: snap.items, tasks: snap.tasks });
+      set({ ...ref.current, items: snap.items, tasks: snap.tasks, notes: snap.notes });
       setSync('synced');
     } catch {
       setSync('offline');
@@ -136,6 +138,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateTask: (id, patch) => act({ type: 'updateTask', id, patch }),
       setTaskStatus: (id, person, status) => act({ type: 'setTaskStatus', id, person, status }),
       toggleStep: (id, person, stepId) => act({ type: 'toggleStep', id, person, stepId }),
+      addNote: (title, opts) => act({ type: 'addNote', title, ...opts }),
+      updateNote: (id, patch) => act({ type: 'updateNote', id, patch }),
     }),
     [state, auth, sync, act],
   );

@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { NotesChip } from '../../components/NotesChip';
 import { Screen } from '../../components/Screen';
 import { CheckCircle, Icon, PersonDisc, SectionHeading, Segmented, StatusChip, Sub, Title, UrgentBadge } from '../../components/ui';
 import { useStore } from '../../data/store';
@@ -115,6 +116,7 @@ export default function Tasks() {
       {rest.length > 0 ? <SectionHeading>{view === 'both' ? 'Each of you ticks it' : 'Next up'}</SectionHeading> : null}
       {rest.map((t) => <TaskRow key={t.id} task={t} viewer={viewer} me={me} onToggle={toggle(t.id)} />)}
       {list.length === 0 ? <Text style={s.empty}>Nothing open here.</Text> : null}
+      <NotesChip />
     </Screen>
   );
 }

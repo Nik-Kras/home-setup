@@ -1,5 +1,5 @@
-import type { Item, Task } from '../domain/types';
-import { itemChangedColumns } from './mappers';
+import type { FlatNote, Item, Task } from '../domain/types';
+import { itemChangedColumns, noteChangedColumns } from './mappers';
 import type { Op } from './queue';
 import { ops } from './repo';
 
@@ -13,8 +13,8 @@ const TASK_COLUMNS = [['title', 'title'], ['due', 'due'], ['urgent', 'urgent'], 
  * shared task never sends the other person's part, so a stale screen cannot undo their work.
  */
 export function diffToOps(
-  prev: { items: readonly Item[]; tasks: readonly Task[] },
-  next: { items: readonly Item[]; tasks: readonly Task[] },
+  prev: { items: readonly Item[]; tasks: readonly Task[]; notes?: readonly FlatNote[] },
+  next: { items: readonly Item[]; tasks: readonly Task[]; notes?: readonly FlatNote[] },
   roomIds: ReadonlyMap<string, string>,
 ): Op[] {
   const out: Op[] = [];
@@ -53,6 +53,19 @@ export function diffToOps(
         if (prevStep && prevStep.done !== step.done) out.push(ops.toggleStep(step.id, step.done));
       }
     }
+  }
+
+  // A new note is one upsert; an edited note is one patch of the changed columns.
+  const prevNotes = new Map((prev.notes ?? []).map((n) => [n.id, n]));
+  for (const note of next.notes ?? []) {
+    const before = prevNotes.get(note.id);
+    if (before === note) continue;
+    if (!before) {
+      out.push(ops.saveNote(note));
+      continue;
+    }
+    const fields = noteChangedColumns(before, note);
+    if (Object.keys(fields).length > 0) out.push(ops.patchNote(note.id, fields));
   }
   return out;
 }
