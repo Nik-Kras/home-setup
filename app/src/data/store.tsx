@@ -21,7 +21,7 @@ interface Store extends State {
   addItem: (name: string, opts?: { room?: string; urgent?: boolean; assignedTo?: Person }) => void;
   updateItem: (id: string, patch: ItemPatch) => void;
   setItemStatus: (id: string, status: ItemStatus) => void;
-  addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean }) => void;
+  addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean; group?: string }) => void;
   updateTask: (id: string, patch: TaskPatch) => void;
   setTaskStatus: (id: string, person: Person, status: TaskStatus) => void;
   toggleStep: (id: string, person: Person, stepId: string) => void;

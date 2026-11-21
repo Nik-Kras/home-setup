@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { diffToOps } from './diff';
 import { reducer, type State } from './reducer';
 import type { Item, Task } from '../domain/types';
 
@@ -119,5 +120,39 @@ describe('updateTask', () => {
   it('an empty title is refused and an unchanged patch is a no-op', () => {
     expect(reducer(state, { type: 'updateTask', id: 't1', patch: { title: '' } })).toBe(state);
     expect(reducer(state, { type: 'updateTask', id: 't1', patch: { urgent: false } })).toBe(state);
+  });
+});
+
+describe('addTask', () => {
+  it('a title alone makes an open, undated, ungrouped task for one person', () => {
+    const next = reducer(state, { type: 'addTask', title: '  Test smoke alarms ', assignees: ['daryna'] });
+    expect(next.tasks).toHaveLength(2);
+    expect(next.tasks[0]).toMatchObject({ title: 'Test smoke alarms', urgent: false, updatedBy: 'daryna', assignments: [{ person: 'daryna', status: 'todo', steps: [] }] });
+    expect(next.tasks[0]!.group).toBeUndefined();
+    expect(next.tasks[0]!.due).toBeUndefined();
+  });
+
+  it('keeps group, due and urgent', () => {
+    const next = reducer(state, { type: 'addTask', title: 'Test smoke alarms', assignees: ['nikita'], group: 'Safety', due: '2026-11-29', urgent: true });
+    expect(next.tasks[0]).toMatchObject({ group: 'Safety', due: '2026-11-29', urgent: true });
+  });
+
+  it('a blank group is no group', () => {
+    expect(reducer(state, { type: 'addTask', title: 'Fit a lock', assignees: ['nikita'], group: '  ' }).tasks[0]!.group).toBeUndefined();
+  });
+
+  it('"each of us" is one task with two assignments, sent as one task row and two assignment rows', () => {
+    const next = reducer(state, { type: 'addTask', title: 'Register to vote', assignees: ['nikita', 'daryna', 'nikita'], group: 'Address' });
+    const created = next.tasks[0]!;
+    expect(created.assignments.map((a) => a.person)).toEqual(['nikita', 'daryna']);
+    const out = diffToOps(state, next, new Map());
+    expect(out.filter((o) => o.table === 'tasks')).toHaveLength(1);
+    expect(out.find((o) => o.table === 'tasks')).toMatchObject({ kind: 'upsert', row: { id: created.id, grp: 'Address' } });
+    expect(out.filter((o) => o.table === 'task_assignments')).toHaveLength(2);
+  });
+
+  it('an empty title or no assignee is refused', () => {
+    expect(reducer(state, { type: 'addTask', title: '   ', assignees: ['nikita'] })).toBe(state);
+    expect(reducer(state, { type: 'addTask', title: 'GP', assignees: [] })).toBe(state);
   });
 });

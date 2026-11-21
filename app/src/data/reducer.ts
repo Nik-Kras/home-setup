@@ -27,7 +27,7 @@ export type Action =
   | { type: 'addItem'; name: string; room?: string; urgent?: boolean; assignedTo?: Person }
   | { type: 'updateItem'; id: string; patch: ItemPatch }
   | { type: 'setItemStatus'; id: string; status: ItemStatus }
-  | { type: 'addTask'; title: string; assignees: Person[]; due?: string; urgent?: boolean }
+  | { type: 'addTask'; title: string; assignees: Person[]; due?: string; urgent?: boolean; group?: string }
   | { type: 'updateTask'; id: string; patch: TaskPatch }
   | { type: 'setTaskStatus'; id: string; person: Person; status: TaskStatus }
   | { type: 'toggleStep'; id: string; person: Person; stepId: string };
@@ -71,7 +71,9 @@ export function reducer(state: State, action: Action): State {
     case 'addTask': {
       const title = action.title.trim();
       if (!title || action.assignees.length === 0) return state;
-      const task: Task = { id: newId(), title, due: action.due, urgent: action.urgent ?? false, updatedBy: actor, assignments: action.assignees.map((person) => ({ person, status: 'todo', steps: [] })) };
+      const group = action.group?.trim() || undefined;
+      const people = [...new Set(action.assignees)];
+      const task: Task = { id: newId(), title, group, due: action.due, urgent: action.urgent ?? false, updatedBy: actor, assignments: people.map((person) => ({ person, status: 'todo', steps: [] })) };
       return { ...state, tasks: [task, ...state.tasks] };
     }
     case 'updateTask': {
