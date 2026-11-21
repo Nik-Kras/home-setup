@@ -45,11 +45,15 @@ export const ops = {
   patchItem(itemId: string, row: Record<string, unknown>): Op {
     return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId }, row };
   },
+  /**
+   * A new task. Insert-only (ignoreDuplicates): if the first send succeeded but its reply was lost, the retry
+   * must not reset a title edit or a part the other person has ticked since.
+   */
   saveTask(task: Task): Op[] {
-    const out: Op[] = [{ id: newId(), kind: 'upsert', table: 'tasks', row: taskToRow(task) }];
+    const out: Op[] = [{ id: newId(), kind: 'upsert', table: 'tasks', ignoreDuplicates: true, row: taskToRow(task) }];
     for (const a of task.assignments) {
-      out.push({ id: newId(), kind: 'upsert', table: 'task_assignments', onConflict: 'task_id,person', row: { task_id: task.id, person: a.person, status: a.status } });
-      a.steps.forEach((s, i) => out.push({ id: newId(), kind: 'upsert', table: 'task_steps', row: { id: s.id, task_id: task.id, person: a.person, title: s.title, done: s.done, sort: i } }));
+      out.push({ id: newId(), kind: 'upsert', table: 'task_assignments', onConflict: 'task_id,person', ignoreDuplicates: true, row: { task_id: task.id, person: a.person, status: a.status } });
+      a.steps.forEach((s, i) => out.push({ id: newId(), kind: 'upsert', table: 'task_steps', ignoreDuplicates: true, row: { id: s.id, task_id: task.id, person: a.person, title: s.title, done: s.done, sort: i } }));
     }
     return out;
   },
@@ -80,7 +84,8 @@ export function makeExecutor(db: SupabaseClient) {
   return async (op: Op): Promise<Outcome> => {
     let error: { code?: string; message: string; status?: number } | null;
     if (op.kind === 'upsert') {
-      ({ error } = await db.from(op.table).upsert(op.row, op.onConflict ? { onConflict: op.onConflict } : undefined));
+      const opts = { ...(op.onConflict ? { onConflict: op.onConflict } : {}), ...(op.ignoreDuplicates ? { ignoreDuplicates: true } : {}) };
+      ({ error } = await db.from(op.table).upsert(op.row, Object.keys(opts).length ? opts : undefined));
     } else {
       let q = db.from(op.table).update(op.row);
       for (const [k, v] of Object.entries(op.match)) q = q.eq(k, v);

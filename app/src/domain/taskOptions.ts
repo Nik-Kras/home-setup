@@ -1,4 +1,4 @@
-import { assignmentFor, openTasksSorted, tasksFor } from './tasks';
+import { assignmentFor, daysLeft, openTasksSorted, tasksFor } from './tasks';
 import type { Person, Task } from './types';
 
 /** The groups offered when adding a task. Tasks may also carry other group names (from Claude or older data). */
@@ -11,6 +11,25 @@ export type Who = 'me' | 'other' | 'both';
 export function localDate(d: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "26 Nov" for a YYYY-MM-DD day. */
+export function dayMonth(day: string): string {
+  return `${Number(day.slice(8, 10))} ${MONTHS[Number(day.slice(5, 7)) - 1]}`;
+}
+
+export type DueTone = 'coral' | 'amber' | 'neutral';
+
+/** The due chip for a task due on `due`, seen on `today` (both local YYYY-MM-DD, see `localDate`). */
+export function dueLabel(due: string, today: string): { text: string; tone: DueTone } {
+  const d = daysLeft(due, today);
+  if (d < 0) return { text: 'Overdue', tone: 'coral' };
+  if (d === 0) return { text: 'Today', tone: 'coral' };
+  if (d === 1) return { text: 'Tomorrow', tone: 'amber' };
+  if (d <= 7) return { text: `${d} days`, tone: 'amber' };
+  return { text: dayMonth(due), tone: 'neutral' };
 }
 
 export function addDays(day: string, n: number): string {
@@ -37,6 +56,26 @@ export function assigneesFor(who: Who, me: Person): Person[] {
   const other: Person = me === 'nikita' ? 'daryna' : 'nikita';
   if (who === 'both') return [me, other];
   return [who === 'me' ? me : other];
+}
+
+/** Whether `person` added a task whose id is not in `before`. Used to clear the add bar only once a task is really added. */
+export function addedSince(before: ReadonlySet<string>, tasks: readonly Task[], person: Person): boolean {
+  return tasks.some((t) => !before.has(t.id) && t.updatedBy === person);
+}
+
+/** A group name as a route segment. Encoded here so '/', '%', '?' and '#' survive the route. */
+export function groupToParam(name: string): string {
+  return encodeURIComponent(name);
+}
+
+/** The group name back from its route segment. A segment that is not valid encoding is taken as it is. */
+export function groupFromParam(raw: string | undefined): string {
+  if (!raw) return '';
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return raw;
+  }
 }
 
 export interface GroupSummary {
