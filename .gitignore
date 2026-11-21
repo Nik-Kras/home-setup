@@ -1,2 +1,5 @@
 .claude/skills/
 design-ref/
+.env
+app/.env
+.env.*
