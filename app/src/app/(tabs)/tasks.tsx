@@ -30,10 +30,12 @@ function TaskRow({ task, viewer, me, onToggle }: { task: Task; viewer: Person | 
     ? task.assignments.map((a) => `${a.person === me ? 'You' : NAME[a.person]}: ${a.status === 'done' ? 'done' : a.status === 'in_progress' ? 'in progress' : wait.includes(a.person) ? 'waiting' : 'to do'}`).join(' · ')
     : task.group ?? '';
   const due = task.due ? dueLabel(task.due) : undefined;
+  const status = !shared && mine && mine.status !== 'todo' ? (mine.status === 'done' ? 'done' : mine.status === 'in_progress' ? 'in progress' : 'waiting') : null;
+  const label = [task.title, task.urgent ? 'Urgent' : null, meta || null, status, due ? `due ${due.text}` : null].filter(Boolean).join(', ');
   return (
     <View style={s.row}>
       <CheckCircle done={mine?.status === 'done'} label={`${mine?.status === 'done' ? 'Mark not done' : 'Mark done'}: ${task.title}`} onPress={canTick ? () => onToggle(subject, mine?.status !== 'done') : undefined} />
-      <Pressable onPress={() => router.push(`/task/${task.id}`)} accessibilityRole="button" accessibilityLabel={`Open ${task.title}`} style={s.mid}>
+      <Pressable onPress={() => router.push(`/task/${task.id}`)} accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Opens details" style={s.mid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{task.title}</Text>{task.urgent ? <UrgentBadge /> : null}</View>
         {meta ? <Text style={s.meta} numberOfLines={1}>{meta}</Text> : null}
       </Pressable>

@@ -1,4 +1,5 @@
 import type { Item, Task } from '../domain/types';
+import { itemChangedColumns } from './mappers';
 import type { Op } from './queue';
 import { ops } from './repo';
 
@@ -7,7 +8,8 @@ const TASK_COLUMNS = [['title', 'title'], ['due', 'due'], ['urgent', 'urgent'], 
 
 /**
  * Turn "state before, state after" into the minimal ops to send.
- * A person's edit sends only the thing that person changed. In particular, changing my part of a
+ * A person's edit sends only the thing that person changed: a new item is one upsert, an edited item
+ * is one patch of the changed columns. Changing my part of a
  * shared task never sends the other person's part, so a stale screen cannot undo their work.
  */
 export function diffToOps(
@@ -19,7 +21,14 @@ export function diffToOps(
 
   const prevItems = new Map(prev.items.map((i) => [i.id, i]));
   for (const item of next.items) {
-    if (prevItems.get(item.id) !== item) out.push(ops.saveItem(item, roomIds));
+    const before = prevItems.get(item.id);
+    if (before === item) continue;
+    if (!before) {
+      out.push(ops.saveItem(item, roomIds));
+      continue;
+    }
+    const fields = itemChangedColumns(before, item, roomIds);
+    if (Object.keys(fields).length > 0) out.push(ops.patchItem(item.id, fields));
   }
 
   const prevTasks = new Map(prev.tasks.map((t) => [t.id, t]));

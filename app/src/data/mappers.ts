@@ -39,6 +39,18 @@ export function itemToRow(i: Item, roomIds: ReadonlyMap<string, string>): Record
   };
 }
 
+/**
+ * Only the item columns that differ between two versions of the same item, for a field-level patch.
+ * id never changes and updated_by is never sent. Empty when nothing would change in the database.
+ */
+export function itemChangedColumns(before: Item, after: Item, roomIds: ReadonlyMap<string, string>): Record<string, unknown> {
+  const was = itemToRow(before, roomIds);
+  const now = itemToRow(after, roomIds);
+  const out: Record<string, unknown> = {};
+  for (const col of Object.keys(now)) if (col !== 'id' && now[col] !== was[col]) out[col] = now[col];
+  return out;
+}
+
 export function taskFromRow(r: TaskRow): Task {
   const assignments: Assignment[] = r.task_assignments.map((a) => ({
     person: a.person,

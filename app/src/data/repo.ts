@@ -31,6 +31,10 @@ export const ops = {
   saveItem(item: Item, roomIds: ReadonlyMap<string, string>): Op {
     return { id: newId(), kind: 'upsert', table: 'items', row: itemToRow(item, roomIds) };
   },
+  /** Only the changed item columns, so a stale device cannot undo another person's edit to a different field. */
+  patchItem(itemId: string, row: Record<string, unknown>): Op {
+    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId }, row };
+  },
   saveTask(task: Task): Op[] {
     const out: Op[] = [{ id: newId(), kind: 'upsert', table: 'tasks', row: taskToRow(task) }];
     for (const a of task.assignments) {

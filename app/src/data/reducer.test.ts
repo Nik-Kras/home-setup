@@ -22,6 +22,22 @@ describe('updateItem', () => {
   it('an empty name is refused', () => {
     expect(reducer(state, { type: 'updateItem', id: 'i1', patch: { name: '  ' } })).toBe(state);
   });
+
+  it('trims the name on save', () => {
+    expect(reducer(state, { type: 'updateItem', id: 'i1', patch: { name: '  Kettle 2 ' } }).items[0]!.name).toBe('Kettle 2');
+    expect(reducer(state, { type: 'updateItem', id: 'i1', patch: { name: ' Kettle ' } })).toBe(state);
+  });
+
+  it('ignores status, its timestamps and addedAt, which go through setItemStatus', () => {
+    const sneaky = { status: 'installed', deliveredAt: 'x', installedAt: 'y', addedAt: 'z', id: 'other', updatedBy: 'claude' } as unknown as { notes: string };
+    expect(reducer(state, { type: 'updateItem', id: 'i1', patch: sneaky })).toBe(state);
+    const next = reducer(state, { type: 'updateItem', id: 'i1', patch: { ...sneaky, notes: 'Matte' } }).items[0]!;
+    expect(next).toEqual({ ...item, notes: 'Matte', updatedBy: 'daryna' });
+  });
+
+  it('an unknown id is a no-op', () => {
+    expect(reducer(state, { type: 'updateItem', id: 'nope', patch: { name: 'Toaster' } })).toBe(state);
+  });
 });
 
 describe('setItemStatus', () => {
@@ -51,6 +67,24 @@ describe('setItemStatus', () => {
   it('the same status returns the same state', () => {
     expect(reducer(state, { type: 'setItemStatus', id: 'i1', status: 'needed' })).toBe(state);
   });
+
+  it('installed straight from needed stamps both timestamps', () => {
+    const got = reducer(state, { type: 'setItemStatus', id: 'i1', status: 'installed' }).items[0]!;
+    expect(got.status).toBe('installed');
+    expect(got.deliveredAt).toBeTruthy();
+    expect(got.installedAt).toBe(got.deliveredAt);
+  });
+
+  it('installed back to delivered keeps the original deliveredAt and clears installedAt', () => {
+    const done: State = { ...state, items: [{ ...item, status: 'installed', deliveredAt: '2026-11-22T09:00:00Z', installedAt: '2026-11-23T09:00:00Z' }] };
+    const got = reducer(done, { type: 'setItemStatus', id: 'i1', status: 'delivered' }).items[0]!;
+    expect(got).toMatchObject({ status: 'delivered', deliveredAt: '2026-11-22T09:00:00Z' });
+    expect(got.installedAt).toBeUndefined();
+  });
+
+  it('an unknown id is a no-op', () => {
+    expect(reducer(state, { type: 'setItemStatus', id: 'nope', status: 'delivered' })).toBe(state);
+  });
 });
 
 describe('updateTask', () => {
@@ -65,6 +99,21 @@ describe('updateTask', () => {
     const next = reducer(state, { type: 'updateTask', id: 't1', patch: sneaky }).tasks[0]!;
     expect(next.title).toBe('GP');
     expect(next.assignments).toBe(task.assignments);
+  });
+
+  it('clearing a field sets it to undefined', () => {
+    const withNotes: State = { ...state, tasks: [{ ...task, notes: 'Bring ID', due: '2026-12-01' }] };
+    const next = reducer(withNotes, { type: 'updateTask', id: 't1', patch: { notes: undefined } }).tasks[0]!;
+    expect(next.notes).toBeUndefined();
+    expect(next).toMatchObject({ due: '2026-12-01', updatedBy: 'daryna' });
+  });
+
+  it('trims the title on save', () => {
+    expect(reducer(state, { type: 'updateTask', id: 't1', patch: { title: '  GP visit  ' } }).tasks[0]!.title).toBe('GP visit');
+  });
+
+  it('an unknown id is a no-op', () => {
+    expect(reducer(state, { type: 'updateTask', id: 'nope', patch: { title: 'GP' } })).toBe(state);
   });
 
   it('an empty title is refused and an unchanged patch is a no-op', () => {

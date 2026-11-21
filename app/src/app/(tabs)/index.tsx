@@ -65,7 +65,7 @@ function ItemRow({ item, onGot }: { item: Item; onGot: () => void }) {
       <Pressable onPress={onGot} accessibilityRole="button" accessibilityLabel={`Mark ${item.name} as got`} hitSlop={2}>
         <IconTile icon={glyphFor(item.name)} />
       </Pressable>
-      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={`Open ${item.name}`} style={s.rowMid}>
+      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details" style={s.rowMid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
           {item.assignedTo ? <PersonDisc person={item.assignedTo} size={16} /> : null}

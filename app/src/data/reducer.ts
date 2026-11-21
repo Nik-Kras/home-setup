@@ -9,8 +9,12 @@ export interface State {
   tasks: Task[];
 }
 
-/** Item fields a person can edit. id is fixed and updatedBy is stamped by the reducer. */
-export type ItemPatch = Partial<Omit<Item, 'id' | 'updatedBy'>>;
+/**
+ * Item fields a person can edit. id and addedAt are fixed, updatedBy is stamped by the reducer, and
+ * status with its timestamps changes only through setItemStatus.
+ */
+export const ITEM_FIELDS = ['name', 'quantity', 'urgent', 'needsInstall', 'room', 'estPrice', 'actualPrice', 'assignedTo', 'boughtBy', 'link', 'notes'] as const;
+export type ItemPatch = Partial<Pick<Item, (typeof ITEM_FIELDS)[number]>>;
 
 /** Task fields a person can edit. Assignments change only through their own actions. */
 export const TASK_FIELDS = ['title', 'due', 'urgent', 'notes', 'reference', 'group'] as const;
@@ -51,8 +55,12 @@ export function reducer(state: State, action: Action): State {
       return { ...state, items: [item, ...state.items] };
     }
     case 'updateItem': {
-      const { id: _id, updatedBy: _by, ...patch } = action.patch as Partial<Item>;
-      if (patch.name !== undefined && !patch.name.trim()) return state;
+      const patch: ItemPatch = {};
+      for (const k of ITEM_FIELDS) if (k in action.patch) Object.assign(patch, { [k]: action.patch[k] });
+      if (patch.name !== undefined) {
+        patch.name = patch.name.trim();
+        if (!patch.name) return state;
+      }
       const items = state.items.map((i) => (i.id === action.id ? patched(i, patch, actor) : i));
       return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
     }
@@ -69,7 +77,10 @@ export function reducer(state: State, action: Action): State {
     case 'updateTask': {
       const patch: TaskPatch = {};
       for (const k of TASK_FIELDS) if (k in action.patch) Object.assign(patch, { [k]: action.patch[k] });
-      if (patch.title !== undefined && !patch.title.trim()) return state;
+      if (patch.title !== undefined) {
+        patch.title = patch.title.trim();
+        if (!patch.title) return state;
+      }
       const tasks = state.tasks.map((t) => (t.id === action.id ? patched(t, patch, actor) : t));
       return tasks.some((t, n) => t !== state.tasks[n]) ? { ...state, tasks } : state;
     }

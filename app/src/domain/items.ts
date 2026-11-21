@@ -37,8 +37,9 @@ export function markGot(item: Item, now: string, actor: Item['updatedBy']): Item
 }
 
 /**
- * Set any status directly (detail screen). Reaching delivered or installed stamps that time;
- * going back clears the timestamps of the steps no longer reached.
+ * Set any status directly (detail screen). Reaching delivered or installed stamps that time, keeping
+ * an existing one (moving back from installed keeps the original deliveredAt); going back before a
+ * step clears its timestamp.
  */
 export function setStatus(item: Item, status: ItemStatus, now: string, actor: Item['updatedBy']): Item {
   if (status === item.status) return item;
@@ -47,8 +48,8 @@ export function setStatus(item: Item, status: ItemStatus, now: string, actor: It
     ...item,
     status,
     updatedBy: actor,
-    deliveredAt: status === 'delivered' ? now : at > ITEM_STATUSES.indexOf('delivered') ? item.deliveredAt ?? now : undefined,
-    installedAt: status === 'installed' ? now : undefined,
+    deliveredAt: at >= ITEM_STATUSES.indexOf('delivered') ? item.deliveredAt ?? now : undefined,
+    installedAt: status === 'installed' ? item.installedAt ?? now : undefined,
   };
 }
 

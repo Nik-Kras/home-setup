@@ -19,10 +19,26 @@ describe('diffToOps', () => {
     expect(diffToOps({ items: [item], tasks: [task] }, { items: [item], tasks: [task] }, rooms)).toEqual([]);
   });
 
-  it('a changed item is one upsert with the room id', () => {
+  it('marking an item got is one patch of status and deliveredAt', () => {
     const out = diffToOps({ items: [item], tasks: [] }, { items: [markGot(item, '2026-11-22T00:00:00Z', 'nikita')], tasks: [] }, rooms);
+    expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { status: 'delivered', delivered_at: '2026-11-22T00:00:00Z' } }]);
+  });
+
+  it('an item field edit patches only the changed columns, never updated_by', () => {
+    const next: Item = { ...item, estPrice: 30, needsInstall: true, room: undefined, updatedBy: 'daryna' };
+    const out = diffToOps({ items: [item], tasks: [] }, { items: [next], tasks: [] }, rooms);
+    expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { est_price: 30, needs_install: true, room_id: null } }]);
+  });
+
+  it('a new item is one upsert of the whole row', () => {
+    const out = diffToOps({ items: [], tasks: [] }, { items: [item], tasks: [] }, rooms);
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ kind: 'upsert', table: 'items', row: { id: 'i1', status: 'delivered', room_id: 'room-1' } });
+    expect(out[0]).toMatchObject({ kind: 'upsert', table: 'items', row: { id: 'i1', name: 'Kettle', status: 'needed', quantity: 1, room_id: 'room-1', added_at: '2026-11-21T10:00:00Z' } });
+    expect(out[0]!.row).not.toHaveProperty('updated_by');
+  });
+
+  it('an item change that only touches updatedBy sends nothing', () => {
+    expect(diffToOps({ items: [item], tasks: [] }, { items: [{ ...item, updatedBy: 'daryna' }], tasks: [] }, rooms)).toEqual([]);
   });
 
   it('my part of a shared task sends only my assignment, never the other person', () => {
@@ -52,11 +68,19 @@ describe('diffToOps', () => {
     expect(out).toEqual([expect.objectContaining({ kind: 'patch', table: 'tasks', row: { notes: null } })]);
   });
 
-  it('an item status change is one upsert with the new status and timestamp', () => {
+  it('an item status change is one patch with the new status and timestamps', () => {
     const next = setStatus(item, 'installed', '2026-11-23T00:00:00Z', 'daryna');
     const out = diffToOps({ items: [item], tasks: [] }, { items: [next], tasks: [] }, rooms);
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ kind: 'upsert', table: 'items', row: { id: 'i1', status: 'installed', installed_at: '2026-11-23T00:00:00Z', delivered_at: '2026-11-23T00:00:00Z' } });
+    expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { status: 'installed', installed_at: '2026-11-23T00:00:00Z', delivered_at: '2026-11-23T00:00:00Z' } }]);
+  });
+
+  it('a task field change and my assignment change send one task patch and my assignment only', () => {
+    const next: Task = { ...setAssignmentStatus(task, 'daryna', 'in_progress', 'daryna'), due: '2026-12-05' };
+    const out = diffToOps({ items: [], tasks: [task] }, { items: [], tasks: [next] }, rooms);
+    expect(out).toEqual([
+      { id: expect.any(String), kind: 'patch', table: 'tasks', match: { id: 't1' }, row: { due: '2026-12-05' } },
+      { id: expect.any(String), kind: 'patch', table: 'task_assignments', match: { task_id: 't1', person: 'daryna' }, row: { status: 'in_progress' } },
+    ]);
   });
 
   it('a new task sends the task, each assignment and each step', () => {
