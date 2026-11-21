@@ -13,7 +13,7 @@ Track everything a new home needs: things to buy, things to install, and service
 | Field | Required | Notes |
 |---|---|---|
 | Name | yes | |
-| Status | yes | Needed, Researching, Ordered, Delivered, Installed |
+| Status | yes | Needed, Looking, Ordered, Delivered, Installed |
 | Priority | yes | |
 | Quantity | yes | default 1 |
 | Room | no | editable list: kitchen, living room, bedroom, bathroom, hallway, general |

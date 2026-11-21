@@ -1,6 +1,6 @@
 # Design decisions
 
-Version 3, 2026-11-21. History: v1 (muted green, Inter, form sheet) rejected. v2 (light, Nunito, tile list) rated 4/10: too plain. v3 uses research on Magic UI, Aceternity UI, React Bits, 21st.dev and Refero Styles.
+Version 4, 2026-11-21 (rated 6.5/10 at v3; v4 fixes the overlap and stretching complaints). History: v1 (muted green, Inter, form sheet) rejected. v2 (light, Nunito, tile list) rated 4/10: too plain. v3 uses research on Magic UI, Aceternity UI, React Bits, 21st.dev and Refero Styles.
 
 ## Direction: dark-first, warm-tinted, hairline-built
 The sources disagree: the component libraries lean dark with glow, Refero's styles lean warm and light with no glow. v3 takes the shared ground: tinted near-black surfaces, 1px hairline borders, large radii, serif display type, tabular numbers, and **one** accent glow per screen. A light variant is not drawn yet.
@@ -21,7 +21,7 @@ The sources disagree: the component libraries lean dark with glow, Refero's styl
 | Bedroom | lilac `#B9A4FF` |
 
 - Tinted fills use the hue at 14-16% opacity with the full hue as text.
-- Status chips: Needed (outline), Researching (white 9%), Ordered (amber), Delivered (mint), Installed (solid mint). Always text-labelled.
+- Status chips: Needed (outline), Looking (white 9%), Ordered (amber), Delivered (mint), Installed (solid mint). Always text-labelled.
 - Fonts: Instrument Serif (titles, big numbers, room headings), Geist (everything else). Minimum 12-13px for small text, tabular numbers for money.
 - Shape: radius 18 rows, 24 tiles, pills for chips, inputs and the floating tab bar. 4px spacing base.
 
@@ -66,3 +66,22 @@ The sources disagree: the component libraries lean dark with glow, Refero's styl
 - Hand-drawn glyph set (about 60 items) is the largest asset task; room icon is the fallback.
 - A light theme variant.
 - Success criteria once built: add in 5 seconds or less, mark as got in one tap, a change shows on the other phone in 2 seconds or less when the app is open, 20 offline edits apply after reconnecting.
+
+## v4 changes (review loop)
+Each iteration: render every screen to a PNG, run an automated overflow/overlap check, look at the images, run UI analysis agents (impeccable, design-review/ui-ux-pro-max, taste/accessibility), fix, repeat. Iterations 1-6 fixed:
+- Floating tab bar covered the last list row. Scroll areas now end above the bar (bottom padding 96px), the bar is opaque, and a scrim fades the list.
+- The tall Home tile was stretched. Home is now a uniform two-column grid (aspect 1:1.02) and shows only items that are really in place.
+- Item icons overlapped captions on Home. Icons now sit in the area above the caption.
+- Medium and large widgets overflowed their frames and ran into the dock. Heights were set from the content (medium 188, large 336) and the large widget shows four rows.
+- Add screen: one Add button only; options split into Room and Who rows with Urgent; selected chips carry a check mark; suggestions use a plus button instead of "Tap to add".
+- Next up and progress ring merged into one 84px card to give the list more room.
+- Urgent items get a coral left edge as well as the word "Urgent".
+- One status vocabulary everywhere: Needed, Looking, Ordered, Delivered, Installed (list, item stepper, widgets).
+- Numbers agree across screens: 13 items, 7 got, 6 left; budget £1,284 spent of £1,900, £616 to buy, rooms sum to £1,284 with an "Other" row.
+- Contrast: secondary text `#AEB8B2`, muted `#98A29C`, tracks 14-18% white, dashed borders 38% white, input borders 38% white. Tap targets 44px or more.
+
+## Not done yet (from the reviews)
+- Focus rings and `aria-pressed` states are only partly drawn in the mocks; they belong in the build.
+- Photos on Home are placeholders until real photos exist.
+- Row-complete animation (strike, then collapse in 240ms), ring draw-on and stepper fill are specified, not shown.
+- A light theme.
