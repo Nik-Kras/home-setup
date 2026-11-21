@@ -143,6 +143,26 @@ export function itemSteps(item: Item): { status: ItemStatus; state: 'done' | 'cu
   });
 }
 
+/**
+ * Colour of the current step. Amber means only "in transit", so it is used for Ordered alone; a
+ * finished item shows its current step as done (mint); any other current step is a neutral highlight.
+ */
+export function currentStepTone(item: Item): 'done' | 'transit' | 'neutral' {
+  if (isItemDone(item)) return 'done';
+  return item.status === 'ordered' ? 'transit' : 'neutral';
+}
+
+/**
+ * The confirmation line for a stepper tap that would clear a delivered or installed date, such as
+ * "This clears the delivered date." Undefined when nothing would be lost, so no confirmation is needed.
+ */
+export function clearedDatesWarning(item: Item, status: ItemStatus): string | undefined {
+  const after = setStatus(item, status, item.addedAt, item.updatedBy);
+  const lost = [item.deliveredAt && !after.deliveredAt ? 'delivered' : undefined, item.installedAt && !after.installedAt ? 'installed' : undefined].filter(Boolean);
+  if (lost.length === 0) return undefined;
+  return lost.length === 1 ? `This clears the ${lost[0]} date.` : `This clears the ${lost.join(' and ')} dates.`;
+}
+
 /** Label of the one primary button, or undefined when the item is finished. */
 export function nextActionLabel(item: Item): string | undefined {
   if (isItemDone(item)) return undefined;
@@ -168,10 +188,15 @@ export function itemMeta(item: Item): string {
 /**
  * A typed price. Empty means "no price" (undefined); anything that is not a non-negative amount is
  * null (invalid). Accepts "84.99", "84,99" and a leading £. Rounded to pence.
+ * Commas: a comma followed by groups of exactly three digits is a thousands separator ("1,200" is
+ * 1200, "12,345.50" is 12345.50), as written in the UK. Any other single comma is the decimal point,
+ * for keyboards that type one ("84,99" and "12,5" are 84.99 and 12.50).
  */
 export function parsePrice(text: string): number | undefined | null {
-  const t = text.trim().replace(/^£\s*/, '').replace(',', '.');
+  let t = text.trim().replace(/^£\s*/, '');
   if (t === '') return undefined;
+  if (/^\d{1,3}(,\d{3})+(\.\d*)?$/.test(t)) t = t.replace(/,/g, '');
+  else t = t.replace(/^(\d*),(\d*)$/, '$1.$2');
   if (!/^(\d+(\.\d*)?|\.\d+)$/.test(t)) return null;
   const n = Math.round(Number(t) * 100) / 100;
   return n >= 100_000_000 ? null : n; // numeric(10, 2) in the database
@@ -188,10 +213,10 @@ export function parseLink(text: string): string | undefined | null {
   return url && /^https?:\/\/[^\s/?#.]+(\.[^\s/?#.]+)+(:\d+)?([/?#]\S*)?$/i.test(url) ? url : null;
 }
 
-/** Room choices: the starter rooms (seeded in the database), then any other room an item uses. */
-export const STARTER_ROOMS: readonly string[] = ['Kitchen', 'Living room', 'Bedroom', 'Bathroom', 'Hallway'];
-export function roomOptions(items: readonly Item[]): string[] {
-  const out = [...STARTER_ROOMS];
-  for (const i of items) if (i.room && !out.includes(i.room)) out.push(i.room);
-  return out;
+/**
+ * Room choices: the rooms the store loaded (the database's rooms, or the demo rooms), plus the item's
+ * own room if it is somehow not among them, so the current choice still shows as selected.
+ */
+export function roomOptions(rooms: readonly string[], current?: string): string[] {
+  return current && !rooms.includes(current) ? [...rooms, current] : [...rooms];
 }

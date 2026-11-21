@@ -3,6 +3,9 @@ import type { FlatNote, Item, Task } from '../domain/types';
 /** Demo data shown before Supabase is connected. Generic on purpose: no addresses or real names. */
 const now = '2026-11-21T10:00:00Z';
 
+/** Demo rooms, matching the starter rooms the database seeds. Ids are only used for sync, which demo mode skips. */
+export const seedRooms: { id: string; name: string }[] = ['Kitchen', 'Living room', 'Bedroom', 'Bathroom', 'Hallway'].map((name, n) => ({ id: `demo-room-${n + 1}`, name }));
+
 export const seedItems: Item[] = [
   { id: 'i1', name: 'Kettle', status: 'needed', quantity: 1, urgent: true, needsInstall: false, room: 'Kitchen', estPrice: 25, assignedTo: 'daryna', addedAt: '2026-11-20T09:00:00Z', updatedBy: 'claude' },
   { id: 'i2', name: 'Microwave', status: 'ordered', quantity: 1, urgent: false, needsInstall: false, room: 'Kitchen', estPrice: 90, assignedTo: 'nikita', addedAt: '2026-11-20T09:05:00Z', updatedBy: 'nikita' },

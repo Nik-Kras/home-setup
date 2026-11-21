@@ -30,6 +30,19 @@ describe('diffToOps', () => {
     expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { est_price: 30, needs_install: true, room_id: null } }]);
   });
 
+  it('a room change sends only room_id, mapped to the known id', () => {
+    const before: Item = { ...item, room: undefined };
+    const out = diffToOps({ items: [before], tasks: [] }, { items: [{ ...before, room: 'Kitchen' }], tasks: [] }, rooms);
+    expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { room_id: 'room-1' } }]);
+  });
+
+  it('a room name with no known id never clears the room', () => {
+    const next: Item = { ...item, room: 'Attic', estPrice: 12 };
+    const out = diffToOps({ items: [item], tasks: [] }, { items: [next], tasks: [] }, rooms);
+    expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { est_price: 12 } }]);
+    expect(diffToOps({ items: [item], tasks: [] }, { items: [{ ...item, room: 'Attic' }], tasks: [] }, rooms)).toEqual([]);
+  });
+
   it('a new item is one upsert of the whole row', () => {
     const out = diffToOps({ items: [], tasks: [] }, { items: [item], tasks: [] }, rooms);
     expect(out).toHaveLength(1);
