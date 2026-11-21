@@ -1,14 +1,16 @@
 import { router } from 'expo-router';
+import type { ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import type { GroupSummary } from '../domain/taskOptions';
 import type { Person } from '../domain/types';
 import { colors, fonts, TARGET } from '../theme/tokens';
 
-/** Row of task-group chips (name and open count) on the Tasks screen. Each opens the group screen. */
-export function GroupChips({ groups, person }: { groups: GroupSummary[]; person: Person }) {
-  if (groups.length === 0) return null;
+/** Row of task-group chips (name and open count) on the Tasks screen. Each opens the group screen. `children` go first in the row. */
+export function GroupChips({ groups, person, children }: { groups: GroupSummary[]; person: Person; children?: ReactNode }) {
+  if (groups.length === 0 && !children) return null;
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.row} style={s.scroll} accessibilityLabel="Task groups">
+      {children}
       {groups.map((g) => (
         <Pressable
           key={g.name}

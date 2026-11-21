@@ -1,36 +1,31 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { NoteCard } from '../components/NoteCard';
-import { NoteSheet, type NoteDraft } from '../components/NoteSheet';
+import { NoteSheet } from '../components/NoteSheet';
 import { Screen } from '../components/Screen';
 import { Icon, Sub, Title } from '../components/ui';
 import { useStore } from '../data/store';
-import { notesSorted, toConfirmCount } from '../domain/notes';
+import { hasOpenTask, noteDraftChanges, notesSorted, toConfirmCount, type NoteDraft } from '../domain/notes';
 import type { FlatNote } from '../domain/types';
 import { colors, fonts, TARGET } from '../theme/tokens';
 
 export default function Notes() {
-  const { notes, me, addNote, updateNote, addTask } = useStore();
+  const { notes, tasks, addNote, updateNote } = useStore();
   const [sheet, setSheet] = useState<{ open: boolean; note?: FlatNote }>({ open: false });
-  const [madeTasks, setMadeTasks] = useState<ReadonlySet<string>>(new Set());
 
   const list = notesSorted(notes);
   const toConfirm = toConfirmCount(notes);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/tasks'));
 
   const save = (d: NoteDraft) => {
-    const fields = { title: d.title, body: d.body, reference: d.reference, kind: d.kind };
-    if (sheet.note) updateNote(sheet.note.id, fields);
-    else addNote(d.title, fields);
+    if (!sheet.note) return addNote(d.title, { body: d.body, reference: d.reference, kind: d.kind });
+    // Only what changed since the sheet opened, so another person's edit made meanwhile survives.
+    const changes = noteDraftChanges(sheet.note, d);
+    if (Object.keys(changes).length > 0) updateNote(sheet.note.id, changes);
   };
 
-  // The add-task modal is not built yet, so the note becomes one of my tasks directly.
-  const makeTask = (note: FlatNote) => {
-    addTask(note.title, [me]);
-    setMadeTasks((s) => new Set(s).add(note.id));
-    AccessibilityInfo.announceForAccessibility(`Added to your tasks: ${note.title}`);
-  };
+  const makeTask = (note: FlatNote) => router.push({ pathname: '/add-task', params: { title: note.title } });
 
   return (
     <Screen
@@ -50,7 +45,7 @@ export default function Notes() {
       }
     >
       {list.map((n) => (
-        <NoteCard key={n.id} note={n} onEdit={() => setSheet({ open: true, note: n })} onMakeTask={() => makeTask(n)} taskAdded={madeTasks.has(n.id)} />
+        <NoteCard key={n.id} note={n} onEdit={() => setSheet({ open: true, note: n })} onMakeTask={() => makeTask(n)} taskAdded={hasOpenTask(tasks, n.title)} />
       ))}
       {list.length === 0 ? <Text style={s.empty}>No notes yet. Add facts about the flat, such as house rules or things to confirm.</Text> : null}
       <NoteSheet visible={sheet.open} note={sheet.note} onClose={() => setSheet((v) => ({ ...v, open: false }))} onSave={save} />

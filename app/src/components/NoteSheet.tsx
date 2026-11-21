@@ -1,16 +1,12 @@
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { NoteDraft } from '../domain/notes';
 import type { FlatNote, NoteKind } from '../domain/types';
 import { colors, fonts, radius, TARGET } from '../theme/tokens';
 import { Icon } from './ui';
 
-export interface NoteDraft {
-  title: string;
-  body: string;
-  reference: string;
-  kind: NoteKind;
-}
+export type { NoteDraft };
 
 const KINDS: { value: NoteKind; label: string }[] = [
   { value: 'info', label: 'Fact' },
@@ -39,7 +35,8 @@ export function NoteSheet({ visible, note, onClose, onSave }: { visible: boolean
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
       <KeyboardAvoidingView behavior="padding" style={s.fill}>
-        <Pressable style={s.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close" />
+        {/* Tap outside to close; hidden from screen readers, which use Cancel. */}
+        <Pressable style={s.backdrop} onPress={onClose} accessible={false} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" />
         <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <View style={s.head}>
             <Text style={s.heading} accessibilityRole="header">{note ? 'Edit note' : 'New note'}</Text>
@@ -49,7 +46,7 @@ export function NoteSheet({ visible, note, onClose, onSave }: { visible: boolean
           </View>
           <ScrollView contentContainerStyle={s.form} keyboardShouldPersistTaps="handled">
             <Text style={s.label}>Title</Text>
-            <TextInput value={draft.title} onChangeText={field('title')} autoFocus={!note} placeholder="Does the flat have gas?" placeholderTextColor={colors.textMuted} accessibilityLabel="Title" style={s.input} />
+            <TextInput value={draft.title} onChangeText={field('title')} autoFocus={!note} placeholder="Which day is bin collection?" placeholderTextColor={colors.textMuted} accessibilityLabel="Title" style={s.input} />
             <Text style={s.label}>Details</Text>
             <TextInput value={draft.body} onChangeText={field('body')} multiline placeholder="What we know so far" placeholderTextColor={colors.textMuted} accessibilityLabel="Details" style={[s.input, s.multi]} />
             <Text style={s.label}>Reference</Text>
