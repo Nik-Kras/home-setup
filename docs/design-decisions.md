@@ -96,3 +96,6 @@ Same look and tokens as the rest. The tab bar has four tabs: Buy, Tasks, Home, B
 13. **Task widgets**: Android and iPhone, small (deadline countdown, tasks due today or shared progress) and medium (my tasks with due chips).
 14. **Tasks, other person's view**: a card for what is waiting on that person (the other person has finished a shared task), their own tasks, and shared tasks.
 15. **Shared task**: one card per person with status, progress and their own steps; a note that the task closes when both are done; activity; actions: mark mine done, nudge.
+
+## Colour meaning, as built (2026-11-21)
+Following the decision to use cleaner colour meaning: coral is only for urgent (the "!" badge and the word Urgent); mint is done, primary actions and Nikita; **Daryna is lilac**; amber is only in transit (Ordered, In progress) and to confirm; item tiles are neutral. People appear as initial discs (filled = done, outline = waiting). The mockups on the canvas still show the earlier colours.

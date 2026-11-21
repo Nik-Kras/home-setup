@@ -140,7 +140,7 @@ const s = StyleSheet.create({
   sectionMeta: { fontFamily: fonts.regular, fontSize: 13, color: colors.textMuted },
   chip: { height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: 'center' },
   chipText: { fontFamily: fonts.medium, fontSize: 13 },
-  urgent: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.coralFill, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
+  urgent: { width: 18, height: 18, borderRadius: 9, flexShrink: 0, backgroundColor: colors.coralFill, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
   urgentText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.coral, lineHeight: 14 },
   disc: { borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   discText: { fontFamily: fonts.semibold },

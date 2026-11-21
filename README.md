@@ -10,4 +10,11 @@ Android and iPhone, with home-screen widgets on both. Built for two users only.
 - [Design decisions](docs/design-decisions.md)
 
 ## Status
-Planning and design.
+Phase 1 built and running on Android: Buy list, Tasks (per-person and shared), Home, Budget on demo data, domain logic with tests, Supabase schema. Next: Supabase sync, detail screens, photos, widgets, iPhone build.
+
+## Run
+```
+cd app && npm install
+npm test          # domain tests
+npx expo run:android   # needs JDK 17 and an emulator or phone
+```

@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Scrim } from '../components/Scrim';
 import { TabBar } from '../components/TabBar';
 import { StoreProvider } from '../data/store';
 import { colors } from '../theme/tokens';
@@ -26,7 +27,12 @@ export default function RootLayout() {
       <StoreProvider>
         <StatusBar style="light" />
         <Tabs
-          tabBar={(props) => <TabBar {...props} />}
+          tabBar={(props) => (
+            <>
+              <Scrim />
+              <TabBar {...props} />
+            </>
+          )}
           screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: colors.bg } }}
         >
           <Tabs.Screen name="index" options={{ title: 'Buy' }} />

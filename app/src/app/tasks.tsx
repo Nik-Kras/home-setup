@@ -119,8 +119,8 @@ export default function Tasks() {
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 58, paddingVertical: 6, paddingLeft: 4, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
   mid: { flex: 1, gap: 1 },
-  nameLine: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
-  name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text },
+  nameLine: { flexDirection: 'row', alignItems: 'center' },
+  name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   due: { height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: 'center', backgroundColor: colors.neutralFill },
   dueText: { fontFamily: fonts.medium, fontSize: 13, color: '#D5DBD7' },
