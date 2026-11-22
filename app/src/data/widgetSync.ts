@@ -21,6 +21,12 @@ const redraw = (data: WidgetData | null) => Promise.all(WIDGET_NAMES.map((widget
   requestWidgetUpdate({ widgetName, renderWidget: (info) => renderOurFlatWidget(info, data) }),
 ));
 
+/** Another account took over the device: show the signed-out widget until its data has loaded. */
+export function resetWidgets(): Promise<void> {
+  if (Platform.OS !== 'android') return Promise.resolve();
+  return storage.publish(() => null).then(redraw).then(() => undefined);
+}
+
 export function useWidgetSync(
   state: State,
   current: RefObject<State>,

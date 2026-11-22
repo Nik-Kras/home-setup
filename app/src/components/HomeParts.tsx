@@ -1,7 +1,9 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import type { HomeChip, HomeMode } from '../domain/home';
 import { actorName } from '../domain/items';
+import { coverPhoto, type DisplayPhoto } from '../domain/photos';
 import type { Item } from '../domain/types';
 import { colors, fonts, personColor, radius, TARGET } from '../theme/tokens';
 import { glyphFor, Icon } from './ui';
@@ -58,13 +60,18 @@ export function RoomChips({ chips, total, room, onChange }: { chips: HomeChip[];
   );
 }
 
-/** One thing in place: glyph above, serif name, room and the person who bought it. */
-export function HomeTile({ item }: { item: Item }) {
+export function HomeTile({ item, photoUri }: { item: Item; photoUri?: string }) {
   const owner = item.boughtBy;
+  const [failedUri, setFailedUri] = useState<string>();
+  const showPhoto = !!photoUri && photoUri !== failedUri;
   return (
     <View style={s.tile} accessible accessibilityLabel={[item.name, item.room ?? 'No room', owner ? `bought by ${actorName(owner)}` : undefined].filter(Boolean).join(', ')}>
-      <View style={s.glyph}><Icon name={glyphFor(item.name)} size={48} color={colors.textSecondary} stroke={1.4} /></View>
-      <View style={s.cap}>
+      {showPhoto ? (
+        <Image source={{ uri: photoUri }} style={s.photo} resizeMode="cover" accessible={false} onError={() => setFailedUri(photoUri)} />
+      ) : (
+        <View style={s.glyph}><Icon name={glyphFor(item.name)} size={48} color={colors.textSecondary} stroke={1.4} /></View>
+      )}
+      <View style={[s.cap, showPhoto && s.photoCap]}>
         <Text style={s.name} numberOfLines={2}>{item.name}</Text>
         <View style={s.metaLine}>
           <Text style={s.meta} numberOfLines={1}>{item.room ?? 'No room'}</Text>
@@ -81,8 +88,8 @@ export function HomeTile({ item }: { item: Item }) {
 }
 
 /** Two-column grid of tiles. */
-export function HomeGrid({ items }: { items: Item[] }) {
-  return <View style={s.grid}>{items.map((i) => <HomeTile key={i.id} item={i} />)}</View>;
+export function HomeGrid({ items, photos }: { items: Item[]; photos: DisplayPhoto[] }) {
+  return <View style={s.grid}>{items.map((i) => <HomeTile key={i.id} item={i} photoUri={coverPhoto(photos, i.id)?.uri} />)}</View>;
 }
 
 /** Shown when nothing is in place yet, so the screen never looks like a failed load. */
@@ -115,6 +122,8 @@ const s = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: '48.5%', aspectRatio: 1 / 1.02, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.neutralFill, borderWidth: 1, borderColor: colors.hairline, justifyContent: 'flex-end' },
   glyph: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 72, alignItems: 'center', justifyContent: 'center' },
+  photo: { position: 'absolute', width: '100%', height: '100%' },
+  photoCap: { backgroundColor: colors.bg },
   cap: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 8, gap: 4 },
   name: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 24, color: colors.text },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
