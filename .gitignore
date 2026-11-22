@@ -6,3 +6,4 @@ app/.env
 .claude/worktrees/
 .DS_Store
 **/.DS_Store
+supabase/.temp/
