@@ -78,7 +78,7 @@ export default function AddTask() {
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         <Text style={s.label} accessibilityRole="header">When</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.rowScroll} contentContainerStyle={s.chips}>
+        <View style={s.chips}>
           {whenChips.map((c) => (
             <ChoiceChip
               key={c.value}
@@ -92,14 +92,14 @@ export default function AddTask() {
               }}
             />
           ))}
-        </ScrollView>
+        </View>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Group</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={s.rowScroll} contentContainerStyle={s.chips}>
+        <View style={s.chips}>
           {groups.map((g) => (
             <ChoiceChip key={g} label={g} selected={group === g} onPress={() => setGroup(group === g ? undefined : g)} />
           ))}
-        </ScrollView>
+        </View>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Who</Text>
         <View style={s.chips}>
@@ -134,16 +134,15 @@ const s = StyleSheet.create({
   heading: { fontFamily: fonts.semibold, fontSize: 16, color: colors.text },
   barWrap: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
   bar: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, height: 54, borderRadius: 27, borderWidth: 1.5, borderColor: colors.mint, backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5,
+    flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1.5, borderColor: colors.mint, backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5,
     boxShadow: '0 0 0 4px rgba(94,224,184,0.12), 0 8px 28px -10px rgba(94,224,184,0.5)',
   },
-  input: { flex: 1, minWidth: 0, height: '100%', fontFamily: fonts.medium, fontSize: 17, color: colors.text },
-  add: { height: TARGET, paddingHorizontal: 20, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
+  input: { flex: 1, minWidth: 0, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 17, color: colors.text },
+  add: { minHeight: TARGET, paddingHorizontal: 20, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   addText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
   body: { paddingHorizontal: 16, gap: 10 },
   label: { marginHorizontal: 4, marginTop: 2, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
   gapTop: { marginTop: 4 },
-  rowScroll: { marginRight: -16, flexGrow: 0 },
-  chips: { flexDirection: 'row', gap: 8, paddingRight: 16 },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   hint: { marginHorizontal: 4, marginTop: -2, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
 });
