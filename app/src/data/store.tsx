@@ -12,6 +12,7 @@ import type { PhotoSource } from './photoFiles';
 import { db, kv } from './supabase';
 import { syncQueue } from './syncQueue';
 import { useItemPhotos } from './useItemPhotos';
+import { resetIosWidget, useIosWidgetSync } from './iosWidgetSync';
 import { resetWidgets, useWidgetSync } from './widgetSync';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -87,6 +88,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useWidgetSync(state, ref, set, auth, widgetReady);
+  useIosWidgetSync(state, ref, set, auth, widgetReady);
 
   const refresh = useMemo(() => {
     let running: Promise<void> | undefined;
@@ -176,7 +178,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSync('pending');
     void (async () => {
       // Before the first flush: drop another account's unsent Ops and its widget snapshot.
-      if (await claimDevice(kv, syncQueue, account).catch(() => false)) await resetWidgets().catch(() => undefined);
+      if (await claimDevice(kv, syncQueue, account).catch(() => false)) {
+        await Promise.all([resetWidgets().catch(() => undefined), resetIosWidget()]);
+      }
       if (!active) return;
       const [cached, cachedMember] = await Promise.all([
         readCache<{ items: Item[]; rooms: Room[] }>(itemCacheKey(account)),
