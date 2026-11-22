@@ -13,6 +13,16 @@ name: 08 widget
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=needed" }
 
+# Prime the widget: after clearState (flows 01 and 09) its first tap only measures the widget size and is
+# dropped (react-native-android-widget, RNWidgetSizing.correct). Tap a spare row: dropped, or it is marked got.
+- runFlow:   # added in the app, so the widget has it before Home (a row added through the database did not show in time)
+    file: common/add-item.yaml
+    env: { NAME: ZZ-e2e-widget-prime }
+- runFlow:
+    file: common/goto-widget.yaml
+    env: { TARGET: "Mark ZZ-e2e-widget-prime as got" }
+- tapOn: "Mark ZZ-e2e-widget-prime as got"
+
 # Tap to got with the app closed: Home, then the process is killed the way Android kills a background app
 # (killApp is `am kill`). Not stopApp: that is `am force-stop`, which also cancels the widget's tap intents,
 # so taps do nothing until the app runs again (Android behaviour, same as "Force stop" in Settings).
@@ -48,3 +58,11 @@ name: 08 widget
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget-add, FIELDS: "status=needed" }
+
+# Mark the spare rows got so they leave the widget: it shows four rows, and 08b needs room for its own.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-widget-prime, FIELDS: "status=delivered" }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-widget-add, FIELDS: "status=delivered" }
