@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advancePhoto, coverPhoto, fitsPhotoTarget, itemPhotos, photoPath, photoResize, type PhotoTransfer } from './photos';
+import { advancePhoto, coverPhoto, fitsPhotoTarget, itemPhotos, MAX_PHOTO_FAILURES, photoPath, photoResize, type PhotoTransfer } from './photos';
 
 describe('photos', () => {
   it('creates an item-scoped JPEG path and caps either long edge without upscaling', () => {
@@ -17,11 +17,22 @@ describe('photos', () => {
     const started = advancePhoto(pending, 'start');
     expect(started).toEqual({ status: 'uploading', retries: 0 });
     const delayed = advancePhoto(started, 'retryLater');
-    expect(delayed).toEqual({ status: 'pending', retries: 1 });
+    expect(delayed).toEqual({ status: 'pending', retries: 1, failures: 1 });
     const failed = advancePhoto(advancePhoto(delayed, 'start'), 'refused');
-    expect(advancePhoto(failed, 'start')).toEqual({ status: 'failed', retries: 1 });
+    expect(advancePhoto(failed, 'start')).toEqual({ status: 'failed', retries: 1, failures: 1 });
     const restarted = advancePhoto(advancePhoto(failed, 'retryNow'), 'start');
-    expect(advancePhoto(restarted, 'success')).toEqual({ status: 'done', retries: 2 });
+    expect(advancePhoto(restarted, 'success')).toEqual({ status: 'done', retries: 2, failures: 0 });
+  });
+
+  it('fails a transfer after five retries, but waits without a cap while offline', () => {
+    let transfer: PhotoTransfer = { status: 'pending', retries: 0 };
+    for (let i = 0; i < 20; i++) transfer = advancePhoto(advancePhoto(transfer, 'start'), 'offline');
+    expect(transfer).toEqual({ status: 'pending', retries: 20 });
+    for (let i = 1; i < MAX_PHOTO_FAILURES; i++) transfer = advancePhoto(advancePhoto(transfer, 'start'), 'retryLater');
+    expect(transfer).toMatchObject({ status: 'pending', failures: MAX_PHOTO_FAILURES - 1 });
+    transfer = advancePhoto(advancePhoto(transfer, 'start'), 'retryLater');
+    expect(transfer).toEqual({ status: 'failed', retries: 25, failures: MAX_PHOTO_FAILURES });
+    expect(advancePhoto(transfer, 'retryNow')).toEqual({ status: 'pending', retries: 26, failures: 0 });
   });
 
   it('selects the newest photo by capture time for the requested item', () => {
