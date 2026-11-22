@@ -127,18 +127,20 @@ export default function ItemDetail() {
         onSave={(name) => updateItem(item.id, { name })}
         onClose={close}
       />
-      <Sheet visible={sheet === 'estPrice' || sheet === 'actualPrice'} title={sheet === 'estPrice' ? 'Estimated price' : 'Price paid'} onClose={close} closeLabel="Cancel">
-        {sheet === 'estPrice' || sheet === 'actualPrice' ? (
-          <PriceForm
-            key={sheet}
-            title={sheet === 'estPrice' ? 'Estimated price' : 'Price paid'}
-            value={sheet === 'estPrice' ? item.estPrice : item.actualPrice}
-            helper={sheet === 'estPrice' ? 'What you expect to pay, in pounds.' : item.estPrice !== undefined ? `Estimate ${formatMoney(item.estPrice)}. Leave empty if not paid yet.` : 'Leave empty if not paid yet.'}
-            onSave={(n) => updateItem(item.id, sheet === 'estPrice' ? { estPrice: n } : { actualPrice: n })}
-            onClose={close}
-          />
-        ) : null}
-      </Sheet>
+      {/* One sheet per price, so the title never changes while a sheet fades out. */}
+      {(['estPrice', 'actualPrice'] as const).map((field) => (
+        <Sheet key={field} visible={sheet === field} title={field === 'estPrice' ? 'Estimated price' : 'Price paid'} onClose={close} closeLabel="Cancel">
+          {sheet === field ? (
+            <PriceForm
+              title={field === 'estPrice' ? 'Estimated price' : 'Price paid'}
+              value={item[field]}
+              helper={field === 'estPrice' ? 'What you expect to pay, in pounds.' : item.estPrice !== undefined ? `Estimate ${formatMoney(item.estPrice)}. Leave empty if not paid yet.` : 'Leave empty if not paid yet.'}
+              onSave={(n) => updateItem(item.id, { [field]: n })}
+              onClose={close}
+            />
+          ) : null}
+        </Sheet>
+      ))}
       <TextSheet
         visible={sheet === 'notes'}
         title="Notes"

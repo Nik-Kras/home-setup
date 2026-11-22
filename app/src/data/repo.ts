@@ -91,7 +91,7 @@ export const ops = {
    * this device set. If the other person has changed it since, their newer value stays.
    */
   patchIf(table: 'items' | 'task_assignments' | 'task_steps', match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
-    return { id: newId(), kind: 'patch', table, match, row };
+    return { id: newId(), kind: 'patch', table, match, row, reportMiss: true };
   },
   /** Undo of a soft delete. */
   restore(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
@@ -114,9 +114,12 @@ export function makeExecutor(db: SupabaseClient) {
       const opts = { ...(op.onConflict ? { onConflict: op.onConflict } : {}), ...(op.ignoreDuplicates ? { ignoreDuplicates: true } : {}) };
       ({ error } = await db.from(op.table).upsert(op.row, Object.keys(opts).length ? opts : undefined));
     } else {
-      let q = db.from(op.table).update(op.row);
+      // A conditional patch asks for the row count, to tell "kept the other person's value" apart.
+      let q = op.reportMiss ? db.from(op.table).update(op.row, { count: 'exact' }) : db.from(op.table).update(op.row);
       for (const [k, v] of Object.entries(op.match)) q = v === null ? q.is(k, null) : q.eq(k, v);
-      ({ error } = await q);
+      let count: number | null | undefined;
+      ({ error, count } = await q);
+      if (!error && op.reportMiss && count === 0) return 'missed';
     }
     if (!error) return 'ok';
     // Network trouble has no Postgres code; 5xx and auth expiry are worth retrying. Anything else is a refusal.

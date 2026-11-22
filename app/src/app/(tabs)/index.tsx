@@ -75,20 +75,18 @@ function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
 }
 
 /**
- * Memoised: `item` keeps its identity until it changes and the callbacks are stable, so 300 rows stay
- * cheap. The tile moves the item one stage on (its label names the stage, the snackbar offers Undo);
- * the status chip opens every stage, forwards or backwards.
+ * Memoised: `item` keeps its identity until it changes and `onStatus` is stable, so 300 rows stay
+ * cheap. Tile and name open the item; only the status chip (every stage, forwards or backwards)
+ * changes anything here.
  */
-const ItemRow = memo(function ItemRow({ item, onAdvance, onStatus }: { item: Item; onAdvance: (id: string) => void; onStatus: (id: string) => void }) {
-  const step = nextActionLabel(item);
+const ItemRow = memo(function ItemRow({ item, onStatus }: { item: Item; onStatus: (id: string) => void }) {
   const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
   return (
     <View style={s.row}>
-      {step ? (
-        <Pressable onPress={() => onAdvance(item.id)} accessibilityRole="button" accessibilityLabel={`${step}: ${item.name}`} hitSlop={2}>
-          <IconTile icon={glyphFor(item.name)} />
-        </Pressable>
-      ) : <IconTile icon={glyphFor(item.name)} />}
+      {/* Same target as the name; hidden from screen readers so the row is not announced twice. */}
+      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" hitSlop={2}>
+        <IconTile icon={glyphFor(item.name)} />
+      </Pressable>
       <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details" style={s.rowMid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
@@ -188,7 +186,7 @@ export default function Buy() {
       ) : (
         <View style={s.sectionBelow}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>
       )}
-      renderItem={({ item }) => <ItemRow item={item} onAdvance={advanceItem} onStatus={setStatusFor} />}
+      renderItem={({ item }) => <ItemRow item={item} onStatus={setStatusFor} />}
     />
   );
 }

@@ -4,7 +4,7 @@ import type { Item, Task } from '../domain/types';
 import { OpQueue, type KV, type Op } from './queue';
 import { makeExecutor } from './repo';
 import { reducer, type Action, type State } from './reducer';
-import { afterUndoSnack, applyUndo, offerSnack, popUndo, pushUndo, UNDO_LIMIT, UNDO_REOFFER_MS, undoEntryFor, type UndoEntry } from './undo';
+import { afterUndoSnack, applyUndo, offerSnack, popUndo, pushUndo, UNDO_LIMIT, undoEntryFor, type UndoEntry } from './undo';
 
 const rooms = new Map([['Kitchen', 'room-k'], ['Hallway', 'room-h']]);
 const kettle: Item = { id: 'i1', name: 'Kettle', status: 'needed', quantity: 1, urgent: false, needsInstall: false, room: 'Kitchen', addedAt: '2026-11-21T10:00:00Z', updatedBy: 'claude' };
@@ -63,6 +63,8 @@ describe('undo entries', () => {
     expect(edit(start, { type: 'advanceItem', id: 'i1' }).entry.spoken).toBe('Kettle moved to Looking');
     expect(msg({ type: 'setItemStatus', id: 'i2', status: 'needed' })).toBe('Router → Needed');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { actualPrice: 24.5 } })).toBe('Kettle → paid £24.50');
+    expect(msg({ type: 'updateItem', id: 'i1', patch: { actualPrice: 25, boughtBy: 'daryna' } })).toBe('Kettle → paid £25 by Daryna');
+    expect(msg({ type: 'updateItem', id: 'i1', patch: { quantity: 2, urgent: true } })).toBe('Kettle → updated');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { estPrice: 30 } })).toBe('Kettle → estimate £30');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { quantity: 2 } })).toBe('Kettle → quantity 2');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { assignedTo: 'daryna' } })).toBe('Kettle → assigned to Daryna');
@@ -93,7 +95,7 @@ describe('applyUndo: inverse patches', () => {
     const undone = applyUndo(next, entry, rooms);
     expect(undone.outcome).toBe('done');
     expect(item(undone.state)).toEqual({ ...kettle, updatedBy: 'nikita' });
-    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1', status: 'delivered' }, row: { status: 'needed', delivered_at: null, installed_at: null } }]);
+    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1', status: 'delivered' }, row: { status: 'needed', delivered_at: null, installed_at: null }, reportMiss: true }]);
   });
 
   it('moving back from delivered and undoing restores the original delivered date', () => {
@@ -172,7 +174,7 @@ describe('applyUndo: inverse patches', () => {
     const { next, entry } = edit(start, { type: 'setTaskStatus', id: 't1', person: 'nikita', status: 'done' });
     const undone = applyUndo(next, entry, rooms);
     expect(undone.state.tasks[0]!.assignments.map((a) => a.status)).toEqual(['todo', 'todo']);
-    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'task_assignments', match: { task_id: 't1', person: 'nikita', status: 'done' }, row: { status: 'todo' } }]);
+    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'task_assignments', match: { task_id: 't1', person: 'nikita', status: 'done' }, row: { status: 'todo' }, reportMiss: true }]);
     expect(undone.state.tasks[0]!.assignments[1]).toBe(next.tasks[0]!.assignments[1]);
   });
 
@@ -180,7 +182,7 @@ describe('applyUndo: inverse patches', () => {
     const { next, entry } = edit(start, { type: 'toggleStep', id: 't1', person: 'nikita', stepId: 's1' });
     const undone = applyUndo(next, entry, rooms);
     expect(undone.state.tasks[0]!.assignments[0]!.steps[0]!.done).toBe(false);
-    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'task_steps', match: { id: 's1', done: true }, row: { done: false } }]);
+    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'task_steps', match: { id: 's1', done: true }, row: { done: false }, reportMiss: true }]);
     // Unticked again by hand since: nothing left to undo.
     const again = reducer(next, { type: 'toggleStep', id: 't1', person: 'nikita', stepId: 's1' });
     expect(applyUndo(again, entry, rooms).outcome).toBe('none');
@@ -211,9 +213,10 @@ describe('conditional undo against the server', () => {
           const q = {
             eq: (k: string, v: unknown) => (conds.push([k, v]), q),
             is: (k: string, v: null) => (conds.push([k, v]), q),
-            then: (ok: (r: { error: null }) => void) => {
-              for (const r of Object.values(rows)) if (conds.every(([k, v]) => (r[k] ?? null) === v)) Object.assign(r, row);
-              ok({ error: null });
+            then: (ok: (r: { error: null; count: number }) => void) => {
+              let count = 0;
+              for (const r of Object.values(rows)) if (conds.every(([k, v]) => (r[k] ?? null) === v)) (Object.assign(r, row), count++);
+              ok({ error: null, count });
             },
           };
           return q;
@@ -278,12 +281,16 @@ describe('conditional undo against the server', () => {
 
   it('online: the other person moves it on after my edit landed; my late Undo changes nothing', async () => {
     const server = { i1: { id: 'i1', status: 'ordered', delivered_at: null as string | null } };
-    const queue = new OpQueue(memory(), fakeServer(server));
+    const missed: Op[] = [];
+    const queue = new OpQueue(memory(), fakeServer(server), undefined, (op) => missed.push(op));
     const { next, entry } = edit(start, { type: 'setItemStatus', id: 'i1', status: 'ordered' });
     server.i1.status = 'delivered'; // theirs, after mine
-    await queue.enqueueAll(applyUndo(next, entry, rooms).ops);
+    const inverse = applyUndo(next, entry, rooms).ops;
+    await queue.enqueueAll(inverse);
     await queue.flush();
     expect(server.i1.status).toBe('delivered');
+    // The phone is told, so the snackbar can say "Not undone" instead of "Undone".
+    expect(missed.map((o) => o.id)).toEqual(inverse.map((o) => o.id));
     expect(await queue.size()).toBe(0); // no match is not an error: the op is done, not retried
   });
 
@@ -314,12 +321,10 @@ describe('the undo stack and snackbar', () => {
     expect(offerSnack(entry(1))).toEqual({ key: 'e1', message: 'Kettle → quantity 2', spoken: 'Kettle, quantity 2. Undo available.', canUndo: true });
   });
 
-  it('after an Undo it says how it went, and offers the edit before only when it was a moment ago', () => {
-    const earlier = entry(1, 10_000);
-    expect(afterUndoSnack('done', [earlier], 10_000 + UNDO_REOFFER_MS - 1, 'k')).toMatchObject({ key: 'e1', message: 'Undone. Earlier: Kettle → quantity 2', canUndo: true });
-    expect(afterUndoSnack('done', [earlier], 10_000 + UNDO_REOFFER_MS, 'k')).toEqual({ key: 'k', message: 'Undone', spoken: 'Undone.', canUndo: false });
-    expect(afterUndoSnack('none', [earlier], 10_001, 'k')).toMatchObject({ message: 'Not undone: it was changed since', canUndo: false });
-    expect(afterUndoSnack('partial', [], 0, 'k').message).toBe('Partly undone: some of it was changed since');
+  it('after an Undo it only says how it went: no second Undo in the same spot, so a double tap undoes one edit', () => {
+    expect(afterUndoSnack('done', 'k')).toEqual({ key: 'k', message: 'Undone', spoken: 'Undone.', canUndo: false });
+    expect(afterUndoSnack('none', 'k')).toMatchObject({ message: 'Not undone: it was changed since', canUndo: false });
+    expect(afterUndoSnack('partial', 'k')).toMatchObject({ message: 'Partly undone: some of it was changed since', canUndo: false });
   });
 });
 
@@ -340,5 +345,31 @@ describe('prices and the budget', () => {
     expect(budgetView(est.items).toBuy).toBe(25);
     expect(budgetView(reducer(est, { type: 'setItemStatus', id: 'i1', status: 'delivered' }).items).toBuy).toBe(0);
     expect(budgetView(reducer(est, { type: 'deleteItem', id: 'i1' }).items).toBuy).toBe(0);
+  });
+});
+
+describe('executor: conditional patches report a miss', () => {
+  const db = (count: number, seen: unknown[]) => ({
+    from: () => ({
+      update: (_row: unknown, opts?: unknown) => {
+        seen.push(opts);
+        const q = { eq: () => q, is: () => q, then: (ok: (r: { error: null; count: number | null }) => void) => ok({ error: null, count: opts ? count : null }) };
+        return q;
+      },
+    }),
+  }) as never;
+
+  it('an Undo patch that matched no row is "missed"; one that matched is ok', async () => {
+    const op = applyUndo(...(() => { const { next, entry } = edit(start, { type: 'updateItem', id: 'i1', patch: { quantity: 2 } }); return [next, entry, rooms] as const; })()).ops[0]!;
+    const seen: unknown[] = [];
+    expect(await makeExecutor(db(0, seen))(op)).toBe('missed');
+    expect(await makeExecutor(db(1, seen))(op)).toBe('ok');
+    expect(seen).toEqual([{ count: 'exact' }, { count: 'exact' }]);
+  });
+
+  it('a plain patch does not ask for a count and is never "missed"', async () => {
+    const seen: unknown[] = [];
+    expect(await makeExecutor(db(0, seen))({ id: 'p', kind: 'patch', table: 'items', match: { id: 'i1' }, row: { quantity: 2 } })).toBe('ok');
+    expect(seen).toEqual([undefined]);
   });
 });

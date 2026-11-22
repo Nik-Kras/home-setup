@@ -16,10 +16,13 @@ export type Op =
    * patch conditional: if the row no longer holds those values, nothing changes (an Undo after the
    * other person changed the same field, a stale widget tap).
    */
-  | { id: string; kind: 'patch'; table: string; match: Record<string, string | number | boolean | null>; row: Record<string, unknown> };
+  | { id: string; kind: 'patch'; table: string; match: Record<string, string | number | boolean | null>; row: Record<string, unknown>; reportMiss?: true };
 
-/** ok: done. retry: network or server trouble, keep the Op. drop: the server refused it for good. */
-export type Outcome = 'ok' | 'retry' | 'drop';
+/**
+ * ok: done. retry: network or server trouble, keep the Op. drop: the server refused it for good.
+ * missed: done, but a conditional patch (reportMiss) matched no row, so nothing changed.
+ */
+export type Outcome = 'ok' | 'retry' | 'drop' | 'missed';
 
 const KEY = 'homesetup.queue.v1';
 
@@ -35,6 +38,7 @@ export class OpQueue {
     private readonly storage: KV,
     private readonly exec: (op: Op) => Promise<Outcome>,
     private readonly onDrop: (op: Op) => void = () => undefined,
+    private readonly onMiss: (op: Op) => void = () => undefined,
   ) {}
 
   /** The app and headless worker share one queue instance in Android's ReactHost. */
@@ -106,6 +110,7 @@ export class OpQueue {
         return;
       }
       if (outcome === 'drop') this.onDrop(op);
+      if (outcome === 'missed') this.onMiss(op);
       // Re-read under the same lock: a widget or app edit may have appended during the request.
       await this.withOps((ops) =>
         this.storage.setItem(KEY, JSON.stringify(ops.filter((pending) => pending.id !== op.id))),

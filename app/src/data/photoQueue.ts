@@ -6,7 +6,7 @@ export type PhotoJob =
   | { kind: 'delete'; photo: ItemPhoto; transfer: PhotoTransfer };
 
 /** `offline`: no answer from the server (no network). It stops the flush and never fails a photo. */
-export type PhotoOutcome = Outcome | 'offline';
+export type PhotoOutcome = Exclude<Outcome, 'missed'> | 'offline';
 
 export interface PhotoExecutor {
   upload: (photo: ItemPhoto, retrying: boolean) => Promise<PhotoOutcome>;

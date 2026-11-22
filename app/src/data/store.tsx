@@ -15,7 +15,7 @@ import { seedItems, seedNotes, seedRooms, seedTasks } from './seed';
 import { claimDevice } from './accountScope';
 import type { PhotoSource } from './photoFiles';
 import { db, kv } from './supabase';
-import { syncQueue } from './syncQueue';
+import { missListeners, syncQueue } from './syncQueue';
 import { useItemPhotos } from './useItemPhotos';
 import { trySignOut } from './signOut';
 import { resetIosWidget, useIosWidgetSync } from './iosWidgetSync';
@@ -124,6 +124,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [widgetReady, setWidgetReady] = useState(false);
 
   const undoStack = useRef<UndoEntry[]>([]);
+  /** The last Undo's sent patches, to correct its snackbar if the server kept the other person's value. */
+  const lastUndo = useRef<{ key: string; ids: Set<string>; missed: number } | null>(null);
   const [snack, setSnack] = useState<Snack | null>(null);
   const [pricePrompt, setPricePrompt] = useState<string | null>(null);
 
@@ -335,19 +337,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [commit],
   );
 
+  // An Undo patch matched no row: the other person changed that field first, and theirs stayed.
+  // Say so on the snackbar if it is still up, and load again so the screen shows their value.
+  useEffect(() => {
+    const listener = (op: Op) => {
+      const last = lastUndo.current;
+      if (!last?.ids.has(op.id)) return;
+      last.missed++;
+      setSnack((cur) => (cur?.key === last.key ? afterUndoSnack(last.missed >= last.ids.size ? 'none' : 'partial', last.key) : cur));
+      void refresh();
+    };
+    missListeners.add(listener);
+    return () => { missListeners.delete(listener); };
+  }, [refresh]);
+
   const undo = useCallback(() => {
     const { entry, rest } = popUndo(undoStack.current);
     if (!entry) return;
     undoStack.current = rest;
     const prev = ref.current;
     const result = applyUndo(prev, entry, roomIds.current);
-    setSnack(afterUndoSnack(result.outcome, rest, Date.now(), newId()));
+    const key = newId();
+    const sent = { key, ids: new Set<string>(), missed: 0 };
+    lastUndo.current = sent;
+    setSnack(afterUndoSnack(result.outcome, key));
+    // The "Paid?" prompt belongs to that arrival: once undone it is gone for good, even if the other
+    // phone marks the item delivered later.
+    if (entry.change.kind === 'item') {
+      const id = entry.change.before.id;
+      setPricePrompt((cur) => (cur === id ? null : cur));
+    }
     if (result.state === prev) return;
     commit(result.state, async (q) => {
       // Still unsent (offline, or not flushed yet): take the edit back, so the server never sees it.
       // Otherwise send the conditional inverse patches (see undo.ts).
       const unsent = result.outcome === 'done' && entry.opIds !== undefined && await q.cancel(entry.opIds);
-      return unsent ? [] : result.ops;
+      const out = unsent ? [] : result.ops;
+      out.forEach((op) => sent.ids.add(op.id));
+      return out;
     });
   }, [commit]);
 

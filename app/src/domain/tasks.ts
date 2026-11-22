@@ -117,3 +117,13 @@ export function openTasksSorted(tasks: readonly Task[], person: Person): Task[] 
       return a.title.localeCompare(b.title);
     });
 }
+
+/**
+ * Tasks where this person's part is done, by title: the collapsed "Done" list on the Tasks tab, so a
+ * part ticked by mistake can always be found and unticked (an ungrouped task is on no other screen).
+ */
+export function doneTasksFor(tasks: readonly Task[], person: Person): Task[] {
+  return tasksFor(tasks, person)
+    .filter((t) => assignmentFor(t, person)?.status === 'done')
+    .sort((a, b) => a.title.localeCompare(b.title));
+}

@@ -1,15 +1,18 @@
 import { useSegments } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../data/store';
 import { formatMoney, parsePrice } from '../domain/items';
-import type { Item } from '../domain/types';
+import type { Item, Person } from '../domain/types';
+import { ChoiceChip } from './ChoiceChip';
 import { colors, fonts, radius, TARGET } from '../theme/tokens';
 
 /** How long the Undo snackbar stays. Longer with a screen reader, so there is time to reach the button. */
 const SNACK_MS = 6_000;
 const SNACK_MS_SCREEN_READER = 15_000;
+/** Taps on Undo this soon after the snackbar appears are ignored: they were meant for what was there. */
+const UNDO_GUARD_MS = 300;
 /** An untouched "Paid?" prompt hides after this long. */
 const PROMPT_MS = 20_000;
 /** The floating tab bar: 64 high, at least 12 above the bottom edge (see TabBar). */
@@ -45,8 +48,10 @@ export function UndoBar() {
       : segments[0] === 'task' ? insets.bottom + 92
         : insets.bottom + 16;
 
+  const shownAt = useRef(0);
   useEffect(() => {
     if (!snack) return;
+    shownAt.current = Date.now();
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     AccessibilityInfo.announceForAccessibility(snack.spoken);
@@ -72,7 +77,7 @@ export function UndoBar() {
           <View style={s.snack}>
             <Text style={s.snackText} numberOfLines={2}>{snack.message}</Text>
             {snack.canUndo ? (
-              <Pressable onPress={undo} accessibilityRole="button" accessibilityLabel={`Undo: ${snack.spoken.replace(/ Undo available\.$/, '')}`} hitSlop={4} style={({ pressed }) => [s.undo, pressed && s.pressed]}>
+              <Pressable onPress={() => Date.now() - shownAt.current >= UNDO_GUARD_MS && undo()} accessibilityRole="button" accessibilityLabel={`Undo: ${snack.spoken.replace(/ Undo available\.$/, '')}`} hitSlop={4} style={({ pressed }) => [s.undo, pressed && s.pressed]}>
                 <Text style={s.undoText}>Undo</Text>
               </Pressable>
             ) : null}
@@ -83,10 +88,17 @@ export function UndoBar() {
   );
 }
 
-/** "Paid for Kettle? £___ [Save] [Skip]". Optional, never blocking, and it remembers nothing. */
+const PEOPLE: { value: Person; label: string }[] = [{ value: 'nikita', label: 'Nikita' }, { value: 'daryna', label: 'Daryna' }];
+
+/**
+ * "Paid for Kettle? Paid by [Nikita] [Daryna] £___ [Save] [Skip]". Who paid starts as the item's
+ * buyer if known, otherwise me, and is saved with the price so the Budget split adds up. Optional,
+ * never blocking, and it remembers nothing.
+ */
 function PricePrompt({ item, onDone }: { item: Item; onDone: () => void }) {
-  const { updateItem } = useStore();
+  const { updateItem, me } = useStore();
   const [text, setText] = useState('');
+  const [payer, setPayer] = useState<Person>(item.boughtBy ?? me);
   // Left alone, it goes away by itself: nothing is asked twice and nothing is remembered.
   const [engaged, setEngaged] = useState(false);
   useEffect(() => {
@@ -98,7 +110,7 @@ function PricePrompt({ item, onDone }: { item: Item; onDone: () => void }) {
   const invalid = price === null;
   const save = () => {
     if (price === null || price === undefined) return;
-    updateItem(item.id, { actualPrice: price });
+    updateItem(item.id, { actualPrice: price, boughtBy: payer });
     Keyboard.dismiss();
     onDone();
   };
@@ -111,6 +123,12 @@ function PricePrompt({ item, onDone }: { item: Item; onDone: () => void }) {
       <Text style={s.promptTitle} numberOfLines={2}>
         Paid for {item.name}?{item.estPrice !== undefined ? <Text style={s.promptHint}>  Estimate {formatMoney(item.estPrice)}</Text> : null}
       </Text>
+      <View style={s.promptRow} accessibilityRole="radiogroup" accessibilityLabel="Paid by">
+        <Text style={s.paidBy} importantForAccessibility="no" accessibilityElementsHidden>Paid by</Text>
+        {PEOPLE.map((p) => (
+          <ChoiceChip key={p.value} label={p.label} selected={payer === p.value} a11yLabel={`Paid by ${p.label}`} onPress={() => { setEngaged(true); setPayer(p.value); }} />
+        ))}
+      </View>
       <View style={s.promptRow}>
         <View style={[s.inputWrap, invalid && s.inputError]}>
           <Text style={s.pound} importantForAccessibility="no" accessibilityElementsHidden>£</Text>
@@ -150,6 +168,7 @@ const s = StyleSheet.create({
   promptTitle: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 20, color: colors.text, paddingHorizontal: 4 },
   promptHint: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  paidBy: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary, paddingHorizontal: 4 },
   inputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', height: TARGET, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)', backgroundColor: colors.bg, paddingLeft: 14 },
   // Validation is neutral: amber means in transit and coral means urgent.
   inputError: { borderColor: colors.text },

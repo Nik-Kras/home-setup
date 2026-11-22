@@ -182,3 +182,14 @@ describe('tasks', () => {
     expect(openTasksSorted(list, 'nikita').map((t) => t.id)).toEqual(['urgent', 'soon', 'later', 'undated']);
   });
 });
+
+describe('done tasks', () => {
+  it('lists the tasks where this person\'s part is done, by title, so a mistaken tick can be found and undone', async () => {
+    const { doneTasksFor } = await import('./tasks');
+    const a = shared({ id: 'a', title: 'Zebra', assignments: [{ person: 'nikita', status: 'done', steps: [] }] });
+    const b = shared({ id: 'b', title: 'Alpha', assignments: [{ person: 'nikita', status: 'done', steps: [] }, { person: 'daryna', status: 'todo', steps: [] }] });
+    const c = shared({ id: 'c', title: 'Open', assignments: [{ person: 'nikita', status: 'in_progress', steps: [] }] });
+    expect(doneTasksFor([a, b, c], 'nikita').map((t) => t.id)).toEqual(['b', 'a']);
+    expect(doneTasksFor([a, b, c], 'daryna')).toEqual([]);
+  });
+});

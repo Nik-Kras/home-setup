@@ -44,8 +44,6 @@ export interface Snack {
 export type UndoOutcome = 'done' | 'partial' | 'none';
 
 export const UNDO_LIMIT = 10;
-/** After an Undo, the edit before it is offered again only if it is this recent (a double tap). */
-export const UNDO_REOFFER_MS = 15_000;
 
 const TASK_LABEL: Record<TaskStatus, string> = { todo: 'To do', in_progress: 'In progress', waiting: 'Waiting', done: 'Done' };
 const PERSON: Record<Person, string> = { nikita: 'Nikita', daryna: 'Daryna' };
@@ -66,7 +64,9 @@ export function describeItemChange(before: Item, after: Item | null): { message:
   }
   const changed = ITEM_FIELDS.filter((f) => before[f] !== after[f]);
   if (changed.length === 0) return undefined;
-  const what = changed.length > 1 ? 'updated' : fieldText(changed[0]!, after);
+  // The "Paid?" prompt saves the price and who paid together.
+  const paidBy = changed.length === 2 && changed[0] === 'actualPrice' && changed[1] === 'boughtBy' && after.actualPrice !== undefined && after.boughtBy;
+  const what = paidBy ? `paid ${formatMoney(after.actualPrice!)} by ${PERSON[after.boughtBy!]}` : changed.length > 1 ? 'updated' : fieldText(changed[0]!, after);
   const message = changed[0] === 'name' && changed.length === 1 ? `Renamed to ${after.name}` : `${name} → ${what}`;
   return { message, spoken: message.replace(' → ', ', ') };
 }
@@ -243,14 +243,10 @@ export function offerSnack(entry: UndoEntry): Snack {
 }
 
 /**
- * The snackbar after an Undo: says how it went, and offers the edit before it when that one is very
- * recent (two quick taps by mistake are undone with two Undos).
+ * The snackbar after an Undo: says how it went and offers nothing more, so a double tap on Undo can
+ * never undo a second edit. Undoing an earlier edit needs a fresh edit to offer it.
  */
-export function afterUndoSnack(outcome: UndoOutcome, rest: readonly UndoEntry[], now: number, key: string): Snack {
-  const head = outcome === 'done' ? 'Undone' : outcome === 'partial' ? 'Partly undone: some of it was changed since' : 'Not undone: it was changed since';
-  const earlier = rest[rest.length - 1];
-  if (outcome === 'done' && earlier && now - earlier.at < UNDO_REOFFER_MS) {
-    return { key: earlier.id, message: `Undone. Earlier: ${earlier.message}`, spoken: `Undone. Earlier: ${earlier.spoken}. Undo available.`, canUndo: true };
-  }
-  return { key, message: head, spoken: `${head}.`, canUndo: false };
+export function afterUndoSnack(outcome: UndoOutcome, key: string): Snack {
+  const message = outcome === 'done' ? 'Undone' : outcome === 'partial' ? 'Partly undone: some of it was changed since' : 'Not undone: it was changed since';
+  return { key, message, spoken: `${message}.`, canUndo: false };
 }

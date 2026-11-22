@@ -34,6 +34,8 @@ name: 03 item lifecycle
 - assertVisible: "Delivered, step 4 of 4, done"
 - assertVisible: "Paid for ZZ-e2e-lifecycle.*"
 - assertNotVisible: "Mark .*"
+# Undo ignores taps in its first 300 ms (meant for what was there before).
+- waitForAnimationToEnd
 - tapOn: "Undo: .*"
 - assertVisible: "Ordered, step 3 of 4"
 - assertNotVisible: "Paid for ZZ-e2e-lifecycle.*"
@@ -54,8 +56,15 @@ name: 03 item lifecycle
     notVisible: "ZZ-e2e-lifecycle.*"
     timeout: 20000
 
-# A mistaken "Got it" is reverted from the list: open the got items, tap the status chip, pick Ordered.
+# A mistaken "Got it" is reverted from the list: open the got items, tap this item's status chip
+# (its label names the item), pick Ordered, and check the snackbar straight away.
+- scrollUntilVisible:
+    element: "Got it, .*"
+    centerElement: true
 - tapOn: "Got it, .*"
+- scrollUntilVisible:
+    element: "Status Delivered: ZZ-e2e-lifecycle"
+    centerElement: true
 - tapOn: "Status Delivered: ZZ-e2e-lifecycle"
 - assertVisible: "ZZ-e2e-lifecycle: status"
 - tapOn: "Ordered"
