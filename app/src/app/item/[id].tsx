@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
@@ -13,6 +13,8 @@ import { Sheet, SheetButton, SheetOption, TextSheet, TextSheetBody } from '../..
 import { Icon, itemGlyph } from '../../components/ui';
 import { TintWash } from '../../components/TintWash';
 import { useStore } from '../../data/store';
+import { useItemActivity } from '../../data/useActivity';
+import { itemActivity } from '../../domain/activity';
 import { actorName, formatMoney, itemMeta, parseLink, parsePrice, roomOptions } from '../../domain/items';
 import type { Person } from '../../domain/types';
 import { colors, fonts, personColor, TARGET, tileTone } from '../../theme/tokens';
@@ -38,6 +40,10 @@ export default function ItemDetail() {
   const item = items.find((i) => i.id === id);
   const close = () => setSheet(null);
   const state = useDetailState(item !== undefined);
+  // The real history from the activity log when it can be read; reloads only when the item really
+  // changes (a periodic refresh hands over new but equal objects).
+  const rows = useItemActivity(id, item ? JSON.stringify(item) : '');
+  const history = useMemo(() => (rows ? itemActivity(rows, Date.now()) : null), [rows]);
 
   const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 
@@ -93,6 +99,12 @@ export default function ItemDetail() {
         {/* Any stage, forwards or backwards; every change offers Undo, which also restores the dates. */}
         <StatusCard item={item} onSet={(status) => setItemStatus(item.id, status)} onNext={() => advanceItem(item.id)} />
 
+        {/* Right under the stages: whether it needs installing decides where the main button stops. */}
+        <FieldGroup>
+          <ToggleRow first label="Needs installing" value={item.needsInstall} onChange={(needsInstall) => updateItem(item.id, { needsInstall })} />
+          <ToggleRow label="Urgent" tone="coral" value={item.urgent} onChange={(urgent) => updateItem(item.id, { urgent })} />
+        </FieldGroup>
+
         <FieldGroup>
           <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone={item.assignedTo ? 'value' : 'empty'} dot={item.assignedTo && personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
           <FieldRow label="Estimated price" value={item.estPrice !== undefined ? formatMoney(item.estPrice) : 'Add'} tone={item.estPrice !== undefined ? 'value' : 'action'} a11yValue={item.estPrice === undefined ? 'not set' : undefined} onPress={() => setSheet('estPrice')} />
@@ -109,14 +121,13 @@ export default function ItemDetail() {
           <ItemPhotos itemId={item.id} itemName={item.name} />
         </FieldGroup>
 
-        <FieldGroup>
-          <ToggleRow first label="Urgent" tone="coral" value={item.urgent} onChange={(urgent) => updateItem(item.id, { urgent })} />
-          <ToggleRow label="Needs installing" value={item.needsInstall} onChange={(needsInstall) => updateItem(item.id, { needsInstall })} />
-        </FieldGroup>
-
         <View style={s.activity}>
-          <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
-          <ActivityLine actor={item.updatedBy} text="made the last change" />
+          {history && history.length > 0 ? history.map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />) : (
+            <>
+              <ActivityLine actor={item.updatedBy} text="made the last change" />
+              <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
+            </>
+          )}
         </View>
 
         <SheetButton label="Delete item" onPress={remove} />

@@ -1,5 +1,5 @@
 import { advance, setStatus } from '../domain/items';
-import { addStep, setAssignmentStatus, toggleStep } from '../domain/tasks';
+import { addStep, setAssignees, setAssignmentStatus, toggleStep } from '../domain/tasks';
 import type { Actor, FlatNote, Item, ItemStatus, NoteKind, Person, Task, TaskStatus } from '../domain/types';
 import { newId } from './mappers';
 
@@ -38,12 +38,17 @@ export type Action =
   /** Hides the item here; the database row is soft-deleted (deleted_at), so Undo can bring it back. */
   | { type: 'deleteItem'; id: string }
   | { type: 'addTask'; title: string; assignees: Person[]; due?: string; urgent?: boolean; group?: string }
-  | { type: 'updateTask'; id: string; patch: TaskPatch }
+  /** Fields, and optionally who it is for (see setAssignees): one edit, one Undo. */
+  | { type: 'updateTask'; id: string; patch: TaskPatch; assignees?: Person[] }
+  /** Soft delete with Undo, as for items. */
+  | { type: 'deleteTask'; id: string }
   | { type: 'setTaskStatus'; id: string; person: Person; status: TaskStatus }
   | { type: 'toggleStep'; id: string; person: Person; stepId: string }
   | { type: 'addStep'; id: string; title: string }
   | { type: 'addNote'; title: string; body?: string; reference?: string; kind?: NoteKind }
-  | { type: 'updateNote'; id: string; patch: NotePatch };
+  | { type: 'updateNote'; id: string; patch: NotePatch }
+  /** Soft delete with Undo, as for items. */
+  | { type: 'deleteNote'; id: string };
 
 /** Apply a patch, or return the same object when nothing would change, so no op is sent. */
 function patched<T extends object>(obj: T, patch: NoInfer<Partial<T>>, actor: Actor): T {
@@ -83,7 +88,9 @@ export function reducer(state: State, action: Action): State {
         patch.name = patch.name.trim();
         if (!patch.name) return state;
       }
-      const items = state.items.map((i) => (i.id === action.id ? patched(i, patch, actor) : i));
+      // A price saved without a buyer counts as bought by me, so Budget's split always adds up.
+      const buyer = (i: Item): ItemPatch => (patch.actualPrice !== undefined && !('boughtBy' in patch) && i.boughtBy === undefined ? { boughtBy: state.me } : {});
+      const items = state.items.map((i) => (i.id === action.id ? patched(i, { ...patch, ...buyer(i) }, actor) : i));
       return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
     }
     case 'setItemStatus': {
@@ -105,7 +112,21 @@ export function reducer(state: State, action: Action): State {
         patch.title = patch.title.trim();
         if (!patch.title) return state;
       }
-      return editTask(state, action.id, (task) => patched(task, patch, actor));
+      if ('group' in patch) patch.group = clean(patch.group);
+      if ('notes' in patch) patch.notes = clean(patch.notes);
+      if ('reference' in patch) patch.reference = clean(patch.reference);
+      return editTask(state, action.id, (task) => {
+        const fields = patched(task, patch, actor);
+        return action.assignees ? setAssignees(fields, action.assignees, actor) : fields;
+      });
+    }
+    case 'deleteTask': {
+      const tasks = state.tasks.filter((t) => t.id !== action.id);
+      return tasks.length === state.tasks.length ? state : { ...state, tasks };
+    }
+    case 'deleteNote': {
+      const notes = state.notes.filter((n) => n.id !== action.id);
+      return notes.length === state.notes.length ? state : { ...state, notes };
     }
     case 'setTaskStatus':
       if (action.person !== state.me) return state;

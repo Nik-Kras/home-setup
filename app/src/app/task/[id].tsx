@@ -9,25 +9,36 @@ import { LoadingState, NotFoundState, OfflineState, useDetailState } from '../..
 import { HeaderAction, ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetOption, TextSheetBody } from '../../components/Sheet';
 import { AssignmentCard, TaskCallout, TaskChecklist, TaskChip, TaskStatusControl, TASK_STATUS_LABEL, TASK_STATUS_OPTIONS } from '../../components/TaskDetailParts';
+import { TaskEditSheet } from '../../components/TaskEditSheet';
 import { useStore } from '../../data/store';
+import { taskEditChanges, type TaskDraft } from '../../domain/taskEdit';
 import { actorName } from '../../domain/items';
 import { addDays, endOfWeek, localDate } from '../../domain/taskOptions';
 import { assignmentFor, daysLeft, isShared, parseTaskDate, taskProgressLabel, waitingOn } from '../../domain/tasks';
 import type { Task, TaskStatus } from '../../domain/types';
 import { colors, fonts, personColor, radius } from '../../theme/tokens';
 
-type Editor = 'title' | 'due' | 'date' | 'status';
-const EDITOR_TITLE: Record<Editor, string> = { title: 'Task title', due: 'Due date', date: 'Pick a date', status: 'Your status' };
+type Editor = 'due' | 'date' | 'status';
+const EDITOR_TITLE: Record<Editor, string> = { due: 'Due date', date: 'Pick a date', status: 'Your status' };
 
 const back = () => (router.canGoBack() ? router.back() : router.replace('/tasks'));
 
 export default function TaskDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { tasks, retry } = useStore();
+  const { tasks, retry, deleteTask } = useStore();
   const task = tasks.find((t) => t.id === id);
   // Tasks are not cached, so a cold start or deep link waits for the load before saying "not found".
   const state = useDetailState(task !== undefined);
-  return task ? <TaskDetails key={task.id} task={task} /> : (
+  /** Set by Delete, so the screen sliding away shows nothing rather than "Task not found". */
+  const [leaving, setLeaving] = useState(false);
+  // Leave first, then delete: the snackbar on the list offers Undo for 10 s.
+  const remove = (taskId: string) => {
+    setLeaving(true);
+    back();
+    deleteTask(taskId);
+  };
+  if (!task && leaving) return <View style={s.root}><TaskHeader /></View>;
+  return task ? <TaskDetails key={task.id} task={task} onDelete={() => remove(task.id)} /> : (
     <View style={s.root}>
       <TaskHeader />
       <View style={s.missing}>
@@ -46,13 +57,18 @@ function TaskHeader({ onEdit }: { onEdit?: () => void }) {
     <ScreenHeader
       onBack={back}
       backLabel="Back to tasks"
-      right={onEdit ? <HeaderAction label="Edit" onPress={onEdit} accessibilityLabel="Edit task title" /> : undefined}
+      right={onEdit ? <HeaderAction label="Edit" onPress={onEdit} accessibilityLabel="Edit task: title, date, group, who, urgent, notes, or delete" /> : undefined}
     />
   );
 }
 
-function TaskDetails({ task }: { task: Task }) {
+function TaskDetails({ task, onDelete }: { task: Task; onDelete: () => void }) {
   const { me, updateTask, setTaskStatus, toggleStep, addStep } = useStore();
+  const [editing, setEditing] = useState(false);
+  const saveEdit = (draft: TaskDraft, original: Task) => {
+    const { patch, assignees } = taskEditChanges(original, draft, me);
+    if (Object.keys(patch).length > 0 || assignees) updateTask(task.id, patch, assignees);
+  };
   const { bottom, left, right } = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -99,7 +115,7 @@ function TaskDetails({ task }: { task: Task }) {
           </Svg>
         </View>
       ) : null}
-      <TaskHeader onEdit={() => setEditor('title')} />
+      <TaskHeader onEdit={() => setEditing(true)} />
       <ScrollView
         style={s.scroll}
         contentContainerStyle={[s.content, { paddingBottom: shared && mine ? 24 : bottom + 24 }]}
@@ -181,18 +197,10 @@ function TaskDetails({ task }: { task: Task }) {
         </View>
       ) : null}
 
+      <TaskEditSheet visible={editing} task={task} me={me} onClose={() => setEditing(false)} onSave={saveEdit} onDelete={onDelete} />
+
       {editor ? (
         <Sheet visible title={EDITOR_TITLE[editor]} onClose={close}>
-          {editor === 'title' ? (
-            <TextSheetBody
-              key="title"
-              title={EDITOR_TITLE.title}
-              initial={task.title}
-              validate={(title) => title.trim() ? undefined : 'Enter a title'}
-              onSave={(title) => updateTask(task.id, { title })}
-              onClose={close}
-            />
-          ) : null}
           {editor === 'due' ? (
             <>
               {dateChoices.map(({ label, date }, index) => (

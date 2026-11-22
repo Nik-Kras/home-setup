@@ -127,3 +127,40 @@ export function doneTasksFor(tasks: readonly Task[], person: Person): Task[] {
     .filter((t) => assignmentFor(t, person)?.status === 'done')
     .sort((a, b) => a.title.localeCompare(b.title));
 }
+
+/**
+ * Who a task is for, as a set of people. A person added gets a fresh part (to do, no steps); a person
+ * taken off loses only their own part. The part of anyone who stays is never touched, so their status
+ * and steps survive. At least one person stays: an empty list changes nothing.
+ */
+export function setAssignees(task: Task, people: readonly Person[], actor: Actor): Task {
+  const want = [...new Set(people)];
+  if (want.length === 0) return task;
+  const kept = task.assignments.filter((a) => want.includes(a.person));
+  const added = want.filter((p) => !kept.some((a) => a.person === p)).map((person): Assignment => ({ person, status: 'todo', steps: [] }));
+  if (added.length === 0 && kept.length === task.assignments.length) return task;
+  return { ...task, updatedBy: actor, assignments: [...kept, ...added] };
+}
+
+export type Who = 'me' | 'other' | 'both';
+
+/** The Who choice a task stands for, seen by `me`. */
+export function whoFor(task: Task, me: Person): Who {
+  const mine = assignmentFor(task, me) !== undefined;
+  const theirs = task.assignments.some((a) => a.person !== me);
+  return mine && theirs ? 'both' : mine ? 'me' : 'other';
+}
+
+/**
+ * What a task row's left control is, for `me` looking at `viewer`'s list (null: the Both view).
+ * - tick: a circle that ticks MY part (also on the other person's list, when I share the task).
+ * - disc: the task is only the other person's, so their initial disc shows their state; nothing to tap.
+ */
+export type RowControl = { kind: 'tick'; person: Person; done: boolean } | { kind: 'disc'; person: Person; done: boolean };
+
+export function rowControl(task: Task, viewer: Person | null, me: Person): RowControl {
+  const mine = assignmentFor(task, me);
+  if (mine) return { kind: 'tick', person: me, done: mine.status === 'done' };
+  const theirs = (viewer && assignmentFor(task, viewer)) ?? task.assignments[0];
+  return { kind: 'disc', person: theirs?.person ?? viewer ?? me, done: theirs?.status === 'done' };
+}

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { dayMonth, dueLabel, localDate } from '../domain/taskOptions';
-import { assignmentFor, isShared, waitingOn } from '../domain/tasks';
+import { assignmentFor, isShared, rowControl, waitingOn } from '../domain/tasks';
 import type { Person, Task } from '../domain/types';
 import { colors, fonts, radius } from '../theme/tokens';
 import { CheckCircle, PersonDisc, StatusChip, UrgentBadge } from './ui';
@@ -17,7 +17,9 @@ export function TaskRow({ task, viewer, me, onToggle, plain = false }: { task: T
   const shared = isShared(task);
   const subject = viewer ?? me;
   const mine = assignmentFor(task, subject);
-  const canTick = mine !== undefined && subject === me;
+  // Where I have a part the circle ticks MY part, on any list; a task that is only theirs shows their
+  // disc instead of a circle that cannot be ticked.
+  const control = rowControl(task, viewer, me);
   const wait = waitingOn(task);
   const due = task.due ? dueLabel(task.due, localDate()) : undefined;
   // In a group the chip says "Tomorrow" or "3 days"; the subtitle adds the date itself (the chip already shows far dates).
@@ -29,7 +31,15 @@ export function TaskRow({ task, viewer, me, onToggle, plain = false }: { task: T
   const label = [task.title, task.urgent ? 'Urgent' : null, meta || null, status, due ? `due ${due.text}` : null].filter(Boolean).join(', ');
   return (
     <View style={[s.row, plain && s.plain]}>
-      <CheckCircle done={mine?.status === 'done'} label={`${mine?.status === 'done' ? 'Mark not done' : 'Mark done'}: ${task.title}`} onPress={canTick ? () => onToggle(subject, mine?.status !== 'done') : undefined} />
+      {control.kind === 'tick' ? (
+        <CheckCircle
+          done={control.done}
+          label={`${control.done ? 'Mark not done' : 'Mark done'}${shared ? ' (your part)' : ''}: ${task.title}`}
+          onPress={() => onToggle(control.person, !control.done)}
+        />
+      ) : (
+        <View style={s.discSlot}><PersonDisc person={control.person} done={control.done} /></View>
+      )}
       <Pressable onPress={() => router.push(`/task/${task.id}`)} accessibilityRole="button" accessibilityLabel={label} accessibilityHint="Opens details" style={s.mid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{task.title}</Text>{task.urgent ? <UrgentBadge /> : null}</View>
         {meta ? <Text style={s.meta} numberOfLines={1}>{meta}</Text> : null}
@@ -53,6 +63,8 @@ export function TaskRow({ task, viewer, me, onToggle, plain = false }: { task: T
 
 const s = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 58, paddingVertical: 6, paddingLeft: 4, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
+  // Same 44dp slot as the check circle, so names line up.
+  discSlot: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   plain: { backgroundColor: 'transparent', borderWidth: 0, borderRadius: 0, minHeight: 56, paddingRight: 14 },
   mid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },
   nameLine: { flexDirection: 'row', alignItems: 'center' },

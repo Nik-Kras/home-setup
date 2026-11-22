@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { SectionList, StyleSheet, View, type SectionListProps } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../theme/tokens';
+import { SyncPill } from './SyncPill';
 import { TAB_BAR_SPACE } from './TabBar';
 
 /** Gap between rows inside a section. */
@@ -17,7 +18,7 @@ export function SectionScreen<T, S>({ header, ...list }: { header: ReactNode } &
   const insets = useSafeAreaInsets();
   return (
     <View style={[s.root, { paddingTop: insets.top + 8 }]}>
-      <View style={s.header}>{header}</View>
+      <View style={s.header}>{header}<SyncPill /></View>
       <SectionList<T, S>
         keyboardShouldPersistTaps="handled"
         stickySectionHeadersEnabled={false}

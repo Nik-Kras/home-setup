@@ -1,11 +1,13 @@
-import { Pressable, StyleSheet, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { Pressable, StyleSheet } from 'react-native';
 import { ITEM_STATUS_LABEL } from '../domain/items';
 import type { ItemStatus } from '../domain/types';
-import { colors, TARGET } from '../theme/tokens';
+import { TARGET } from '../theme/tokens';
 import { StatusChip } from './ui';
 
-/** A row's status chip as a control: tapping it opens the status sheet. The chevron says it opens something. */
+/**
+ * A row's status chip as a control: tapping it opens the status sheet. No chevron, as in the design
+ * (the rows stay calm); the 44dp target and the hint say it opens something.
+ */
 export function StatusChipButton({ status, name, onPress }: { status: ItemStatus; name: string; onPress: () => void }) {
   return (
     <Pressable
@@ -16,18 +18,12 @@ export function StatusChipButton({ status, name, onPress }: { status: ItemStatus
       accessibilityHint="Opens the stages to change the status"
       style={({ pressed }) => [s.hit, pressed && s.pressed]}
     >
-      <View style={s.row}>
-        <StatusChip status={status} />
-        <Svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={colors.textMuted} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          <Path d="m6 9 6 6 6-6" />
-        </Svg>
-      </View>
+      <StatusChip status={status} />
     </Pressable>
   );
 }
 
 const s = StyleSheet.create({
   hit: { minHeight: TARGET, justifyContent: 'center', flexShrink: 0 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   pressed: { opacity: 0.72 },
 });

@@ -2,7 +2,7 @@ import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import type { DisplayPhoto } from '../domain/photos';
-import { identityFor, type Identity, type SyncStatus } from '../domain/sync';
+import { identityFor, memberIdentity, type Identity, type SyncStatus } from '../domain/sync';
 import type { Item, ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { asksForPrice } from '../domain/items';
 import { diffToOps } from './diff';
@@ -59,12 +59,17 @@ interface Store extends State {
   /** Soft delete: hidden at once, deleted_at in the database, and Undo brings it back. */
   deleteItem: (id: string) => void;
   addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean; group?: string }) => void;
-  updateTask: (id: string, patch: TaskPatch) => void;
+  /** Fields, and optionally who the task is for (people added or taken off; the others' parts stay). */
+  updateTask: (id: string, patch: TaskPatch, assignees?: Person[]) => void;
+  /** Soft delete with Undo. */
+  deleteTask: (id: string) => void;
   setTaskStatus: (id: string, person: Person, status: TaskStatus) => void;
   toggleStep: (id: string, person: Person, stepId: string) => void;
   addStep: (id: string, title: string) => void;
   addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => void;
   updateNote: (id: string, patch: NotePatch) => void;
+  /** Soft delete with Undo. */
+  deleteNote: (id: string) => void;
   /** The snackbar after an edit ("Kettle → Ordered. Undo") or after an Undo; null when hidden. */
   snack: Snack | null;
   /** Undo the most recent edit still on the stack (see undo.ts). */
@@ -147,11 +152,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (currentAccount.current !== account) return;
     // A cached identity stays; without one the screens show a retry rather than guessing a person.
     if (error) return setIdentity((i) => (i === 'loading' ? 'failed' : i));
-    // The database derives is_person from the two assignable member keys.
-    const canDelete = data?.is_person === true;
-    const me = canDelete ? data.key as Person : undefined;
+    // No member row: not one of the household, so never shown as the test account (see memberIdentity).
+    const found = memberIdentity(data as { key: string; is_person: boolean } | null);
+    if (found.identity === 'failed') return setIdentity('failed');
+    const { me, canDelete } = found;
     set({ ...ref.current, me: me ?? DEFAULT_PERSON });
-    setIdentity(identityFor({ me, canDelete }));
+    setIdentity(found.identity);
     setMember({ account, canDelete });
     memberKnown.current = account;
     void kv.setItem(memberCacheKey(account), JSON.stringify({ me, canDelete })).catch(() => undefined);
@@ -320,8 +326,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const prev = ref.current;
       const next = reducer(prev, action);
       if (next === prev) return;
-      // A delete is explicit: diffToOps never turns a missing item into a delete.
-      const out = action.type === 'deleteItem' ? [ops.softDelete('items', action.id)] : diffToOps(prev, next, roomIds.current);
+      // A delete is explicit: diffToOps never turns a missing row into a delete.
+      const out = action.type === 'deleteItem' ? [ops.softDelete('items', action.id)]
+        : action.type === 'deleteTask' ? [ops.softDelete('tasks', action.id)]
+          : action.type === 'deleteNote' ? [ops.softDelete('flat_notes', action.id)]
+            : diffToOps(prev, next, roomIds.current);
       commit(next, out);
       const entry = undoEntryFor(prev, next, action, Date.now(), newId());
       if (entry) {
@@ -387,12 +396,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setItemStatus: (id: string, status: ItemStatus) => act({ type: 'setItemStatus', id, status }),
       deleteItem: (id: string) => act({ type: 'deleteItem', id }),
       addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean; group?: string }) => act({ type: 'addTask', title, assignees, ...opts }),
-      updateTask: (id: string, patch: TaskPatch) => act({ type: 'updateTask', id, patch }),
+      updateTask: (id: string, patch: TaskPatch, assignees?: Person[]) => act({ type: 'updateTask', id, patch, ...(assignees ? { assignees } : {}) }),
+      deleteTask: (id: string) => act({ type: 'deleteTask', id }),
       setTaskStatus: (id: string, person: Person, status: TaskStatus) => act({ type: 'setTaskStatus', id, person, status }),
       toggleStep: (id: string, person: Person, stepId: string) => act({ type: 'toggleStep', id, person, stepId }),
       addStep: (id: string, title: string) => act({ type: 'addStep', id, title }),
       addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => act({ type: 'addNote', title, ...opts }),
       updateNote: (id: string, patch: NotePatch) => act({ type: 'updateNote', id, patch }),
+      deleteNote: (id: string) => act({ type: 'deleteNote', id }),
       undo,
       dismissSnack: (key: string) => setSnack((cur) => (cur?.key === key ? null : cur)),
       closePricePrompt: () => setPricePrompt(null),

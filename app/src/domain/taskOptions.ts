@@ -1,11 +1,11 @@
-import { assignmentFor, daysLeft, openTasksSorted, tasksFor } from './tasks';
+import { assignmentFor, daysLeft, openTasksSorted, tasksFor, type Who } from './tasks';
 import type { Person, Task } from './types';
 
 /** The groups offered when adding a task. Tasks may also carry other group names (from Claude or older data). */
 export const TASK_GROUPS = ['Utilities', 'Address', 'Safety', 'Other'] as const;
 
 export type When = 'today' | 'week' | 'date' | 'none';
-export type Who = 'me' | 'other' | 'both';
+export type { Who };
 
 /** Local calendar date as YYYY-MM-DD. */
 export function localDate(d: Date = new Date()): string {

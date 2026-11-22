@@ -8,6 +8,9 @@ import { useStore } from '../../data/store';
 import { budgetView, gbp, type BudgetRoomRow } from '../../domain/budgetView';
 import { colors, fonts, glow, personColor, tileTone } from '../../theme/tokens';
 
+/** Spend with no buyer: a neutral segment, as nobody's colour applies. */
+const UNASSIGNED = 'rgba(255,255,255,0.38)';
+
 /** Each room's bar in its category colour, as in the design; rooms without one ("Other") stay grey. */
 function RoomBar({ row }: { row: BudgetRoomRow }) {
   const tone = roomTone(row.room);
@@ -41,18 +44,25 @@ export default function Budget() {
           <Text style={s.label}>Who paid</Text>
           {/* Only the neutral track until someone has paid, so an empty budget never looks split. */}
           <View style={[s.split, b.split.length === 0 && s.splitEmpty]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {b.split.map(({ person, share }) => <View key={person} style={{ flex: share, backgroundColor: personColor[person], borderRadius: 7 }} />)}
+            {b.split.map(({ person, share }) => <View key={person} style={{ flex: share, backgroundColor: person === 'unassigned' ? UNASSIGNED : personColor[person], borderRadius: 7 }} />)}
           </View>
           {b.splitNote ? (
             <Text style={s.note}>{b.splitNote}</Text>
           ) : (
-            <View style={s.barRow}>
+            <View style={s.legendRow}>
               {(['nikita', 'daryna'] as const).map((p) => (
                 <View key={p} style={s.legend}>
                   <PersonDot person={p} />
                   <Text style={s.barLabel}>{p === 'nikita' ? 'Nikita' : 'Daryna'} {gbp(b.byPerson[p])}</Text>
                 </View>
               ))}
+              {/* Spend nobody is recorded as buying, so the shares always add up to Spent. */}
+              {b.unassigned > 0 ? (
+                <View style={s.legend} accessible accessibilityLabel={`Unassigned ${gbp(b.unassigned)}, no buyer recorded`}>
+                  <View style={s.unassignedDot} />
+                  <Text style={s.barLabel}>Unassigned {gbp(b.unassigned)}</Text>
+                </View>
+              ) : null}
             </View>
           )}
         </Card>
@@ -81,5 +91,7 @@ const s = StyleSheet.create({
   barLabel: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 18, color: colors.text, fontVariant: ['tabular-nums'] },
   barValue: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  legendRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', columnGap: 16, rowGap: 6 },
+  unassignedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: UNASSIGNED },
   note: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary },
 });

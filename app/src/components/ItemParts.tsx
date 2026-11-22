@@ -1,28 +1,32 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
-import { currentStepTone, ITEM_STATUS_LABEL, itemSteps, nextActionLabel } from '../domain/items';
+import { currentStepTone, ITEM_STATUS_LABEL, itemSteps, nextActionLabel, stageNote } from '../domain/items';
 import type { Item, ItemStatus } from '../domain/types';
 import { colors, fonts, TARGET } from '../theme/tokens';
 import { Icon } from './ui';
 
-/** Five-step status (four when nothing needs installing) and the one next action. */
+/**
+ * Five-step status and the one next action. Installed is always there; for things that need no
+ * installing it is marked optional and the main button stops at Delivered (Got it).
+ */
 export function StatusCard({ item, onSet, onNext }: { item: Item; onSet: (s: ItemStatus) => void; onNext: () => void }) {
   const steps = itemSteps(item);
   const action = nextActionLabel(item);
+  const note = stageNote(item);
   // Amber only for Ordered (in transit); a finished item's current step is done; otherwise neutral.
   const tone = currentStepTone(item);
   const cur = tone === 'done' ? { bar: s.barDone, text: s.stepTextCurrentDone } : tone === 'transit' ? { bar: s.barTransit, text: s.stepTextTransit } : { bar: s.barCurrent, text: s.stepTextCurrent };
   return (
     <View style={s.card}>
       <View style={s.steps} accessibilityRole="radiogroup" accessibilityLabel="Status">
-        {steps.map(({ status, state }, n) => (
+        {steps.map(({ status, state, optional }, n) => (
           <Pressable
             key={status}
             onPress={() => onSet(status)}
             accessibilityRole="radio"
             accessibilityState={{ checked: state === 'current' }}
-            accessibilityLabel={`${ITEM_STATUS_LABEL[status]}, step ${n + 1} of ${steps.length}${state === 'done' || (state === 'current' && tone === 'done') ? ', done' : ''}`}
+            accessibilityLabel={`${ITEM_STATUS_LABEL[status]}${optional ? ', optional' : ''}, step ${n + 1} of ${steps.length}${state === 'done' || (state === 'current' && tone === 'done') ? ', done' : ''}`}
             style={s.step}
           >
             <View style={[s.bar, state === 'done' && s.barDone, state === 'current' && cur.bar]}>
@@ -33,9 +37,11 @@ export function StatusCard({ item, onSet, onNext }: { item: Item; onSet: (s: Ite
             <Text numberOfLines={2} android_hyphenationFrequency="normal" style={[s.stepText, state === 'done' && s.stepTextDone, state === 'current' && cur.text]}>
               {ITEM_STATUS_LABEL[status]}
             </Text>
+            {optional ? <Text style={s.optional}>optional</Text> : null}
           </Pressable>
         ))}
       </View>
+      {note ? <Text style={s.note} accessibilityLiveRegion="polite">{note}</Text> : null}
       {action ? (
         <Pressable onPress={onNext} accessibilityRole="button" style={({ pressed }) => [s.primary, pressed && s.primaryPressed]}>
           <Text style={s.primaryText}>{action}</Text>
@@ -120,6 +126,8 @@ const s = StyleSheet.create({
   stepTextCurrent: { color: colors.text },
   stepTextTransit: { color: colors.amber },
   stepTextCurrentDone: { color: colors.mint },
+  optional: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 14, color: colors.textMuted, textAlign: 'center', marginTop: -4 },
+  note: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 19, color: colors.textSecondary, textAlign: 'center', marginTop: -4 },
   primary: { height: 52, borderRadius: 26, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   primaryPressed: { opacity: 0.85 },
   primaryText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.onMint },

@@ -73,3 +73,26 @@ export function settledAnnouncement(view: SyncView, lastAnnounced: string | unde
   if (view.kind === 'sending' || view.kind === 'demo') return undefined;
   return view.label === lastAnnounced ? undefined : view.label;
 }
+
+/**
+ * Who `me` is from the account's member row. No row at all means the account is not one of the
+ * household: 'failed', never 'standIn', so a real person can never see the test-account line
+ * ("Test account, acting as Nikita"). Only a member row that is not a person (the Claude account) is a stand-in.
+ */
+export function memberIdentity(row: { key: string; is_person: boolean } | null): { identity: Identity; me?: 'nikita' | 'daryna'; canDelete: boolean } {
+  if (!row) return { identity: 'failed', canDelete: false };
+  const person = row.is_person === true && (row.key === 'nikita' || row.key === 'daryna');
+  return person ? { identity: 'known', me: row.key as 'nikita' | 'daryna', canDelete: true } : { identity: 'standIn', canDelete: false };
+}
+
+/**
+ * The small pill in the screen headers: only when something is off. Hidden for demo data, when
+ * synced, and while a first load runs with nothing waiting. "Sending" is shown only once it has
+ * lasted a moment (see SyncPill), so a normal edit does not flash it.
+ */
+export function syncPill(status: SyncStatus, pending: number): { label: string; tone: 'amber' | 'neutral'; sending: boolean } | undefined {
+  if (status === 'demo') return undefined;
+  if (status === 'offline') return { label: pending > 0 ? `Offline · ${pending} unsent` : 'Offline', tone: pending > 0 ? 'amber' : 'neutral', sending: false };
+  if (pending > 0) return { label: `Sending ${pending}`, tone: 'amber', sending: true };
+  return undefined;
+}

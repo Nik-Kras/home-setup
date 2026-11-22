@@ -1,8 +1,9 @@
 import { formatMoney, ITEM_STATUS_LABEL } from '../domain/items';
-import type { Item, Person, Task, TaskStatus } from '../domain/types';
-import { itemToRow } from './mappers';
+import { dayMonth } from '../domain/taskOptions';
+import type { FlatNote, Item, Person, Task, TaskStatus } from '../domain/types';
+import { itemToRow, taskToRow } from './mappers';
 import type { Op } from './queue';
-import { ITEM_FIELDS, type Action, type State } from './reducer';
+import { ITEM_FIELDS, TASK_FIELDS, type Action, type State } from './reducer';
 import { ops } from './repo';
 
 /**
@@ -18,7 +19,10 @@ import { ops } from './repo';
  */
 
 type ItemChange = { kind: 'item'; before: Item; after: Item | null; index: number };
-type TaskChange = { kind: 'task'; before: Task; after: Task };
+/** after null: the task was deleted. index: where it was, to put it back there. */
+type TaskChange = { kind: 'task'; before: Task; after: Task | null; index: number };
+/** Notes offer Undo for a delete only. */
+type NoteChange = { kind: 'note'; before: FlatNote; after: null; index: number };
 
 export interface UndoEntry {
   id: string;
@@ -28,7 +32,7 @@ export interface UndoEntry {
   spoken: string;
   /** When the edit was made, in ms. */
   at: number;
-  change: ItemChange | TaskChange;
+  change: ItemChange | TaskChange | NoteChange;
   /** The queue Ops the edit sent. If none has gone out yet (offline), Undo takes them back instead. */
   opIds?: readonly string[];
 }
@@ -39,7 +43,15 @@ export interface Snack {
   message: string;
   spoken: string;
   canUndo: boolean;
+  /** How long it stays, in ms (a screen reader gets longer, see UndoBar). */
+  ms: number;
 }
+
+/** A status or field change: 6 s. A delete: 10 s, as losing a thing by mistake costs more. */
+export const SNACK_MS = 6_000;
+export const DELETE_SNACK_MS = 10_000;
+
+const isDelete = (entry: UndoEntry) => entry.change.after === null;
 
 export type UndoOutcome = 'done' | 'partial' | 'none';
 
@@ -88,8 +100,33 @@ function fieldText(field: (typeof ITEM_FIELDS)[number], after: Item): string {
   }
 }
 
-/** "Marked done: Register with a GP", "Step ticked: Pick a practice". */
-export function describeTaskChange(before: Task, after: Task): { message: string; spoken: string } | undefined {
+const TASK_FIELD_TEXT: Record<(typeof TASK_FIELDS)[number], (t: Task) => string> = {
+  title: (t) => `renamed to ${t.title}`,
+  due: (t) => (t.due ? `due ${dayMonth(t.due)}` : 'no date'),
+  urgent: (t) => (t.urgent ? 'urgent' : 'not urgent'),
+  notes: (t) => (t.notes ? 'notes saved' : 'notes cleared'),
+  reference: (t) => (t.reference ? 'reference saved' : 'reference cleared'),
+  group: (t) => (t.group ? `moved to ${t.group}` : 'no group'),
+};
+
+/** "for you", "for Daryna", "for both of you", from the viewer `me`. */
+function forWhom(task: Task, me: Person): string {
+  if (task.assignments.length > 1) return 'for both of you';
+  const p = task.assignments[0]?.person;
+  return p === me ? 'for you' : p ? `for ${PERSON[p]}` : 'for nobody';
+}
+
+/** "Marked done: Register with a GP", "Step ticked: Pick a practice", "Register with a GP → due 26 Nov". */
+export function describeTaskChange(before: Task, after: Task | null, me: Person = 'nikita'): { message: string; spoken: string } | undefined {
+  if (!after) return { message: `${before.title} deleted`, spoken: `${before.title} deleted` };
+  const fields = TASK_FIELDS.filter((f) => before[f] !== after[f]);
+  const people = (t: Task) => t.assignments.map((a) => a.person).sort().join(',');
+  const whoChanged = people(before) !== people(after);
+  if (fields.length > 0 || whoChanged) {
+    const message = fields.length === 1 && fields[0] === 'title' && !whoChanged ? `Renamed to ${after.title}`
+      : `${before.title} → ${fields.length + (whoChanged ? 1 : 0) > 1 ? 'updated' : whoChanged ? forWhom(after, me) : TASK_FIELD_TEXT[fields[0]!](after)}`;
+    return { message, spoken: message.replace(' → ', ', ') };
+  }
   for (const a of after.assignments) {
     const was = before.assignments.find((x) => x.person === a.person);
     if (!was) continue;
@@ -127,12 +164,22 @@ export function undoEntryFor(prev: State, next: State, action: Action, at: numbe
       return text && { id, at, ...text, change: { kind: 'item', before, after, index } };
     }
     case 'setTaskStatus':
-    case 'toggleStep': {
-      const before = prev.tasks.find((t) => t.id === action.id);
-      const after = next.tasks.find((t) => t.id === action.id);
-      if (!before || !after || before === after) return undefined;
-      const text = describeTaskChange(before, after);
-      return text && { id, at, ...text, change: { kind: 'task', before, after } };
+    case 'toggleStep':
+    case 'updateTask':
+    case 'deleteTask': {
+      const index = prev.tasks.findIndex((t) => t.id === action.id);
+      const before = prev.tasks[index];
+      if (!before) return undefined;
+      const after = next.tasks.find((t) => t.id === action.id) ?? null;
+      if (after === before) return undefined;
+      const text = describeTaskChange(before, after, prev.me);
+      return text && { id, at, ...text, change: { kind: 'task', before, after, index } };
+    }
+    case 'deleteNote': {
+      const index = prev.notes.findIndex((n) => n.id === action.id);
+      const before = prev.notes[index];
+      if (!before || next.notes.some((n) => n.id === action.id)) return undefined;
+      return { id, at, message: `${before.title} deleted`, spoken: `Note ${before.title} deleted`, change: { kind: 'note', before, after: null, index } };
     }
     default:
       return undefined;
@@ -192,10 +239,71 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
     return { state: { ...current, items }, ops: out, outcome: skipped > 0 ? 'partial' : 'done' };
   }
 
-  const { before, after } = change;
+  if (change.kind === 'note') {
+    // Undo a note delete: show it again where it was and clear deleted_at.
+    const { before, index } = change;
+    if (current.notes.some((n) => n.id === before.id)) return { state: current, ops: [], outcome: 'done' };
+    const notes = [...current.notes];
+    notes.splice(Math.min(index, notes.length), 0, { ...before, updatedBy: me });
+    return { state: { ...current, notes }, ops: [ops.restore('flat_notes', before.id)], outcome: 'done' };
+  }
+
+  const { before, after, index } = change;
   const cur = current.tasks.find((t) => t.id === before.id);
+  if (!after) {
+    // Undo a task delete: show it again where it was and clear deleted_at.
+    if (cur) return { state: current, ops: [], outcome: 'done' };
+    const tasks = [...current.tasks];
+    tasks.splice(Math.min(index, tasks.length), 0, { ...before, updatedBy: me });
+    return { state: { ...current, tasks }, ops: [ops.restore('tasks', before.id)], outcome: 'done' };
+  }
   if (!cur) return { state: current, ops: [], outcome: 'none' };
-  const assignments = cur.assignments.map((curA) => {
+
+  // Task fields: each goes back only while it still holds the value this edit set.
+  const fieldPatch: Partial<Task> = {};
+  const wasRow = taskToRow(before);
+  const nowRow = taskToRow(after);
+  for (const field of TASK_FIELDS) {
+    if (before[field] === after[field]) continue;
+    if (cur[field] !== after[field]) {
+      skipped++;
+      continue;
+    }
+    Object.assign(fieldPatch, { [field]: before[field] });
+    reverted++;
+    const col = field === 'group' ? 'grp' : field;
+    out.push(ops.patchIf('tasks', { id: before.id, [col]: nowRow[col] as string | boolean | null }, { [col]: wasRow[col] }));
+  }
+
+  // A person this edit took off comes back with their part as it was, unless someone added them since.
+  const restored = before.assignments.filter((was) => !after.assignments.some((a) => a.person === was.person));
+  const back: typeof cur.assignments = [];
+  for (const was of restored) {
+    if (cur.assignments.some((a) => a.person === was.person)) {
+      skipped++;
+      continue;
+    }
+    back.push(was);
+    out.push(ops.addAssignment(before.id, was.person, was.status));
+    was.steps.forEach((step, i) => out.push(ops.saveStep(before.id, was.person, step, i, true)));
+    reverted++;
+  }
+  // A person this edit added goes again, unless they have started their part since.
+  const added = after.assignments.filter((a) => !before.assignments.some((was) => was.person === a.person)).map((a) => a.person);
+  const drop = new Set<Person>();
+  for (const person of added) {
+    const now = cur.assignments.find((a) => a.person === person);
+    if (!now) continue;
+    if (now.status !== 'todo' || now.steps.length > 0 || cur.assignments.length === 1) {
+      skipped++;
+      continue;
+    }
+    drop.add(person);
+    out.push(ops.removeAssignment(before.id, person, { status: 'todo' }));
+    reverted++;
+  }
+
+  const assignments = cur.assignments.filter((a) => !drop.has(a.person)).map((curA) => {
     const was = before.assignments.find((a) => a.person === curA.person);
     const set = after.assignments.find((a) => a.person === curA.person);
     if (!was || !set) return curA;
@@ -222,7 +330,14 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
     return next;
   });
   if (reverted === 0) return { state: current, ops: [], outcome: 'none' };
-  const tasks = current.tasks.map((t) => (t === cur ? { ...cur, assignments, updatedBy: me } : t));
+  // Put returning people back in the order the task had them before.
+  const order = before.assignments.map((a) => a.person);
+  const merged = [...assignments, ...back].sort((x, y) => {
+    const ix = order.indexOf(x.person);
+    const iy = order.indexOf(y.person);
+    return (ix === -1 ? order.length : ix) - (iy === -1 ? order.length : iy);
+  });
+  const tasks = current.tasks.map((t) => (t === cur ? { ...cur, ...fieldPatch, assignments: merged, updatedBy: me } : t));
   return { state: { ...current, tasks }, ops: out, outcome: skipped > 0 ? 'partial' : 'done' };
 }
 
@@ -239,7 +354,7 @@ export function popUndo(stack: readonly UndoEntry[]): { entry?: UndoEntry; rest:
 
 /** The snackbar right after an edit. */
 export function offerSnack(entry: UndoEntry): Snack {
-  return { key: entry.id, message: entry.message, spoken: `${entry.spoken}. Undo available.`, canUndo: true };
+  return { key: entry.id, message: entry.message, spoken: `${entry.spoken}. Undo available.`, canUndo: true, ms: isDelete(entry) ? DELETE_SNACK_MS : SNACK_MS };
 }
 
 /**
@@ -248,5 +363,5 @@ export function offerSnack(entry: UndoEntry): Snack {
  */
 export function afterUndoSnack(outcome: UndoOutcome, key: string): Snack {
   const message = outcome === 'done' ? 'Undone' : outcome === 'partial' ? 'Partly undone: some of it was changed since' : 'Not undone: it was changed since';
-  return { key, message, spoken: `${message}.`, canUndo: false };
+  return { key, message, spoken: `${message}.`, canUndo: false, ms: SNACK_MS };
 }

@@ -84,6 +84,16 @@ export function nextUp(items: readonly Item[]): Item | undefined {
     .sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.addedAt.localeCompare(b.addedAt))[0];
 }
 
+/**
+ * The Next-up card, following the Buy list's person filter: that person's items when a disc is on.
+ * With no filter it prefers what is mine or not claimed yet, so the card never pushes someone else's
+ * item first; when only the other person's items are left, it shows those.
+ */
+export function nextUpFor(items: readonly Item[], filter: Person | null, me: Person): Item | undefined {
+  if (filter) return nextUp(items.filter((i) => i.assignedTo === filter));
+  return nextUp(items.filter((i) => i.assignedTo === undefined || i.assignedTo === me)) ?? nextUp(items);
+}
+
 /** Money. Only entered prices count; nothing is guessed. */
 export function budget(items: readonly Item[]): {
   spent: number;
@@ -131,20 +141,22 @@ export function actorName(actor: Item['updatedBy']): string {
 }
 
 /**
- * Statuses that do not apply to this item: 'installed' for things that need no installing. Kept when
- * the item already sits there, so its current status never disappears from the stepper.
+ * Whether Installed is optional for this item: it needs no installing, so it is finished once
+ * delivered, but Installed can still be picked (a lamp someone fitted after all).
  */
-export function skippedStatuses(item: Item): ItemStatus[] {
-  return !item.needsInstall && item.status !== 'installed' ? ['installed'] : [];
+export function installOptional(item: Pick<Item, 'needsInstall'>): boolean {
+  return !item.needsInstall;
 }
 
-/** The steps the stepper shows, in order, each as done, current or pending. */
-export function itemSteps(item: Item): { status: ItemStatus; state: 'done' | 'current' | 'pending' }[] {
-  const skipped = skippedStatuses(item);
+/**
+ * The steps the stepper shows, in order, each as done, current or pending. All five always show;
+ * Installed is marked optional for things that need no installing.
+ */
+export function itemSteps(item: Item): { status: ItemStatus; state: 'done' | 'current' | 'pending'; optional: boolean }[] {
   const at = ITEM_STATUSES.indexOf(item.status);
-  return ITEM_STATUSES.filter((s) => !skipped.includes(s)).map((status) => {
+  return ITEM_STATUSES.map((status) => {
     const i = ITEM_STATUSES.indexOf(status);
-    return { status, state: i < at ? 'done' : i === at ? 'current' : 'pending' };
+    return { status, state: i < at ? 'done' : i === at ? 'current' : 'pending', optional: status === 'installed' && installOptional(item) };
   });
 }
 
@@ -167,23 +179,61 @@ export function nextActionLabel(item: Pick<Item, 'status' | 'needsInstall'>): st
   return next === 'delivered' ? 'Got it' : `Mark ${ITEM_STATUS_LABEL[next].toLowerCase()}`;
 }
 
+/** The stages a person can pick for this item: always all five, Installed included (see installOptional). */
+export function statusChoices(_item: Item): ItemStatus[] {
+  return [...ITEM_STATUSES];
+}
+
 /**
- * The stages a person can pick for this item, in order: all five, without 'installed' when the item
- * needs no installing (unless it already sits there).
+ * The secondary line under a stage in the status sheet: what the stage means for this item. "Next"
+ * marks the stage the main button leads to.
  */
-export function statusChoices(item: Item): ItemStatus[] {
-  const skipped = skippedStatuses(item);
-  return ITEM_STATUSES.filter((s) => !skipped.includes(s));
+export function stageHint(item: Item, status: ItemStatus): string | undefined {
+  const next = nextStatus(item);
+  const isNext = next !== item.status && status === next;
+  if (status === 'delivered') return isNext ? 'Next · you have it' : 'You have it';
+  if (status === 'installed' && installOptional(item)) return 'Optional · only if it needs fitting';
+  return isNext ? 'Next' : undefined;
+}
+
+/** A short honest line under the stepper about what is left, or undefined when there is nothing to say. */
+export function stageNote(item: Item): string | undefined {
+  if (item.status === 'delivered' && item.needsInstall) return 'Delivered. Still to install.';
+  if (item.status === 'delivered') return 'Got it. Mark Installed only if it needs fitting.';
+  if (item.status === 'installed') return 'Installed. All done.';
+  return undefined;
+}
+
+/**
+ * The shop case: an explicit "Got it" that goes straight to Delivered, offered only while the main
+ * button leads somewhere earlier (Needed and Looking). From Ordered the main button already says Got it.
+ */
+export function canJumpToGot(item: Pick<Item, 'status' | 'needsInstall'>): boolean {
+  return (item.status === 'needed' || item.status === 'looking') && nextStatus(item) !== 'delivered';
+}
+
+/** Stages at which money has usually changed hands: ordered online, or got in a shop. */
+const PAID_STAGES: readonly ItemStatus[] = ['ordered', 'delivered', 'installed'];
+
+/**
+ * Whether to offer the optional "Paid?" prompt after a status change, when the item has no paid price:
+ * it has just been ordered (people pay online then), or has just arrived (delivered, or straight to
+ * installed). Skipped at Ordered, it is offered once more on arrival; never again from Delivered to
+ * Installed.
+ */
+export function asksForPrice(before: Item, after: Item): boolean {
+  if (after.actualPrice !== undefined) return false;
+  const rank = (s: ItemStatus) => ITEM_STATUSES.indexOf(s);
+  const ordered = after.status === 'ordered' && rank(before.status) < rank('ordered');
+  const arrived = !GOT.includes(before.status) && GOT.includes(after.status);
+  return ordered || arrived;
 }
 
 const GOT: readonly ItemStatus[] = ['delivered', 'installed'];
 
-/**
- * Whether to offer the optional "Paid?" prompt after a status change: the item has just arrived
- * (moved to delivered, or straight to installed, from an earlier stage) and has no paid price yet.
- */
-export function asksForPrice(before: Item, after: Item): boolean {
-  return !GOT.includes(before.status) && GOT.includes(after.status) && after.actualPrice === undefined;
+/** A row offers "Add price" when the item is ordered or got and has no paid price. */
+export function needsPrice(item: Pick<Item, 'status' | 'actualPrice'>): boolean {
+  return PAID_STAGES.includes(item.status) && item.actualPrice === undefined;
 }
 
 /** £90 for whole pounds, £84.99 otherwise. */
@@ -191,12 +241,12 @@ export function formatMoney(n: number): string {
   return Number.isInteger(n) ? `£${n}` : `£${n.toFixed(2)}`;
 }
 
-/** "Kitchen · 1 item · £90 est.", leaving out what is missing. */
+/** "Kitchen · 1 item · £90 est." (or "£84.99 paid" once paid), leaving out what is missing. */
 export function itemMeta(item: Item): string {
   return [
     item.room,
     `${item.quantity} ${item.quantity === 1 ? 'item' : 'items'}`,
-    item.estPrice !== undefined ? `${formatMoney(item.estPrice)} est.` : undefined,
+    item.actualPrice !== undefined ? `${formatMoney(item.actualPrice)} paid` : item.estPrice !== undefined ? `${formatMoney(item.estPrice)} est.` : undefined,
   ].filter(Boolean).join(' · ');
 }
 

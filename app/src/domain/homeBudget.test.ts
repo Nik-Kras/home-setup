@@ -94,10 +94,23 @@ describe('budgetView', () => {
     expect(budgetView([item({ status: 'delivered', actualPrice: 50, boughtBy: 'daryna' })]).split).toEqual([{ person: 'daryna', share: 1 }]);
   });
 
-  it('notes spending with no buyer recorded instead of an empty split', () => {
+  it('shows spend with no buyer as its own Unassigned share, so the split adds up to Spent', () => {
     const v = budgetView([item({ status: 'delivered', actualPrice: 20 })]);
-    expect(v.split).toEqual([]);
-    expect(v.splitNote).toBe('Nobody is recorded as the buyer yet');
+    expect(v.split).toEqual([{ person: 'unassigned', share: 1 }]);
+    expect(v.unassigned).toBe(20);
+    expect(v.splitNote).toBeUndefined();
+    const mixed = budgetView([
+      item({ status: 'delivered', actualPrice: 30, boughtBy: 'nikita' }),
+      item({ status: 'ordered', actualPrice: 10 }),
+    ]);
+    expect(mixed.split).toEqual([{ person: 'nikita', share: 0.75 }, { person: 'unassigned', share: 0.25 }]);
+    expect(mixed.unassigned).toBe(10);
+  });
+
+  it('never shows a float crumb as unassigned', () => {
+    const v = budgetView([item({ actualPrice: 0.1, boughtBy: 'nikita' }), item({ actualPrice: 0.2, boughtBy: 'daryna' })]);
+    expect(v.unassigned).toBe(0);
+    expect(v.split.map((x) => x.person)).toEqual(['nikita', 'daryna']);
   });
 
   it('room rows add up to the estimated total and show spend of total', () => {

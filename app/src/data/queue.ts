@@ -16,7 +16,13 @@ export type Op =
    * patch conditional: if the row no longer holds those values, nothing changes (an Undo after the
    * other person changed the same field, a stale widget tap).
    */
-  | { id: string; kind: 'patch'; table: string; match: Record<string, string | number | boolean | null>; row: Record<string, unknown>; reportMiss?: true };
+  | { id: string; kind: 'patch'; table: string; match: Record<string, string | number | boolean | null>; row: Record<string, unknown>; reportMiss?: true }
+  /**
+   * Hard delete of the rows matching every column. Only for a task assignment taken off a task (it has
+   * no deleted_at); Undo puts it back with an insert-only upsert. reportMiss: as for patch. `row` is
+   * always empty; it is there so every Op has one.
+   */
+  | { id: string; kind: 'delete'; table: string; match: Record<string, string | number | boolean | null>; row: Record<string, never>; reportMiss?: true };
 
 /**
  * ok: done. retry: network or server trouble, keep the Op. drop: the server refused it for good.

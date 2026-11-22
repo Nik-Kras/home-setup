@@ -44,9 +44,17 @@ export function diffToOps(
       if (before[key] !== task[key]) fields[col] = task[key] ?? null;
     }
     if (Object.keys(fields).length > 0) out.push(ops.patchTask(task.id, fields));
+    // Who it is for: each person added or taken off is one op on their own part only.
+    for (const was of before.assignments) {
+      if (!task.assignments.some((a) => a.person === was.person)) out.push(ops.removeAssignment(task.id, was.person));
+    }
     for (const a of task.assignments) {
       const was = before.assignments.find((x) => x.person === a.person);
-      if (!was) continue;
+      if (!was) {
+        out.push(ops.addAssignment(task.id, a.person, a.status));
+        a.steps.forEach((step, index) => out.push(ops.saveStep(task.id, a.person, step, index, true)));
+        continue;
+      }
       if (was.status !== a.status) out.push(ops.setAssignment(task.id, a.person, a.status));
       for (const [index, step] of a.steps.entries()) {
         const prevStep = was.steps.find((s) => s.id === step.id);

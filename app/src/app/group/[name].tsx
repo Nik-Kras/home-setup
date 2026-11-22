@@ -72,8 +72,8 @@ export default function GroupDetail() {
           {done.length > 0 ? (
             <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Done, ${done.length}`} style={s.doneToggle}>
               <Text style={s.doneText}>Done <Text style={s.doneCount}>{done.length}</Text></Text>
-              <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
-                <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
+              <View style={{ transform: [{ rotate: showDone ? '180deg' : '0deg' }] }}>
+                <Icon name="chevronDown" size={20} color={colors.textSecondary} stroke={2} />
               </View>
             </Pressable>
           ) : null}
