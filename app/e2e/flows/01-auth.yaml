@@ -1,6 +1,6 @@
 # 1. Sign in, wrong password, sign out, session survives an app restart.
-# The app has no sign-out button yet (M4), so "sign out" is done by clearing the app's data, which is
-# what removes the stored session; the flow then checks the sign-in screen comes back.
+# Sign out uses the Sign out row at the end of the Home tab. Nothing is queued at that point, so it
+# signs out without the "not sent yet" question.
 appId: app.homesetup.household
 name: 01 auth
 ---
@@ -43,8 +43,19 @@ name: 01 auth
     timeout: 30000
 - assertNotVisible: "Sign in to see the shared list"
 
-# Sign out (clear the stored session): the sign-in screen is back.
-- clearState
+# Sign out from the Home tab: the sign-in screen is back, and stays back after a restart.
+- tapOn: "Home"
+- scrollUntilVisible:
+    element:
+      id: "sign-out"
+    centerElement: true
+- assertVisible:
+    id: "sync-status"
+- tapOn:
+    id: "sign-out"
+- extendedWaitUntil:
+    visible: "Sign in to see the shared list"
+    timeout: 15000
 - runFlow: common/open.yaml
 - assertVisible: "Sign in to see the shared list"
 

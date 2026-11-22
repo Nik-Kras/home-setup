@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { ActivityLine } from '../../components/ActivityLine';
 import { shortDate } from '../../components/DatePickerSheet';
+import { LoadingState, NotFoundState, OfflineState, useDetailState } from '../../components/LoadState';
 import { HeaderAction, ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetOption, TextSheetBody } from '../../components/Sheet';
 import { AssignmentCard, TaskCallout, TaskChecklist, TaskChip, TaskStatusControl, TASK_STATUS_LABEL, TASK_STATUS_OPTIONS } from '../../components/TaskDetailParts';
@@ -22,12 +23,20 @@ const back = () => (router.canGoBack() ? router.back() : router.replace('/tasks'
 
 export default function TaskDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { tasks } = useStore();
+  const { tasks, retry } = useStore();
   const task = tasks.find((t) => t.id === id);
+  // Tasks are not cached, so a cold start or deep link waits for the load before saying "not found".
+  const state = useDetailState(task !== undefined);
   return task ? <TaskDetails key={task.id} task={task} /> : (
     <View style={s.root}>
       <TaskHeader />
-      <Text style={s.missing}>This task is no longer on the list.</Text>
+      <View style={s.missing}>
+        {state === 'loading' ? <LoadingState label="Loading task" /> : null}
+        {state === 'offline' ? <OfflineState onRetry={retry} /> : null}
+        {state === 'missing' ? (
+          <NotFoundState title="Task not found" line="It may have been removed on the other phone." backLabel="Back to tasks" onBack={back} />
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -226,7 +235,7 @@ function dueLabel(due: string, today: string): string {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   glow: { position: 'absolute', height: 380, top: 0, left: 0, right: 0 },
-  missing: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 20 },
+  missing: { paddingHorizontal: 16, paddingTop: 12 },
   scroll: { flex: 1 },
   content: { gap: 12, paddingHorizontal: 16 },
   titleBlock: { paddingHorizontal: 4, gap: 6 },

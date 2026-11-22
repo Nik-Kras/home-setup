@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NoteCard } from '../components/NoteCard';
 import { NoteSheet } from '../components/NoteSheet';
 import { EmptyState } from '../components/EmptyState';
+import { ListGate } from '../components/LoadState';
 import { HeaderIconButton, ScreenHeader } from '../components/ScreenHeader';
 import { Sub, Title } from '../components/ui';
 import { useStore } from '../data/store';
@@ -40,12 +41,14 @@ export default function Notes() {
           <Title>Flat notes</Title>
           <Sub>From the tenancy contract{toConfirm > 0 ? ` · ${toConfirm} to confirm` : ''}</Sub>
         </View>
-        {list.map((n) => (
-          <NoteCard key={n.id} note={n} onEdit={() => setSheet({ open: true, note: n })} onMakeTask={() => makeTask(n)} taskAdded={hasOpenTask(tasks, n.title)} />
-        ))}
-        {list.length === 0 ? (
-          <EmptyState icon="home" title="No notes yet" line="Add facts about the flat, such as house rules or things to confirm." action={{ label: 'Add a note', onPress: openNew }} />
-        ) : null}
+        <ListGate count={notes.length}>
+          {list.map((n) => (
+            <NoteCard key={n.id} note={n} onEdit={() => setSheet({ open: true, note: n })} onMakeTask={() => makeTask(n)} taskAdded={hasOpenTask(tasks, n.title)} />
+          ))}
+          {list.length === 0 ? (
+            <EmptyState icon="home" title="No notes yet" line="Add facts about the flat, such as house rules or things to confirm." action={{ label: 'Add a note', onPress: openNew }} />
+          ) : null}
+        </ListGate>
       </ScrollView>
       <NoteSheet visible={sheet.open} note={sheet.note} onClose={() => setSheet((v) => ({ ...v, open: false }))} onSave={save} />
     </View>

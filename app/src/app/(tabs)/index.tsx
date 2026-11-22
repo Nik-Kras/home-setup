@@ -1,9 +1,12 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useRef, useState, type ComponentRef } from 'react';
+import { memo, useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { EmptyState } from '../../components/EmptyState';
+import { ListGate, useListState } from '../../components/LoadState';
 import { PersonFilterDiscs } from '../../components/PersonFilterDiscs';
-import { Screen } from '../../components/Screen';
+import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
+import { NAME } from '../../components/TaskRow';
 import { Card, Icon, IconTile, SectionHeading, StatusChip, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../../components/ui';
 import { useStore } from '../../data/store';
 import { counts, guessRoom, isItemDone, leftByRoom, nextUp } from '../../domain/items';
@@ -69,11 +72,12 @@ function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
   );
 }
 
-function ItemRow({ item, onGot }: { item: Item; onGot: () => void }) {
-  const meta = [item.assignedTo ? (item.assignedTo === 'nikita' ? 'Nikita' : 'Daryna') : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
+/** Memoised: `item` keeps its identity until it changes and `onGot` is stable, so 300 rows stay cheap. */
+const ItemRow = memo(function ItemRow({ item, onGot }: { item: Item; onGot: (id: string) => void }) {
+  const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
   return (
     <View style={s.row}>
-      <Pressable onPress={onGot} accessibilityRole="button" accessibilityLabel={`Mark ${item.name} as got`} hitSlop={2}>
+      <Pressable onPress={() => onGot(item.id)} accessibilityRole="button" accessibilityLabel={`Mark ${item.name} as got`} hitSlop={2}>
         <IconTile icon={glyphFor(item.name)} />
       </Pressable>
       <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details" style={s.rowMid}>
@@ -86,7 +90,11 @@ function ItemRow({ item, onGot }: { item: Item; onGot: () => void }) {
       <StatusChip status={item.status} />
     </View>
   );
-}
+});
+
+const noop = () => undefined;
+const DONE = 'done';
+type BuySection = { key: string; title: string; meta?: string; data: Item[] };
 
 /**
  * An urgent row's meta line ends with the coral word "Urgent" when it fits on one line. If it would
@@ -109,64 +117,76 @@ export default function Buy() {
   const { items, addItem, gotItem } = useStore();
   const [showDone, setShowDone] = useState(false);
   const [person, setPerson] = useState<PersonFilter>(null);
-  const { done, left, total } = counts(items);
-  const next = nextUp(items);
+  const ready = useListState(items.length) === 'ready';
+  const { done, left, total } = useMemo(() => counts(items), [items]);
+  const next = useMemo(() => nextUp(items), [items]);
   // The filter narrows the room list and the "Got it" list; the ring and Next up stay for the whole flat.
-  const shown = itemsForPerson(items, person);
-  const groups = leftByRoom(shown);
-  const doneItems = shown.filter(isItemDone);
+  const sections = useMemo<BuySection[]>(() => {
+    const shown = itemsForPerson(items, person);
+    const list: BuySection[] = leftByRoom(shown).map((g) => ({ key: g.room, title: g.room, meta: `${g.items.length} left`, data: g.items }));
+    const doneItems = shown.filter(isItemDone);
+    if (doneItems.length > 0) list.push({ key: DONE, title: `Got it (${doneItems.length})`, meta: String(doneItems.length), data: showDone ? doneItems : [] });
+    return list;
+  }, [items, person, showDone]);
+  const add = useCallback((name: string) => addItem(name, { room: guessRoom(name) }), [addItem]);
+
+  const empty = person
+    ? <Text style={s.emptyFilter}>Nothing assigned to {NAME[person]} yet.</Text>
+    : <EmptyState icon="buy" title="Nothing on the list yet" line="Type what you need in the bar above, such as a kettle or curtains." />;
 
   return (
-    <Screen
+    <SectionScreen<Item, BuySection>
       header={
         <View style={s.header}>
           <View style={s.headerText}>
             <Title>Our flat</Title>
-            <Sub>{today()} · {left} left</Sub>
+            <Sub>{ready ? `${today()} · ${left} left` : today()}</Sub>
           </View>
           <PersonFilterDiscs value={person} onChange={setPerson} />
         </View>
       }
-    >
-      {next ? (
-        <Card style={s.next}>
-          <Ring done={done} total={total} />
-          <View style={{ flex: 1 }}>
-            <Text style={[s.nextEyebrow, next.urgent && { color: colors.coral }]}>{next.urgent ? 'Next up · urgent' : 'Next up'}</Text>
-            <Text style={[s.nextName, next.name.length > 14 && s.nextNameLong]} numberOfLines={2}>{next.name}</Text>
-            <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null].filter(Boolean).join(' · ')}</Text>
-          </View>
-          <Pressable onPress={() => gotItem(next.id)} accessibilityRole="button" accessibilityLabel={`Mark ${next.name} as got`} style={s.gotBtn}>
-            <Text style={s.gotText}>Got it</Text>
-          </Pressable>
-        </Card>
-      ) : null}
-
-      <AddBar onAdd={(name) => addItem(name, { room: guessRoom(name) })} />
-
-      {groups.map((g) => (
-        <View key={g.room} style={{ gap: 6 }}>
-          <SectionHeading meta={`${g.items.length} left`}>{g.room}</SectionHeading>
-          {g.items.map((i) => <ItemRow key={i.id} item={i} onGot={() => gotItem(i.id)} />)}
+      sections={ready ? sections : []}
+      keyExtractor={(i) => i.id}
+      ListHeaderComponent={
+        <View style={s.listHeader}>
+          {next ? (
+            <Card style={s.next}>
+              <Ring done={done} total={total} />
+              <View style={{ flex: 1 }}>
+                <Text style={[s.nextEyebrow, next.urgent && { color: colors.coral }]}>{next.urgent ? 'Next up · urgent' : 'Next up'}</Text>
+                <Text style={[s.nextName, next.name.length > 14 && s.nextNameLong]} numberOfLines={2}>{next.name}</Text>
+                <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null].filter(Boolean).join(' · ')}</Text>
+              </View>
+              <Pressable onPress={() => gotItem(next.id)} accessibilityRole="button" accessibilityLabel={`Mark ${next.name} as got`} style={s.gotBtn}>
+                <Text style={s.gotText}>Got it</Text>
+              </Pressable>
+            </Card>
+          ) : null}
+          <AddBar onAdd={add} />
         </View>
-      ))}
-      {person && shown.length === 0 ? <Text style={s.emptyFilter}>Nothing assigned to {person === 'nikita' ? 'Nikita' : 'Daryna'} yet.</Text> : null}
-
-      {doneItems.length > 0 ? (
-        <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Got it, ${doneItems.length}`} style={s.doneToggle}>
-          <Text style={s.doneText}>Got it ({doneItems.length})</Text>
+      }
+      ListEmptyComponent={<View style={s.gap}><ListGate count={items.length}>{empty}</ListGate></View>}
+      renderSectionHeader={({ section }) => section.key === DONE ? (
+        <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Got it, ${section.meta}`} style={[s.doneToggle, showDone && { marginBottom: ROW_GAP }]}>
+          <Text style={s.doneText}>{section.title}</Text>
           <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
             <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
           </View>
         </Pressable>
-      ) : null}
-      {showDone && doneItems.length > 0 ? doneItems.map((i) => <ItemRow key={i.id} item={i} onGot={() => undefined} />) : null}
-    </Screen>
+      ) : (
+        <View style={s.sectionBelow}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>
+      )}
+      renderItem={({ item, section }) => <ItemRow item={item} onGot={section.key === DONE ? noop : gotItem} />}
+    />
   );
 }
 
 const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  listHeader: { gap: 8 },
+  gap: { paddingTop: 8 },
+  // The Screen layout's 8 between blocks, then the 6 between a heading and its first row.
+  sectionBelow: { paddingTop: 8, marginBottom: ROW_GAP },
   headerText: { flex: 1 },
   next: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, ...glow },
   nextEyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.textSecondary },
@@ -189,6 +209,6 @@ const s = StyleSheet.create({
   metaOne: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary, flexShrink: 1 },
   urgentWord: { color: colors.coral },
   emptyFilter: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
-  doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4 },
+  doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4, marginTop: 8 },
   doneText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },
 });

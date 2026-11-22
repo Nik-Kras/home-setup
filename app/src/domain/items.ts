@@ -64,11 +64,13 @@ export function leftByRoom<T extends Pick<Item, 'status' | 'needsInstall' | 'roo
   for (const item of items) {
     if (isItemDone(item)) continue;
     const room = item.room ?? 'Other';
-    groups.set(room, [...(groups.get(room) ?? []), item]);
+    const list = groups.get(room);
+    if (list) list.push(item);
+    else groups.set(room, [item]);
   }
   return [...groups.entries()].map(([room, list]) => ({
     room,
-    items: [...list].sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.name.localeCompare(b.name)),
+    items: list.sort((a, b) => Number(b.urgent) - Number(a.urgent) || a.name.localeCompare(b.name)),
   }));
 }
 
