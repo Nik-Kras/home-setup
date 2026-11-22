@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { localDate } from './taskOptions';
 import type { Item, Person, Task } from './types';
-import { buildWidgetData } from './widgetData';
+import { buildWidgetData, capRows, fitRooms } from './widgetData';
 
 const me = 'member' as Person;
 const other = 'other' as Person;
@@ -59,5 +59,45 @@ describe('buildWidgetData', () => {
     expect(data.tasksDue).toEqual({ todayCount: 1, next: { id: 'overdue', title: 'overdue', daysLeft: -1 } });
     expect(data.nextUp).toBeNull();
     expect(data.rooms).toEqual([]);
+  });
+
+  it('keeps an urgent item in a later room when the four-row cap applies, grouped in room order', () => {
+    const data = buildWidgetData([
+      item('kettle', { room: 'Kitchen' }),
+      item('mugs', { room: 'Kitchen' }),
+      item('toaster', { room: 'Kitchen' }),
+      item('lamp', { room: 'Living room' }),
+      item('rug', { room: 'Living room' }),
+      item('bed', { room: 'Bedroom', urgent: true }),
+    ], [], me, now);
+    expect(data.rooms).toEqual([
+      { room: 'Kitchen', items: [expect.objectContaining({ id: 'kettle' }), expect.objectContaining({ id: 'mugs' }), expect.objectContaining({ id: 'toaster' })] },
+      { room: 'Bedroom', items: [expect.objectContaining({ id: 'bed', urgent: true })] },
+    ]);
+  });
+});
+
+describe('capRows and fitRooms', () => {
+  const rooms = [
+    { room: 'A', items: [{ id: 'a1', urgent: false }, { id: 'a2', urgent: false }] },
+    { room: 'B', items: [{ id: 'b1', urgent: true }, { id: 'b2', urgent: false }] },
+  ];
+  const ids = (out: { items: { id: string }[] }[]) => out.flatMap((r) => r.items.map((i) => i.id));
+
+  it('takes urgent rows first across rooms, then room order, keeping grouping', () => {
+    expect(ids(capRows(rooms, 1))).toEqual(['b1']);
+    expect(capRows(rooms, 2)).toEqual([{ room: 'A', items: [rooms[0]!.items[0]] }, { room: 'B', items: [rooms[1]!.items[0]] }]);
+    expect(ids(capRows(rooms, 10))).toEqual(['a1', 'a2', 'b1', 'b2']);
+    expect(capRows(rooms, 0)).toEqual([]);
+  });
+
+  it('shows the rows that fit and counts the rest for the "+n more" line', () => {
+    const height = { room: 28, row: 44, more: 20 };
+    expect(fitRooms({ rooms, leftCount: 4 }, 2 * 28 + 4 * 44, height)).toMatchObject({ more: 0 });
+    // One room label, one row and the more line: only the urgent row is left.
+    const small = fitRooms({ rooms, leftCount: 6 }, 28 + 44 + 20, height);
+    expect(ids(small.rooms)).toEqual(['b1']);
+    expect(small.more).toBe(5);
+    expect(fitRooms({ rooms, leftCount: 4 }, 10, height)).toEqual({ rooms: [], more: 4 });
   });
 });

@@ -1,23 +1,39 @@
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, type RefObject } from 'react';
 import { Platform } from 'react-native';
 import { requestWidgetUpdate, type WidgetTaskHandler } from 'react-native-android-widget';
 import { MARK_GOT, renderOurFlatWidget, WIDGET_NAMES } from '../components/widgets/OurFlatWidget';
-import type { Item } from '../domain/types';
-import type { WidgetData } from '../domain/widgetData';
+import type { WidgetItem, WidgetView } from '../domain/widgetData';
+import type { OpQueue } from './queue';
 import type { State } from './reducer';
+import { loadAll } from './repo';
 import type { AuthStatus } from './store';
-import { kv } from './supabase';
+import { db, kv } from './supabase';
 import { syncQueue } from './syncQueue';
-import { createWidgetStorage, makeWidgetSnapshot, type WidgetSnapshot } from './widgetSnapshot';
+import { createWidgetStorage, makeWidgetSnapshot, type WidgetSnapshot, type WidgetSource } from './widgetSnapshot';
 
 const storage = createWidgetStorage(kv);
 
+/** Fresh data for the periodic update, through the app's own client and loader. Never flushes the queue. */
+function supabaseSource(client: SupabaseClient, queue: OpQueue): WidgetSource {
+  return {
+    async hasSession() {
+      const { data, error } = await client.auth.getSession();
+      if (error) throw error;
+      return data.session !== null;
+    },
+    pending: () => queue.size(),
+    loadItems: async () => (await loadAll(client)).items,
+  };
+}
+const source = db && syncQueue ? supabaseSource(db, syncQueue) : null;
+
 let foreground: {
   getSnapshot?: () => WidgetSnapshot | null;
-  onChange: (before: Item, after: Item) => void;
+  onChange: (before: WidgetItem, deliveredAt: string) => void;
 } | undefined;
 
-const redraw = (data: WidgetData | null) => Promise.all(WIDGET_NAMES.map((widgetName) =>
+const redraw = (data: WidgetView | null) => Promise.all(WIDGET_NAMES.map((widgetName) =>
   requestWidgetUpdate({ widgetName, renderWidget: (info) => renderOurFlatWidget(info, data) }),
 ));
 
@@ -40,18 +56,17 @@ export function useWidgetSync(
       ? () => null
       : auth === 'signedIn' && ready
         ? () => {
-            const { items, tasks, me } = current.current;
-            return makeWidgetSnapshot(items, tasks, me, new Date());
+            return makeWidgetSnapshot(current.current.items, new Date());
           }
         : undefined; // Keep the previous snapshot while signing in or loading offline.
     foreground = {
       getSnapshot,
-      onChange(before, after) {
+      onChange(before, deliveredAt) {
         if (auth !== 'signedIn' || !ready) return;
         const live = current.current;
         const items = live.items.map((item) => {
-          if (item.id !== before.id || item.status !== before.status || item.deliveredAt !== before.deliveredAt) return item;
-          return { ...item, status: after.status, deliveredAt: after.deliveredAt, updatedBy: after.updatedBy };
+          if (item.id !== before.id || item.status !== before.status) return item;
+          return { ...item, status: 'delivered' as const, deliveredAt, updatedBy: live.me };
         });
         if (items.some((item, index) => item !== live.items[index])) set({ ...live, items });
       },
@@ -82,7 +97,7 @@ export const widgetTaskHandler: WidgetTaskHandler = async (task) => {
     const updated = await storage.markGot(
       id, new Date(), syncQueue,
       () => foreground?.getSnapshot?.(),
-      (before, after) => foreground?.onChange(before, after),
+      (before, deliveredAt) => foreground?.onChange(before, deliveredAt),
     );
     if (updated) {
       await Promise.all([redraw(updated), syncQueue.flush()]);
@@ -90,6 +105,9 @@ export const widgetTaskHandler: WidgetTaskHandler = async (task) => {
     }
   }
 
-  const data = syncQueue && (await storage.read())?.data;
+  // The 30 minute update fetches fresh data so the other person's changes show while the app is closed.
+  const data = !syncQueue ? null : task.widgetAction === 'WIDGET_UPDATE' && source
+    ? await storage.refresh(source, () => new Date())
+    : (await storage.read())?.data;
   task.renderWidget(renderOurFlatWidget(task.widgetInfo, data ?? null));
 };

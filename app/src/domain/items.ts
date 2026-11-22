@@ -5,7 +5,7 @@ import { ITEM_STATUSES } from './types';
  * An item is finished when it is installed, or when it is delivered and needs no installing
  * (a kettle). A delivered router or shelf is still "left" until it is installed.
  */
-export function isItemDone(item: Item): boolean {
+export function isItemDone(item: Pick<Item, 'status' | 'needsInstall'>): boolean {
   return item.status === 'installed' || (item.status === 'delivered' && !item.needsInstall);
 }
 
@@ -59,8 +59,8 @@ export function counts(items: readonly Item[]): { done: number; left: number; to
 }
 
 /** Left items grouped by room, urgent first within a room. Items with no room go under "Other". */
-export function leftByRoom(items: readonly Item[]): { room: string; items: Item[] }[] {
-  const groups = new Map<string, Item[]>();
+export function leftByRoom<T extends Pick<Item, 'status' | 'needsInstall' | 'room' | 'urgent' | 'name'>>(items: readonly T[]): { room: string; items: T[] }[] {
+  const groups = new Map<string, T[]>();
   for (const item of items) {
     if (isItemDone(item)) continue;
     const room = item.room ?? 'Other';
