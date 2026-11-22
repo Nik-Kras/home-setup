@@ -2,7 +2,7 @@ import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import type { DisplayPhoto } from '../domain/photos';
-import type { SyncStatus } from '../domain/sync';
+import { identityFor, type Identity, type SyncStatus } from '../domain/sync';
 import type { Item, ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { diffToOps } from './diff';
 import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
@@ -13,10 +13,11 @@ import type { PhotoSource } from './photoFiles';
 import { db, kv } from './supabase';
 import { syncQueue } from './syncQueue';
 import { useItemPhotos } from './useItemPhotos';
+import { trySignOut } from './signOut';
 import { resetWidgets, useWidgetSync } from './widgetSync';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
-export type { SyncStatus };
+export type { Identity, SyncStatus };
 
 export type Room = { id: string; name: string };
 
@@ -27,6 +28,8 @@ interface Store extends State {
   sync: SyncStatus;
   /** Unsent changes in the offline queue. */
   pending: number;
+  /** Whether `me` is known yet (see domain/sync.ts). Signed-in screens wait for it. */
+  identity: Identity;
   /** This account's data has fully loaded once this session (always true for demo data). */
   loaded: boolean;
   /** Try to send and load again now, such as from a Retry button. */
@@ -38,8 +41,9 @@ interface Store extends State {
   retryPhoto: (photo: DisplayPhoto) => Promise<void>;
   signIn: (email: string, password: string) => Promise<string | null>;
   /**
-   * Sends what it can, then signs this phone out. Without `force` it stops when changes are still
-   * unsent and returns how many, so the screen can ask first. Returns 0 once signed out.
+   * Sends what it can (edits and photos, up to 5 s), then signs this phone out. Without `force` it
+   * stops when anything is still unsent and returns how many, so the screen can ask first. Returns 0
+   * once signed out.
    */
   signOut: (opts?: { force?: boolean }) => Promise<number>;
   advanceItem: (id: string) => void;
@@ -58,7 +62,10 @@ interface Store extends State {
 
 const Ctx = createContext<Store | null>(null);
 const LIVE = db !== null;
-/** Only for demo data, and until the signed-in account's member row is known (then `me` comes from it). */
+/**
+ * Demo data acts as this person, and so does a non-person account (identity `standIn`, shown on
+ * screen). For a person `me` comes from their member row; screens wait for it (identity `loading`).
+ */
 const DEFAULT_PERSON: Person = 'nikita';
 const LAST_ACCOUNT = 'homesetup.photo-account.v1';
 const itemCacheKey = (account: string) => `homesetup.photo-items.v1.${account}`;
@@ -83,12 +90,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<string | null | undefined>(undefined);
   const [member, setMember] = useState<{ account: string; canDelete: boolean }>();
   const canDeletePhotos = !LIVE || (member?.account === account && member?.canDelete === true);
-  const { photos, addPhoto, deletePhoto, retryPhoto, flushPhotos, loadPhotos } =
+  const { photos, addPhoto, deletePhoto, retryPhoto, flushPhotos, loadPhotos, unsentPhotos } =
     useItemPhotos(LIVE ? account ?? null : 'demo', canDeletePhotos);
   const currentAccount = useRef(account);
   currentAccount.current = account;
   const [sync, setSync] = useState<SyncStatus>(LIVE ? 'pending' : 'demo');
   const [pending, setPending] = useState(0);
+  const [identity, setIdentity] = useState<Identity>(LIVE ? 'loading' : 'known');
   const countPending = useCallback(async () => {
     const n = syncQueue ? await syncQueue.size() : 0;
     setPending(n);
@@ -110,12 +118,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const memberKnown = useRef<string | null>(null);
   const lookupMember = useCallback(async (account: string) => {
     if (!db) return;
-    const { data, error } = await db.from('members').select('key,is_person').eq('user_id', account).maybeSingle();
-    if (error || currentAccount.current !== account) return;
+    setIdentity((i) => (i === 'failed' ? 'loading' : i));
+    const { data, error } = await db.from('members').select('key,is_person').eq('user_id', account).maybeSingle()
+      .then((r) => r, (thrown: unknown) => ({ data: null, error: thrown }));
+    if (currentAccount.current !== account) return;
+    // A cached identity stays; without one the screens show a retry rather than guessing a person.
+    if (error) return setIdentity((i) => (i === 'loading' ? 'failed' : i));
     // The database derives is_person from the two assignable member keys.
     const canDelete = data?.is_person === true;
     const me = canDelete ? data.key as Person : undefined;
-    if (me) set({ ...ref.current, me });
+    set({ ...ref.current, me: me ?? DEFAULT_PERSON });
+    setIdentity(identityFor({ me, canDelete }));
     setMember({ account, canDelete });
     memberKnown.current = account;
     void kv.setItem(memberCacheKey(account), JSON.stringify({ me, canDelete })).catch(() => undefined);
@@ -123,6 +136,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const refresh = useMemo(() => {
     let running: Promise<void> | undefined;
+    const trigger = (): Promise<void> => running ??= run().finally(() => { running = undefined; });
     const run = async () => {
       if (!db || !syncQueue || !account) return;
       try {
@@ -140,7 +154,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Compare the data only, so the member lookup setting `me` does not void the first load.
         const now = ref.current;
         const edited = now.items !== before.items || now.tasks !== before.tasks || now.notes !== before.notes;
-        if (edited || (await syncQueue.size()) > 0) return;
+        // Try again shortly, so `loaded` does not wait for the 20 s timer.
+        if (edited || (await syncQueue.size()) > 0) return void setTimeout(() => void trigger(), 1_000);
         roomIds.current = new Map(snap.rooms.map((r) => [r.name, r.id]));
         setRooms(snap.rooms);
         set({ ...ref.current, items: snap.items, tasks: snap.tasks, notes: snap.notes });
@@ -153,7 +168,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (currentAccount.current === account) setSync('offline');
       }
     };
-    return () => running ??= run().finally(() => { running = undefined; });
+    return trigger;
   }, [account, countPending, flushPhotos, loadPhotos, lookupMember, set]);
 
   useEffect(() => {
@@ -202,6 +217,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const client = db;
     if (!client || account === undefined) return;
     setWidgetReady(false); // widgets publish again only after this account's first full load
+    setIdentity('loading');
     if (!account) {
       setAuth('signedOut');
       return;
@@ -223,6 +239,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       roomIds.current = new Map(cachedRooms.map((r) => [r.name, r.id]));
       setRooms(cachedRooms);
       set({ ...ref.current, me: cachedMember?.me ?? DEFAULT_PERSON, items: cached?.items ?? [], tasks: [], notes: [] });
+      setIdentity(identityFor(cachedMember));
       setMember({ account, canDelete: cachedMember?.canDelete === true });
       setAuth('signedIn');
 
@@ -292,7 +309,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       sync,
       pending,
       loaded: !LIVE || widgetReady,
-      retry: () => void refresh(),
+      identity,
+      retry: () => {
+        void refresh();
+        if (account && memberKnown.current !== account) void lookupMember(account);
+      },
       photos,
       canDeletePhotos,
       addPhoto: async (itemId, source) => {
@@ -314,19 +335,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return error ? error.message : null;
       },
       signOut: async (opts) => {
-        if (!db) return 0;
-        // Best effort: send this account's edits while its session is still valid.
-        await syncQueue?.flush().catch(() => undefined);
-        const left = await countPending().catch(() => 0);
-        if (left > 0 && !opts?.force) return left;
-        // Local scope: signs out this phone only, and works offline. Unsent Ops stay with this
-        // account and are sent if it signs in again (accountScope.ts drops them for another account).
-        await db.auth.signOut({ scope: 'local' });
-        return 0;
+        const client = db;
+        if (!client) return 0;
+        return trySignOut({
+          // Best effort: send this account's edits and photos while its session is still valid.
+          flush: async () => {
+            await syncQueue?.flush();
+            await flushPhotos();
+          },
+          unsent: async () => (await countPending()) + (await unsentPhotos()),
+          // Local scope: signs out this phone only, and works offline. Unsent edits and photos stay
+          // with this account and are sent if it signs in again; another account's sign-in drops them.
+          signOut: async () => { await client.auth.signOut({ scope: 'local' }); },
+        }, opts);
       },
       ...actions,
     }),
-    [state, rooms, auth, sync, pending, widgetReady, actions, account, photos, canDeletePhotos, addPhoto, deletePhoto, retryPhoto, refresh, countPending],
+    [state, rooms, auth, sync, pending, identity, widgetReady, actions, account, photos, canDeletePhotos, addPhoto, deletePhoto, retryPhoto, refresh, countPending, lookupMember, flushPhotos, unsentPhotos],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

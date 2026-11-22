@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detailState, listState, signOutPrompt, syncView } from './sync';
+import { detailState, identityFor, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
 
 describe('syncView', () => {
   it('says Synced in mint when the queue is empty', () => {
@@ -54,5 +54,34 @@ describe('detailState', () => {
     expect(detailState('demo', false, false)).toBe('missing');
     expect(detailState('pending', false, false)).toBe('loading');
     expect(detailState('offline', false, false)).toBe('offline');
+  });
+});
+
+describe('identity', () => {
+  it('is loading until a member row or its cache is known', () => {
+    expect(identityFor(null)).toBe('loading');
+    expect(identityFor({ me: 'daryna', canDelete: true })).toBe('known');
+    // A non-person account is a stand-in, never silently a person.
+    expect(identityFor({ canDelete: false })).toBe('standIn');
+  });
+
+  it('keeps the signed-in screens closed until `me` is known, with a retry when it cannot be read', () => {
+    expect(identityGate('known', 'pending')).toBe('ready');
+    expect(identityGate('standIn', 'synced')).toBe('ready');
+    expect(identityGate('loading', 'pending')).toBe('loading');
+    expect(identityGate('loading', 'offline')).toBe('offline');
+    expect(identityGate('failed', 'synced')).toBe('offline');
+  });
+});
+
+describe('settledAnnouncement', () => {
+  it('announces only settled changes', () => {
+    // An edit: Synced, Sending 1, Synced. Nothing to announce.
+    expect(settledAnnouncement(syncView('pending', 1), 'Synced')).toBeUndefined();
+    expect(settledAnnouncement(syncView('synced', 0), 'Synced')).toBeUndefined();
+    // Going offline and coming back are announced once each.
+    expect(settledAnnouncement(syncView('offline', 1), 'Synced')).toBe('Offline · 1 not sent');
+    expect(settledAnnouncement(syncView('offline', 1), 'Offline · 1 not sent')).toBeUndefined();
+    expect(settledAnnouncement(syncView('synced', 0), 'Offline · 1 not sent')).toBe('Synced');
   });
 });

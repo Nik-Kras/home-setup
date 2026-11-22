@@ -45,3 +45,31 @@ export function detailState(status: SyncStatus, loaded: boolean, found: boolean)
   if (status === 'demo' || loaded) return 'missing';
   return status === 'offline' ? 'offline' : 'loading';
 }
+
+/**
+ * Who `me` is. `known`: the account is one of the two people. `standIn`: a non-person account (the
+ * Claude test account), which acts as the default person and says so on screen. `loading` and `failed`:
+ * the member row has not been read yet; nothing that depends on `me` may be used until it is.
+ */
+export type Identity = 'loading' | 'failed' | 'known' | 'standIn';
+
+/** From a member lookup or its cached copy; null when there is neither yet. */
+export function identityFor(member: { me?: string; canDelete: boolean } | null): Identity {
+  if (!member) return 'loading';
+  return member.canDelete && member.me ? 'known' : 'standIn';
+}
+
+/** Whether the signed-in screens can open: they wait for `me`, and offer a retry when it cannot be read. */
+export function identityGate(identity: Identity, status: SyncStatus): LoadState {
+  if (identity === 'known' || identity === 'standIn') return 'ready';
+  return identity === 'failed' || status === 'offline' ? 'offline' : 'loading';
+}
+
+/**
+ * The sync label to announce to screen readers, once it has settled: never the passing "Sending",
+ * and not again when it equals the last one announced (an edit goes Synced, Sending 1, Synced).
+ */
+export function settledAnnouncement(view: SyncView, lastAnnounced: string | undefined): string | undefined {
+  if (view.kind === 'sending' || view.kind === 'demo') return undefined;
+  return view.label === lastAnnounced ? undefined : view.label;
+}

@@ -30,6 +30,11 @@ export function isLocalOnly(job: PhotoJob | undefined): boolean {
   return job?.kind === 'upload' && !job.uploaded && job.transfer.status !== 'uploading';
 }
 
+/** Photos not on the server yet (pending, in flight or failed). Another account's claimPhotos would drop them. */
+export function unsentPhotoCount(jobs: readonly PhotoJob[]): number {
+  return jobs.filter((job) => job.transfer.status !== 'done').length;
+}
+
 /**
  * Called when an account starts using the device. Photo jobs queued by another account must never
  * be sent under this session (like `claimDevice` for Ops), so they are dropped with their files.

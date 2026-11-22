@@ -1,9 +1,10 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useStore } from '../data/store';
-import { signOutPrompt, syncView, type SyncView } from '../domain/sync';
+import { settledAnnouncement, signOutPrompt, syncView, type SyncView } from '../domain/sync';
 import { colors, fonts, radius, TARGET } from '../theme/tokens';
 import { Sheet, SheetButton } from './Sheet';
+import { NAME } from './TaskRow';
 
 const DOT: Record<SyncView['tone'], string> = { mint: colors.mint, amber: colors.amber, neutral: colors.textMuted };
 
@@ -12,6 +13,17 @@ export function SyncStatusRow() {
   const { sync, pending, retry } = useStore();
   const view = syncView(sync, pending);
   const live = view.kind !== 'demo';
+  // Announce settled changes only (going offline, back to synced), not every edit's Sending step.
+  const announced = useRef<string | undefined>('Synced');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const text = settledAnnouncement(view, announced.current);
+      if (!text) return;
+      announced.current = text;
+      AccessibilityInfo.announceForAccessibility(`Sync, ${text}`);
+    }, 1_500);
+    return () => clearTimeout(timer);
+  }, [view.kind, view.label]); // eslint-disable-line react-hooks/exhaustive-deps -- the label is the whole view
   return (
     <Pressable
       onPress={live ? retry : undefined}
@@ -20,7 +32,6 @@ export function SyncStatusRow() {
       accessibilityRole={live ? 'button' : 'text'}
       accessibilityLabel={`Sync, ${view.label}`}
       accessibilityHint={live ? 'Tries to send and load now' : undefined}
-      accessibilityLiveRegion="polite"
       style={({ pressed }) => [s.row, pressed && s.pressed]}
     >
       <Text style={s.label}>Sync</Text>
@@ -37,17 +48,19 @@ export function SyncStatusRow() {
  * it can first and asks before leaving unsent changes behind.
  */
 export function AccountCard() {
-  const { sync, signOut } = useStore();
+  const { sync, me, identity, signOut } = useStore();
   const [busy, setBusy] = useState(false);
-  const [unsent, setUnsent] = useState(0);
+  // The count stays while the sheet fades out, so its title does not blank as it closes.
+  const [ask, setAsk] = useState({ open: false, unsent: 0 });
   const demo = sync === 'demo';
 
   const run = async (force: boolean) => {
     setBusy(true);
     try {
-      setUnsent(await signOut({ force }));
+      const unsent = await signOut({ force });
+      setAsk({ open: unsent > 0, unsent: unsent || ask.unsent });
     } catch {
-      setUnsent(0); // stays signed in on this screen; the row can be tapped again
+      setAsk((a) => ({ ...a, open: false })); // still signed in; the row can be tapped again
     } finally {
       setBusy(false);
     }
@@ -55,6 +68,15 @@ export function AccountCard() {
 
   return (
     <View style={s.card}>
+      {demo ? null : (
+        <>
+          <View style={s.row} accessible accessibilityLabel={`Signed in as ${identity === 'standIn' ? `a test account, acting as ${NAME[me]}` : NAME[me]}`}>
+            <Text style={s.label}>Signed in as</Text>
+            <Text style={s.valueText} numberOfLines={1}>{identity === 'standIn' ? `Test account · acts as ${NAME[me]}` : NAME[me]}</Text>
+          </View>
+          <View style={s.divider} />
+        </>
+      )}
       <SyncStatusRow />
       {demo ? null : (
         <>
@@ -72,7 +94,7 @@ export function AccountCard() {
           </Pressable>
         </>
       )}
-      <Sheet visible={unsent > 0} title={signOutPrompt(unsent) ?? ''} onClose={() => setUnsent(0)} closeLabel="Cancel">
+      <Sheet visible={ask.open} title={signOutPrompt(ask.unsent) ?? ''} onClose={() => setAsk((a) => ({ ...a, open: false }))} closeLabel="Cancel">
         <Text style={s.confirm}>They stay on this phone and are sent when you sign in again. If someone else signs in here, they are lost.</Text>
         <SheetButton label="Sign out anyway" disabled={busy} onPress={() => void run(true)} />
       </Sheet>

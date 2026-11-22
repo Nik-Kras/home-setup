@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_PHOTO_FAILURES, photoPath, type ItemPhoto } from '../domain/photos';
-import { claimPhotos, PHOTO_OWNER_KEY, photoPickerKey, photoQueueKey, PhotoQueue, type PhotoOutcome } from './photoQueue';
+import { claimPhotos, PHOTO_OWNER_KEY, unsentPhotoCount, photoPickerKey, photoQueueKey, PhotoQueue, type PhotoOutcome } from './photoQueue';
 
 type Outcome = PhotoOutcome;
 
@@ -250,5 +250,13 @@ describe('PhotoQueue', () => {
     expect(records.has(photoPickerKey('account-a'))).toBe(false);
     expect(records.get(PHOTO_OWNER_KEY)).toBe('account-b');
     expect(await queue('account-a').list()).toEqual([]);
+  });
+});
+
+describe('unsentPhotoCount', () => {
+  it('counts every photo not confirmed by the server, so sign-out can ask before losing it', () => {
+    const job = (status: 'pending' | 'uploading' | 'done' | 'failed') => ({ kind: 'upload' as const, photo, transfer: { status, retries: 0 }, uploaded: false });
+    expect(unsentPhotoCount([])).toBe(0);
+    expect(unsentPhotoCount([job('pending'), job('uploading'), job('failed'), job('done')])).toBe(3);
   });
 });

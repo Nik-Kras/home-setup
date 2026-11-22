@@ -15,8 +15,10 @@ import { openTasksSorted, sharedTasks, tasksFor } from '../../domain/tasks';
 import type { Person, Task } from '../../domain/types';
 import { colors, fonts, TARGET } from '../../theme/tokens';
 
-/** Relative to the signed-in person, so "Mine" is always theirs, even when `me` arrives after the first render. */
+/** Kept relative to the signed-in person, so "Mine" is always theirs whatever `me` is. */
 type View_ = 'mine' | 'other' | 'both';
+/** The segment values stay person keys, so their test ids are `segment-nikita`, `segment-daryna`, `segment-both`. */
+type Segment = Person | 'both';
 type TaskSection = { key: string; title: string; meta?: string; data: Task[] };
 
 const TaskGap = () => <View style={{ height: 8 }} />;
@@ -47,7 +49,7 @@ function AddTaskBar({ text, setText, placeholder, onAdd, onMore }: { text: strin
 }
 
 export default function Tasks() {
-  const { tasks, me, addTask, setTaskStatus } = useStore();
+  const { tasks, me, identity, addTask, setTaskStatus } = useStore();
   const [view, setView] = useState<View_>('mine');
   const other: Person = me === 'nikita' ? 'daryna' : 'nikita';
   const viewer = view === 'both' ? null : view === 'mine' ? me : other;
@@ -98,13 +100,14 @@ export default function Tasks() {
           <View>
             <Title>Tasks</Title>
             <Sub>{viewer ? `${NAME[viewer]}'s list` : 'Shared tasks'}{ready ? ` · ${list.length} open` : ''}</Sub>
+            {identity === 'standIn' ? <Sub>Test account, acting as {NAME[me]}</Sub> : null}
           </View>
-          <Segmented<View_>
-            value={view}
-            onChange={setView}
+          <Segmented<Segment>
+            value={viewer ?? 'both'}
+            onChange={(v) => setView(v === 'both' ? 'both' : v === me ? 'mine' : 'other')}
             options={[
-              { value: 'mine', label: 'Mine', count: counts.mine },
-              { value: 'other', label: NAME[other], count: counts.other },
+              { value: me, label: 'Mine', count: counts.mine },
+              { value: other, label: NAME[other], count: counts.other },
               { value: 'both', label: 'Both', count: counts.both },
             ]}
           />

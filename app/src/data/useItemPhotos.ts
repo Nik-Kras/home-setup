@@ -4,7 +4,7 @@ import { Alert, Platform } from 'react-native';
 import { photoPath, type DisplayPhoto, type ItemPhoto } from '../domain/photos';
 import { newId } from './mappers';
 import { localPhotoFile, pickImage, removeLocalPhoto, saveLocalPhoto, type PhotoSource } from './photoFiles';
-import { claimPhotos, isLocalOnly, photoPickerKey, PhotoQueue, type PhotoJob } from './photoQueue';
+import { claimPhotos, isLocalOnly, photoPickerKey, PhotoQueue, unsentPhotoCount, type PhotoJob } from './photoQueue';
 import { makePhotoExecutor, SignedPhotoUrls } from './photoRepo';
 import { db, kv } from './supabase';
 
@@ -96,6 +96,8 @@ export function useItemPhotos(scope: string | null, canDelete: boolean) {
     if (queue) await queue.flush(() => activeScope.current === scope);
   }, [queue, scope]);
 
+  const unsentPhotos = useCallback(async () => (queue ? unsentPhotoCount(await queue.list()) : 0), [queue]);
+
   const loadPhotos = useCallback(async (photos: ItemPhoto[]) => {
     if (!scope || !signer || !queue) return;
     const { urls, failed } = await signer.resolve(photos);
@@ -128,5 +130,5 @@ export function useItemPhotos(scope: string | null, canDelete: boolean) {
     return [...byId.values()];
   }, [local, remote, scope]);
 
-  return { photos, addPhoto, deletePhoto, retryPhoto, flushPhotos, loadPhotos };
+  return { photos, addPhoto, deletePhoto, retryPhoto, flushPhotos, loadPhotos, unsentPhotos };
 }
