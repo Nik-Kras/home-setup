@@ -1,11 +1,12 @@
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
 import { ItemPhotos } from '../../components/ItemPhotos';
+import { LoadingState, NotFoundState, OfflineState, useDetailState } from '../../components/LoadState';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetButton, SheetOption, TextSheet } from '../../components/Sheet';
 import { glyphFor, Icon } from '../../components/ui';
@@ -27,14 +28,14 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, rooms, auth, sync, updateItem, setItemStatus } = useStore();
+  const { items, rooms, retry, updateItem, setItemStatus } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   /** A backward stepper tap that would clear a date waits here for confirmation. */
   const [moveBack, setMoveBack] = useState<{ status: ItemStatus; warning: string } | null>(null);
   const item = items.find((i) => i.id === id);
   const close = () => setSheet(null);
-  const loading = auth === 'loading' || sync === 'pending';
+  const state = useDetailState(item !== undefined);
 
   const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 
@@ -43,13 +44,13 @@ export default function ItemDetail() {
     return (
       <View style={s.root}>
         {header}
-        {loading ? (
-          <View style={s.loading} accessible accessibilityLabel="Loading item" accessibilityLiveRegion="polite">
-            <ActivityIndicator color={colors.textSecondary} />
-          </View>
-        ) : (
-          <Text style={s.missing}>This item is no longer on the list.</Text>
-        )}
+        <View style={s.missing}>
+          {state === 'loading' ? <LoadingState label="Loading item" /> : null}
+          {state === 'offline' ? <OfflineState onRetry={retry} /> : null}
+          {state === 'missing' ? (
+            <NotFoundState title="Item not found" line="It may have been removed on the other phone." backLabel="Back to list" onBack={back} />
+          ) : null}
+        </View>
       </View>
     );
   }
@@ -176,8 +177,7 @@ export default function ItemDetail() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  loading: { paddingTop: 32, alignItems: 'center' },
-  missing: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, paddingHorizontal: 20, paddingTop: 12 },
+  missing: { paddingHorizontal: 16, paddingTop: 12 },
   content: { paddingHorizontal: 16, gap: 12 },
   titleBlock: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 4 },
   glyph: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.neutralFill, borderWidth: 1, borderColor: colors.hairline, alignItems: 'center', justifyContent: 'center' },

@@ -3,6 +3,7 @@ import { Fragment, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { EmptyState } from '../../components/EmptyState';
+import { ListGate } from '../../components/LoadState';
 import { HeaderIconButton, ScreenHeader } from '../../components/ScreenHeader';
 import { NAME, TaskRow } from '../../components/TaskRow';
 import { Icon, Sub, Title } from '../../components/ui';
@@ -57,25 +58,27 @@ export default function GroupDetail() {
       </View>
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]}>
-        {open.length > 0 ? card(open, `${name}, open tasks`) : null}
-        {total === 0 ? (
-          <EmptyState
-            icon="tasks"
-            title="Nothing in this group yet"
-            line={`${person === me ? 'Tasks you add here' : `Tasks for ${NAME[person]} added here`} also show on the Tasks screen.`}
-            action={{ label: 'Add a task', onPress: add, accessibilityLabel: `Add a task to ${name}` }}
-          />
-        ) : null}
-        {total > 0 && open.length === 0 ? <Text style={s.empty}>All done in this group.</Text> : null}
-        {done.length > 0 ? (
-          <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Done, ${done.length}`} style={s.doneToggle}>
-            <Text style={s.doneText}>Done <Text style={s.doneCount}>{done.length}</Text></Text>
-            <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
-              <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
-            </View>
-          </Pressable>
-        ) : null}
-        {showDone && done.length > 0 ? card(done, `${name}, done tasks`) : null}
+        <ListGate count={tasks.length}>
+          {open.length > 0 ? card(open, `${name}, open tasks`) : null}
+          {total === 0 ? (
+            <EmptyState
+              icon="tasks"
+              title="Nothing in this group yet"
+              line={`${person === me ? 'Tasks you add here' : `Tasks for ${NAME[person]} added here`} also show on the Tasks screen.`}
+              action={{ label: 'Add a task', onPress: add, accessibilityLabel: `Add a task to ${name}` }}
+            />
+          ) : null}
+          {total > 0 && open.length === 0 ? <Text style={s.empty}>All done in this group.</Text> : null}
+          {done.length > 0 ? (
+            <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Done, ${done.length}`} style={s.doneToggle}>
+              <Text style={s.doneText}>Done <Text style={s.doneCount}>{done.length}</Text></Text>
+              <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
+                <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
+              </View>
+            </Pressable>
+          ) : null}
+          {showDone && done.length > 0 ? card(done, `${name}, done tasks`) : null}
+        </ListGate>
       </ScrollView>
     </View>
   );
