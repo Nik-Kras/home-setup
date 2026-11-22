@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StageStep } from '../domain/items';
+import type { Comment } from '../domain/comments';
 import type { ItemPhoto } from '../domain/photos';
 import type { FlatNote, Item, ItemStatus, Person, Task, TaskStatus, TaskStep } from '../domain/types';
-import { itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
+import { commentFromRow, commentToRow, itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type CommentRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
 import type { Op, Outcome } from './queue';
 
 export interface Snapshot {
@@ -10,16 +11,18 @@ export interface Snapshot {
   items: Item[];
   tasks: Task[];
   notes: FlatNote[];
+  comments: Comment[];
   photos: ItemPhoto[];
 }
 
 /** Read everything the app shows. Deleted rows are hidden. */
 export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
-  const [rooms, items, tasks, notes] = await Promise.all([
+  const [rooms, items, tasks, notes, comments] = await Promise.all([
     db.from('rooms').select('id,name').order('sort'),
     db.from('items').select('*, item_photos(id,path,created_at)').is('deleted_at', null).order('added_at', { ascending: false }),
     db.from('tasks').select('*, task_assignments(person,status,updated_by,updated_at, task_steps(id,title,done,sort))').is('deleted_at', null).order('created_at', { ascending: false }),
     db.from('flat_notes').select('id,title,body,reference,kind,sort,updated_by').is('deleted_at', null).order('sort').order('created_at'),
+    db.from('comments').select('id,target_type,target_id,author,body,created_at').order('created_at'),
   ]);
   const err = rooms.error ?? items.error ?? tasks.error;
   if (err) throw err;
@@ -33,6 +36,8 @@ export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
     tasks: ((tasks.data ?? []) as TaskRow[]).map(taskFromRow),
     photos: itemRows.flatMap((item) => (item.item_photos ?? []).map((row) => ({ id: row.id, itemId: item.id, path: row.path, createdAt: row.created_at }))),
     notes: notes.error ? [] : ((notes.data ?? []) as FlatNoteRow[]).map(noteFromRow),
+    // Comments are extra: a failed read shows none rather than failing the whole load.
+    comments: comments.error ? [] : ((comments.data ?? []) as CommentRow[]).map(commentFromRow),
   };
 }
 
@@ -91,6 +96,13 @@ export const ops = {
     return { id: newId(), kind: 'patch', table: 'flat_notes', match: { id: noteId }, row };
   },
   /**
+   * A new comment. Insert-only (ignoreDuplicates), so a retry after a lost reply never adds it twice.
+   * Comments are never edited, so this is the only comment op.
+   */
+  addComment(comment: Comment): Op {
+    return { id: newId(), kind: 'upsert', table: 'comments', ignoreDuplicates: true, row: commentToRow(comment) };
+  },
+  /**
    * Conditional patch, for Undo: changes the row only while every `match` column still has the value
    * this device set. If the other person has changed it since, their newer value stays.
    */
@@ -143,6 +155,7 @@ export function subscribe(db: SupabaseClient, onChange: () => void): () => void 
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_assignments' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'task_steps' }, onChange)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, onChange)
     .subscribe();
   // Own channel, so realtime for the other tables keeps working if migration 0005 has not been run yet.
   const notes = db.channel('household-notes').on('postgres_changes', { event: '*', schema: 'public', table: 'flat_notes' }, onChange).subscribe();

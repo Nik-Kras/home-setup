@@ -1,4 +1,4 @@
-import { useSegments } from 'expo-router';
+import { router, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -44,9 +44,11 @@ export function UndoBar() {
   // Android's keyboard height may leave out the navigation bar; a little extra gap is better than overlap.
   const bottom = keyboard > 0
     ? keyboard + (Platform.OS === 'android' ? insets.bottom : 0) + 8
-    : segments[0] === '(tabs)' ? Math.max(insets.bottom, 12) + TAB_BAR + 10
-      : segments[0] === 'task' ? insets.bottom + 92
-        : insets.bottom + 16;
+    : segments[0] === '(tabs)' || segments[0] === 'notes' || segments[0] === 'group' ? Math.max(insets.bottom, 12) + TAB_BAR + 10
+      // Above the comment bar (68) on an item, and above the comment bar and footer on a task.
+      : segments[0] === 'task' ? insets.bottom + 150
+        : segments[0] === 'item' ? insets.bottom + 80
+          : insets.bottom + 16;
 
   const shownAt = useRef(0);
   useEffect(() => {
@@ -79,6 +81,12 @@ export function UndoBar() {
             {snack.canUndo ? (
               <Pressable onPress={() => Date.now() - shownAt.current >= UNDO_GUARD_MS && undo()} accessibilityRole="button" accessibilityLabel={`Undo: ${snack.spoken.replace(/ Undo available\.$/, '')}`} hitSlop={4} style={({ pressed }) => [s.undo, pressed && s.pressed]}>
                 <Text style={s.undoText}>Undo</Text>
+              </Pressable>
+            ) : null}
+            {/* After adding an item: open it to set the price, room or anything else. */}
+            {snack.changeItemId ? (
+              <Pressable onPress={() => { const id = snack.changeItemId; dismissSnack(snack.key); router.push(`/item/${id}`); }} accessibilityRole="button" accessibilityLabel="Change the new item" hitSlop={4} style={({ pressed }) => [s.undo, pressed && s.pressed]}>
+                <Text style={s.undoText}>Change</Text>
               </Pressable>
             ) : null}
           </View>

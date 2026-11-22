@@ -1,6 +1,6 @@
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { memo, useCallback, useMemo, useRef, useState, type ComponentRef } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { EmptyState } from '../../components/EmptyState';
 import { ListGate, useListState } from '../../components/LoadState';
@@ -11,7 +11,7 @@ import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
 import { NAME } from '../../components/TaskRow';
 import { Card, Icon, IconTile, itemGlyph, PersonDot, SectionHeading, Sub, Title, UrgentBadge } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { counts, guessRoom, isItemDone, leftByRoom, nextActionLabel, nextUp } from '../../domain/items';
+import { counts, isItemDone, leftByRoom, nextActionLabel, nextUp } from '../../domain/items';
 import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
 import type { Item } from '../../domain/types';
 import { colors, fonts, glow, radius, TARGET } from '../../theme/tokens';
@@ -35,42 +35,16 @@ function Ring({ done, total }: { done: number; total: number }) {
   );
 }
 
-function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
-  const [text, setText] = useState('');
-  const ref = useRef<ComponentRef<typeof TextInput>>(null);
-  const { focusAdd } = useLocalSearchParams<{ focusAdd?: string }>();
-  useFocusEffect(useCallback(() => {
-    if (focusAdd !== '1') return;
-    const frame = requestAnimationFrame(() => {
-      ref.current?.focus();
-      router.setParams({ focusAdd: undefined });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [focusAdd]));
-  const submit = () => {
-    if (!text.trim()) return;
-    onAdd(text);
-    setText('');
-    ref.current?.focus(); // keyboard stays open for the next item
-  };
+/**
+ * "Add something..." opens the add screen (Add.png) with the keyboard up, where suggestions, the room,
+ * who buys it and urgent can be chosen. One target: the whole bar, its mint plus included.
+ */
+function AddBar() {
   return (
-    <View style={s.addBar}>
-      <TextInput
-        ref={ref}
-        value={text}
-        onChangeText={setText}
-        onSubmitEditing={submit}
-        submitBehavior="submit"
-        returnKeyType="done"
-        placeholder="Add something..."
-        placeholderTextColor={colors.textSecondary}
-        accessibilityLabel="Add an item"
-        style={s.addInput}
-      />
-      <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Add item" style={s.addBtn}>
-        <Icon name="plus" size={20} color={colors.onMint} stroke={2.6} />
-      </Pressable>
-    </View>
+    <Pressable onPress={() => router.push('/add-item')} accessibilityRole="button" accessibilityLabel="Add an item" accessibilityHint="Opens the add screen" style={({ pressed }) => [s.addBar, pressed && { opacity: 0.85 }]}>
+      <Text style={s.addPlaceholder} numberOfLines={1}>Add something...</Text>
+      <View style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></View>
+    </Pressable>
   );
 }
 
@@ -79,21 +53,37 @@ function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
  * cheap. Tile and name open the item; only the status chip (every stage, forwards or backwards)
  * changes anything here.
  */
-const ItemRow = memo(function ItemRow({ item, onStatus }: { item: Item; onStatus: (id: string) => void }) {
+const ItemRow = memo(function ItemRow({ item, onStatus, onClaim }: { item: Item; onStatus: (id: string) => void; onClaim: (id: string) => void }) {
+  const open = () => router.push(`/item/${item.id}`);
   const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
+  // An unclaimed thing offers "I'll buy it" where the owner would be, so one tap claims it (Undo puts it back).
+  // Its touch area reaches down more than up, so a tap on the name above still opens the item.
+  const claimable = !item.assignedTo && !isItemDone(item);
+  const rest = claimable ? [item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ') : meta;
   return (
     <View style={s.row}>
       {/* Same target as the name; hidden from screen readers so the row is not announced twice. */}
-      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" hitSlop={2}>
+      <Pressable onPress={open} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" hitSlop={2}>
         <IconTile {...itemGlyph(item)} />
       </Pressable>
-      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details" style={s.rowMid}>
-        <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
+      <View style={s.rowMid}>
+        <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details">
+          <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
+        </Pressable>
         <View style={s.metaLine}>
           {item.assignedTo ? <PersonDot person={item.assignedTo} /> : null}
-          {item.urgent ? <UrgentMeta key={meta} meta={meta} /> : <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>}
+          {claimable ? (
+            <Pressable onPress={() => onClaim(item.id)} accessibilityRole="button" accessibilityLabel={`I'll buy it: ${item.name}`} hitSlop={{ top: 6, bottom: 12, left: 4, right: 12 }} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+              <Text style={s.claimText}>I'll buy it</Text>
+            </Pressable>
+          ) : null}
+          {rest ? (
+            <Pressable onPress={open} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={s.metaPress}>
+              {item.urgent ? <UrgentMeta key={rest} meta={claimable ? `· ${rest}` : rest} /> : <Text style={s.metaOne} numberOfLines={1}>{claimable ? `· ${rest}` : rest}</Text>}
+            </Pressable>
+          ) : item.urgent && claimable ? <UrgentMeta meta="" /> : null}
         </View>
-      </Pressable>
+      </View>
       <StatusChipButton status={item.status} name={item.name} onPress={() => onStatus(item.id)} />
     </View>
   );
@@ -120,7 +110,8 @@ function UrgentMeta({ meta }: { meta: string }) {
 }
 
 export default function Buy() {
-  const { items, addItem, advanceItem, setItemStatus } = useStore();
+  const { me, items, advanceItem, setItemStatus, updateItem } = useStore();
+  const claim = useCallback((id: string) => updateItem(id, { assignedTo: me }), [updateItem, me]);
   const [statusFor, setStatusFor] = useState<string | null>(null);
   const closeStatus = useCallback(() => setStatusFor(null), []);
   const [showDone, setShowDone] = useState(false);
@@ -136,7 +127,6 @@ export default function Buy() {
     if (doneItems.length > 0) list.push({ key: DONE, title: `Got it (${doneItems.length})`, meta: String(doneItems.length), data: showDone ? doneItems : [] });
     return list;
   }, [items, person, showDone]);
-  const add = useCallback((name: string) => addItem(name, { room: guessRoom(name) }), [addItem]);
 
   const empty = person
     ? <Text style={s.emptyFilter}>Nothing assigned to {NAME[person]} yet.</Text>
@@ -172,7 +162,7 @@ export default function Buy() {
               </Pressable>
             </Card>
           ) : null}
-          <AddBar onAdd={add} />
+          <AddBar />
           <StatusSheet item={items.find((i) => i.id === statusFor)} visible={statusFor !== null} onClose={closeStatus} onPick={(status) => statusFor && setItemStatus(statusFor, status)} />
         </View>
       }
@@ -187,7 +177,7 @@ export default function Buy() {
       ) : (
         <View style={s.sectionBelow}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>
       )}
-      renderItem={({ item }) => <ItemRow item={item} onStatus={setStatusFor} />}
+      renderItem={({ item }) => <ItemRow item={item} onStatus={setStatusFor} onClaim={claim} />}
     />
   );
 }
@@ -209,7 +199,9 @@ const s = StyleSheet.create({
   ringNum: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },
   ringTotal: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary },
   addBar: { flexDirection: 'row', alignItems: 'center', minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5 },
-  addInput: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 16, color: colors.text },
+  addPlaceholder: { flex: 1, fontFamily: fonts.medium, fontSize: 16, color: colors.textSecondary },
+  claimText: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18, color: colors.mint },
+  metaPress: { flexShrink: 1 },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, paddingVertical: 6, paddingLeft: 8, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
   rowMid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },

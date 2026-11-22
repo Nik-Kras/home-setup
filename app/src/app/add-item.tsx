@@ -1,5 +1,9 @@
-import { Redirect } from 'expo-router';
+import { AddScreen } from '../components/AddScreen';
 
-export default function AddItemLink() {
-  return <Redirect href={{ pathname: '/', params: { focusAdd: '1' } }} />;
+/**
+ * The add screen on its Item side, with the bar focused. Opened from the Buy list's add bar and by the
+ * widget's "+" (homesetup://add-item).
+ */
+export default function AddItem() {
+  return <AddScreen initialMode="item" />;
 }

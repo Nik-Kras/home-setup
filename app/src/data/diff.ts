@@ -1,3 +1,4 @@
+import type { Comment } from '../domain/comments';
 import type { FlatNote, Item, Task } from '../domain/types';
 import { itemChangedColumns, noteChangedColumns } from './mappers';
 import type { Op } from './queue';
@@ -13,8 +14,8 @@ const TASK_COLUMNS = [['title', 'title'], ['due', 'due'], ['urgent', 'urgent'], 
  * shared task never sends the other person's part, so a stale screen cannot undo their work.
  */
 export function diffToOps(
-  prev: { items: readonly Item[]; tasks: readonly Task[]; notes?: readonly FlatNote[] },
-  next: { items: readonly Item[]; tasks: readonly Task[]; notes?: readonly FlatNote[] },
+  prev: { items: readonly Item[]; tasks: readonly Task[]; notes?: readonly FlatNote[]; comments?: readonly Comment[] },
+  next: { items: readonly Item[]; tasks: readonly Task[]; notes?: readonly FlatNote[]; comments?: readonly Comment[] },
   roomIds: ReadonlyMap<string, string>,
 ): Op[] {
   const out: Op[] = [];
@@ -68,5 +69,9 @@ export function diffToOps(
     const fields = noteChangedColumns(before, note);
     if (Object.keys(fields).length > 0) out.push(ops.patchNote(note.id, fields));
   }
+
+  // Comments are only ever added: each new one is one insert, and nothing else is sent for them.
+  const prevComments = new Set((prev.comments ?? []).map((c) => c.id));
+  for (const comment of next.comments ?? []) if (!prevComments.has(comment.id)) out.push(ops.addComment(comment));
   return out;
 }

@@ -1,6 +1,7 @@
 import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
+import type { Comment } from '../domain/comments';
 import type { DisplayPhoto } from '../domain/photos';
 import { identityFor, type Identity, type SyncStatus } from '../domain/sync';
 import type { Item, ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
@@ -65,6 +66,8 @@ interface Store extends State {
   addStep: (id: string, title: string) => void;
   addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => void;
   updateNote: (id: string, patch: NotePatch) => void;
+  /** A comment by me on an item or task; sent through the offline queue. */
+  addComment: (targetType: Comment['targetType'], targetId: string, body: string) => void;
   /** The snackbar after an edit ("Kettle → Ordered. Undo") or after an Undo; null when hidden. */
   snack: Snack | null;
   /** Undo the most recent edit still on the stack (see undo.ts). */
@@ -101,7 +104,7 @@ async function readCache<T>(key: string): Promise<T | null> {
  * Supabase. Without Supabase keys it runs on demo data. Other devices' changes arrive by realtime.
  */
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<State>({ me: DEFAULT_PERSON, items: LIVE ? [] : seedItems, tasks: LIVE ? [] : seedTasks, notes: LIVE ? [] : seedNotes });
+  const [state, setState] = useState<State>({ me: DEFAULT_PERSON, items: LIVE ? [] : seedItems, tasks: LIVE ? [] : seedTasks, notes: LIVE ? [] : seedNotes, comments: [] });
   const [auth, setAuth] = useState<AuthStatus>(LIVE ? 'loading' : 'signedIn');
   const [account, setAccount] = useState<string | null | undefined>(undefined);
   const [member, setMember] = useState<{ account: string; canDelete: boolean }>();
@@ -176,12 +179,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // An edit or widget tap landed during the load: keep it and try again on the next refresh.
         // Compare the data only, so the member lookup setting `me` does not void the first load.
         const now = ref.current;
-        const edited = now.items !== before.items || now.tasks !== before.tasks || now.notes !== before.notes;
+        const edited = now.items !== before.items || now.tasks !== before.tasks || now.notes !== before.notes || now.comments !== before.comments;
         // Try again shortly, so `loaded` does not wait for the 20 s timer.
         if (edited || (await syncQueue.size()) > 0) return void setTimeout(() => void trigger(), 1_000);
         roomIds.current = new Map(snap.rooms.map((r) => [r.name, r.id]));
         setRooms(snap.rooms);
-        set({ ...ref.current, items: snap.items, tasks: snap.tasks, notes: snap.notes });
+        set({ ...ref.current, items: snap.items, tasks: snap.tasks, notes: snap.notes, comments: snap.comments });
         setWidgetReady(true);
         setSync('synced');
         void kv.setItem(itemCacheKey(account), JSON.stringify({ items: snap.items, rooms: snap.rooms })).catch(() => undefined);
@@ -267,7 +270,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const cachedRooms = cached?.rooms ?? [];
       roomIds.current = new Map(cachedRooms.map((r) => [r.name, r.id]));
       setRooms(cachedRooms);
-      set({ ...ref.current, me: cachedMember?.me ?? DEFAULT_PERSON, items: cached?.items ?? [], tasks: [], notes: [] });
+      set({ ...ref.current, me: cachedMember?.me ?? DEFAULT_PERSON, items: cached?.items ?? [], tasks: [], notes: [], comments: [] });
       setIdentity(identityFor(cachedMember));
       setMember({ account, canDelete: cachedMember?.canDelete === true });
       setAuth('signedIn');
@@ -393,6 +396,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addStep: (id: string, title: string) => act({ type: 'addStep', id, title }),
       addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => act({ type: 'addNote', title, ...opts }),
       updateNote: (id: string, patch: NotePatch) => act({ type: 'updateNote', id, patch }),
+      addComment: (targetType: Comment['targetType'], targetId: string, body: string) => act({ type: 'addComment', targetType, targetId, body }),
       undo,
       dismissSnack: (key: string) => setSnack((cur) => (cur?.key === key ? null : cur)),
       closePricePrompt: () => setPricePrompt(null),

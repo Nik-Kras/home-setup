@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
+import { ClaimRow } from '../../components/ClaimRow';
+import { CommentBar, CommentLines } from '../../components/Comments';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
 import { ItemPhotos } from '../../components/ItemPhotos';
 import { QuantityRow } from '../../components/QuantityRow';
@@ -30,7 +32,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, rooms, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
+  const { me, items, rooms, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   /** Set by Delete, so the screen sliding away shows nothing rather than "Item not found". */
@@ -77,7 +79,7 @@ export default function ItemDetail() {
     <View style={s.root}>
       <TintWash color={tone.fg} />
       {header}
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
+      <ScrollView style={s.scroll} contentContainerStyle={[s.content, { paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
         <View style={s.titleBlock}>
           <View style={[s.glyph, { backgroundColor: tone.fill, borderColor: tone.ring }]}>
             <Icon name={glyph.icon} size={38} color={tone.fg} stroke={1.5} />
@@ -94,7 +96,11 @@ export default function ItemDetail() {
         <StatusCard item={item} onSet={(status) => setItemStatus(item.id, status)} onNext={() => advanceItem(item.id)} />
 
         <FieldGroup>
-          <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone={item.assignedTo ? 'value' : 'empty'} dot={item.assignedTo && personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
+          {item.assignedTo ? (
+            <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone="value" dot={personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
+          ) : (
+            <ClaimRow onOpen={() => setSheet('assignedTo')} onClaim={() => updateItem(item.id, { assignedTo: me })} />
+          )}
           <FieldRow label="Estimated price" value={item.estPrice !== undefined ? formatMoney(item.estPrice) : 'Add'} tone={item.estPrice !== undefined ? 'value' : 'action'} a11yValue={item.estPrice === undefined ? 'not set' : undefined} onPress={() => setSheet('estPrice')} />
           <FieldRow label="Price paid" value={item.actualPrice !== undefined ? formatMoney(item.actualPrice) : 'Add'} tone={item.actualPrice !== undefined ? 'value' : 'action'} a11yValue={item.actualPrice === undefined ? 'not paid yet' : undefined} onPress={() => setSheet('actualPrice')} />
           <FieldRow label="Bought by" value={person(item.boughtBy)} tone={item.boughtBy ? 'value' : 'empty'} dot={item.boughtBy && personColor[item.boughtBy]} onPress={() => setSheet('boughtBy')} />
@@ -117,10 +123,12 @@ export default function ItemDetail() {
         <View style={s.activity}>
           <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
           <ActivityLine actor={item.updatedBy} text="made the last change" />
+          <CommentLines targetType="item" targetId={item.id} />
         </View>
 
         <SheetButton label="Delete item" onPress={remove} />
       </ScrollView>
+      <CommentBar targetType="item" targetId={item.id} />
 
       <TextSheet
         visible={sheet === 'name'}
@@ -213,6 +221,7 @@ function PriceForm({ title, value, helper, onSave, onClose }: { title: string; v
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   missing: { paddingHorizontal: 16, paddingTop: 12 },
+  scroll: { flex: 1 },
   content: { paddingHorizontal: 16, gap: 12 },
   titleBlock: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 4 },
   glyph: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.neutralFill, borderWidth: 1, borderColor: colors.hairline, alignItems: 'center', justifyContent: 'center' },

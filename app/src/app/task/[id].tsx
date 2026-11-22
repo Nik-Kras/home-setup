@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { ActivityLine } from '../../components/ActivityLine';
+import { CommentBar, CommentLines } from '../../components/Comments';
 import { shortDate } from '../../components/DatePickerSheet';
 import { LoadingState, NotFoundState, OfflineState, useDetailState } from '../../components/LoadState';
 import { HeaderAction, ScreenHeader } from '../../components/ScreenHeader';
@@ -102,7 +103,7 @@ function TaskDetails({ task }: { task: Task }) {
       <TaskHeader onEdit={() => setEditor('title')} />
       <ScrollView
         style={s.scroll}
-        contentContainerStyle={[s.content, { paddingBottom: shared && mine ? 24 : bottom + 24 }]}
+        contentContainerStyle={[s.content, { paddingBottom: 24 }]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={s.titleBlock}>
@@ -165,9 +166,12 @@ function TaskDetails({ task }: { task: Task }) {
           {shared ? <Text style={s.activityHeading} accessibilityRole="header">Activity</Text> : null}
           <View style={!shared && s.activitySolo}>
             <ActivityLine actor={task.updatedBy} text="made the last change" />
+            <CommentLines targetType="task" targetId={task.id} />
           </View>
         </View>
       </ScrollView>
+
+      <CommentBar targetType="task" targetId={task.id} safeBottom={!(shared && mine)} />
 
       {shared && mine ? (
         <View style={[s.footer, { paddingBottom: bottom + 16 }]}>
@@ -246,7 +250,7 @@ const s = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4 },
   body: { fontFamily: fonts.regular, fontSize: 14, color: colors.text },
   meta: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
-  activitySolo: { paddingHorizontal: 16 },
+  activitySolo: { paddingHorizontal: 16, gap: 8 },
   activityCard: { gap: 8, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.hairline },
   activityHeading: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },
   footer: { borderTopWidth: 1, borderTopColor: colors.hairline, paddingTop: 12, paddingHorizontal: 16 },

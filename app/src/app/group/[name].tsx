@@ -11,6 +11,8 @@ import { useStore } from '../../data/store';
 import { groupFromParam, groupTasks } from '../../domain/taskOptions';
 import type { Person, Task } from '../../domain/types';
 import { colors, fonts, TARGET } from '../../theme/tokens';
+import { PushedTabBar } from '../../components/PushedTabBar';
+import { TAB_BAR_SPACE } from '../../components/TabBar';
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
 
@@ -57,7 +59,7 @@ export default function GroupDetail() {
         </View> : null}
       </View>
 
-      <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]}>
+      <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + TAB_BAR_SPACE + 16 }]}>
         <ListGate count={tasks.length}>
           {open.length > 0 ? card(open, `${name}, open tasks`) : null}
           {total === 0 ? (
@@ -80,6 +82,7 @@ export default function GroupDetail() {
           {showDone && done.length > 0 ? card(done, `${name}, done tasks`) : null}
         </ListGate>
       </ScrollView>
+      <PushedTabBar />
     </View>
   );
 }

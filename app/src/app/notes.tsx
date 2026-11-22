@@ -12,6 +12,8 @@ import { useStore } from '../data/store';
 import { hasOpenTask, noteDraftChanges, notesSorted, toConfirmCount, type NoteDraft } from '../domain/notes';
 import type { FlatNote } from '../domain/types';
 import { colors } from '../theme/tokens';
+import { PushedTabBar } from '../components/PushedTabBar';
+import { TAB_BAR_SPACE } from '../components/TabBar';
 
 export default function Notes() {
   const { notes, tasks, addNote, updateNote } = useStore();
@@ -36,7 +38,7 @@ export default function Notes() {
     <View style={s.root}>
       {/* One add control: the header plus, or the empty state's button when there are no notes. */}
       <ScreenHeader onBack={back} backLabel="Back to tasks" right={list.length > 0 ? <HeaderIconButton icon="plus" onPress={openNew} accessibilityLabel="Add a note" /> : undefined} />
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: bottom + 24 }]} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[s.content, { paddingBottom: bottom + TAB_BAR_SPACE + 16 }]} keyboardShouldPersistTaps="handled">
         <View style={s.titleBlock}>
           <Title>Flat notes</Title>
           <Sub>From the tenancy contract{toConfirm > 0 ? ` · ${toConfirm} to confirm` : ''}</Sub>
@@ -50,6 +52,7 @@ export default function Notes() {
           ) : null}
         </ListGate>
       </ScrollView>
+      <PushedTabBar />
       <NoteSheet visible={sheet.open} note={sheet.note} onClose={() => setSheet((v) => ({ ...v, open: false }))} onSave={save} />
     </View>
   );

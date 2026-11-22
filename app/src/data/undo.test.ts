@@ -80,8 +80,8 @@ describe('undo entries', () => {
     expect(msg({ type: 'setTaskStatus', id: 't1', person: 'nikita', status: 'todo' }, done)).toBe('Marked not done: Register with a GP');
   });
 
-  it('adding things and edits that change nothing are not undoable', () => {
-    const add: Action = { type: 'addItem', name: 'Toaster' };
+  it('adding a task and edits that change nothing are not undoable', () => {
+    const add: Action = { type: 'addTask', title: 'Book a van', assignees: ['nikita'] };
     expect(undoEntryFor(start, reducer(start, add), add, 1, 'x')).toBeUndefined();
     const same: Action = { type: 'updateItem', id: 'i1', patch: { quantity: 1 } };
     expect(undoEntryFor(start, reducer(start, same), same, 1, 'x')).toBeUndefined();
@@ -371,5 +371,38 @@ describe('executor: conditional patches report a miss', () => {
     const seen: unknown[] = [];
     expect(await makeExecutor(db(0, seen))({ id: 'p', kind: 'patch', table: 'items', match: { id: 'i1' }, row: { quantity: 2 } })).toBe('ok');
     expect(seen).toEqual([undefined]);
+  });
+});
+
+describe('adding an item: "Added to <room>", Undo, Change', () => {
+  it('offers Undo and Change, naming the room it went in', () => {
+    const { next, entry } = edit(start, { type: 'addItem', name: 'Toaster', room: 'Kitchen', assignedTo: 'nikita' });
+    const added = next.items[0]!;
+    expect(entry.message).toBe('Added to Kitchen');
+    expect(entry.spoken).toBe('Toaster added to Kitchen');
+    expect(offerSnack(entry)).toMatchObject({ canUndo: true, changeItemId: added.id });
+    expect(edit(start, { type: 'addItem', name: 'Thing' }).entry.message).toBe('Added, no room');
+  });
+
+  it('Undo takes the new item off the list and soft-deletes it', () => {
+    const { next, entry } = edit(start, { type: 'addItem', name: 'Toaster', room: 'Kitchen' });
+    const added = next.items[0]!;
+    const undone = applyUndo(next, entry, rooms);
+    expect(undone.outcome).toBe('done');
+    expect(undone.state.items.map((i) => i.id)).toEqual(['i1', 'i2']);
+    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: added.id }, row: { deleted_at: expect.any(String) } }]);
+  });
+
+  it('nothing to undo if the other phone deleted it since', () => {
+    const { entry } = edit(start, { type: 'addItem', name: 'Toaster' });
+    expect(applyUndo(start, entry, rooms)).toMatchObject({ outcome: 'none', ops: [] });
+  });
+
+  it('a claim ("I\'ll buy it") is an ordinary undoable assignment', () => {
+    const { next, entry } = edit(start, { type: 'updateItem', id: 'i1', patch: { assignedTo: 'nikita' } });
+    expect(entry.message).toBe('Kettle → assigned to Nikita');
+    const undone = applyUndo(next, entry, rooms);
+    expect(item(undone.state).assignedTo).toBeUndefined();
+    expect(undone.ops[0]).toMatchObject({ table: 'items', match: { id: 'i1', assigned_to: 'nikita' }, row: { assigned_to: null } });
   });
 });

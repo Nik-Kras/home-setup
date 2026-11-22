@@ -19,6 +19,8 @@ import { ops } from './repo';
 
 type ItemChange = { kind: 'item'; before: Item; after: Item | null; index: number };
 type TaskChange = { kind: 'task'; before: Task; after: Task };
+/** A new item: Undo soft-deletes it (or takes its insert back from the queue if it was never sent). */
+type AddedChange = { kind: 'added'; item: Item };
 
 export interface UndoEntry {
   id: string;
@@ -28,7 +30,7 @@ export interface UndoEntry {
   spoken: string;
   /** When the edit was made, in ms. */
   at: number;
-  change: ItemChange | TaskChange;
+  change: ItemChange | TaskChange | AddedChange;
   /** The queue Ops the edit sent. If none has gone out yet (offline), Undo takes them back instead. */
   opIds?: readonly string[];
 }
@@ -39,6 +41,8 @@ export interface Snack {
   message: string;
   spoken: string;
   canUndo: boolean;
+  /** An item the snackbar's "Change" button opens (after adding one). */
+  changeItemId?: string;
 }
 
 export type UndoOutcome = 'done' | 'partial' | 'none';
@@ -134,6 +138,13 @@ export function undoEntryFor(prev: State, next: State, action: Action, at: numbe
       const text = describeTaskChange(before, after);
       return text && { id, at, ...text, change: { kind: 'task', before, after } };
     }
+    case 'addItem': {
+      const known = new Set(prev.items.map((i) => i.id));
+      const item = next.items.find((i) => !known.has(i.id));
+      if (!item) return undefined;
+      const where = item.room ? `Added to ${item.room}` : 'Added, no room';
+      return { id, at, message: where, spoken: `${item.name} ${where.replace('Added', 'added')}`, change: { kind: 'added', item } };
+    }
     default:
       return undefined;
   }
@@ -151,6 +162,12 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
   let reverted = 0;
   let skipped = 0;
   const change = entry.change;
+
+  if (change.kind === 'added') {
+    // Deleted on the other phone since: nothing left to take back.
+    if (!current.items.some((i) => i.id === change.item.id)) return { state: current, ops: [], outcome: 'none' };
+    return { state: { ...current, items: current.items.filter((i) => i.id !== change.item.id) }, ops: [ops.softDelete('items', change.item.id)], outcome: 'done' };
+  }
 
   if (change.kind === 'item') {
     const { before, after, index } = change;
@@ -239,7 +256,8 @@ export function popUndo(stack: readonly UndoEntry[]): { entry?: UndoEntry; rest:
 
 /** The snackbar right after an edit. */
 export function offerSnack(entry: UndoEntry): Snack {
-  return { key: entry.id, message: entry.message, spoken: `${entry.spoken}. Undo available.`, canUndo: true };
+  const changeItemId = entry.change.kind === 'added' ? entry.change.item.id : undefined;
+  return { key: entry.id, message: entry.message, spoken: `${entry.spoken}. Undo available.`, canUndo: true, ...(changeItemId ? { changeItemId } : {}) };
 }
 
 /**
