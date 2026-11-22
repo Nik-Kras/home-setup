@@ -27,7 +27,15 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Allow Home Setup to take item photos.",
+          "photosPermission": "Allow Home Setup to choose item photos from your library.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "scheme": "homesetup",
     "backgroundColor": "#0E1110"
