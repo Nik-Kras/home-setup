@@ -1,8 +1,11 @@
 #!/bin/bash
-# Runs the Maestro e2e flows against the dev build on the Android emulator.
+# Runs the Maestro e2e flows against the installed build (dev or release) on the Android emulator.
 #
 #   e2e/run.sh            all flows in e2e/flows, in order
 #   e2e/run.sh 03 05      only flows whose file name starts with 03 or 05
+#
+# The build is detected from the installed package (debuggable = dev build, served by Metro; otherwise a
+# release build with the bundle inside, no Metro). E2E_BUILD=dev or E2E_BUILD=release overrides it.
 #
 # Prints PASS/FAIL per flow and exits non-zero if any flow failed. Reads the Claude account and Supabase
 # keys from app/.env and passes them to Maestro with -e; they are never printed. Maestro's own logs record
@@ -23,15 +26,24 @@ done
 command -v maestro >/dev/null || { echo "maestro is not installed"; exit 2; }
 adb -s "$DEVICE" get-state >/dev/null 2>&1 || { echo "device $DEVICE is not connected"; exit 2; }
 
-# Metro: use the running server, or start one for this run.
-METRO_PID=""
-if ! curl -s localhost:8081/status | grep -q running; then
-  echo "starting Metro..."
-  npx expo start --port 8081 >"$E2E/.metro.log" 2>&1 &
-  METRO_PID=$!
-  for _ in $(seq 1 60); do curl -s localhost:8081/status | grep -q running && break; sleep 2; done
+adb -s "$DEVICE" shell pm path app.homesetup.household >/dev/null 2>&1 || { echo "app.homesetup.household is not installed"; exit 2; }
+BUILD="${E2E_BUILD:-}"
+if [ -z "$BUILD" ]; then
+  if adb -s "$DEVICE" shell dumpsys package app.homesetup.household | grep -q 'pkgFlags=.*DEBUGGABLE'; then BUILD=dev; else BUILD=release; fi
 fi
-adb -s "$DEVICE" reverse tcp:8081 tcp:8081 >/dev/null
+echo "build: $BUILD"
+
+# Metro (dev build only): use the running server, or start one for this run.
+METRO_PID=""
+if [ "$BUILD" = dev ]; then
+  if ! curl -s localhost:8081/status | grep -q running; then
+    echo "starting Metro..."
+    npx expo start --port 8081 >"$E2E/.metro.log" 2>&1 &
+    METRO_PID=$!
+    for _ in $(seq 1 60); do curl -s localhost:8081/status | grep -q running && break; sleep 2; done
+  fi
+  adb -s "$DEVICE" reverse tcp:8081 tcp:8081 >/dev/null
+fi
 
 TMP="$(mktemp -d)"
 cleanup() {
@@ -74,7 +86,7 @@ for f in "${FLOWS[@]}"; do
   maestro --device "$DEVICE" test \
     --debug-output "$out/debug" --test-output-dir "$out/test" \
     -e SB_URL="$EXPO_PUBLIC_SUPABASE_URL" -e SB_KEY="$EXPO_PUBLIC_SUPABASE_ANON_KEY" \
-    -e E2E_EMAIL="$CLAUDE_EMAIL" -e E2E_PASSWORD="$CLAUDE_PASSWORD" \
+    -e E2E_EMAIL="$CLAUDE_EMAIL" -e E2E_PASSWORD="$CLAUDE_PASSWORD" -e E2E_BUILD="$BUILD" \
     "$f" >"$out/console.txt" 2>&1
   code=$?
   secs=$(( $(date +%s) - start ))

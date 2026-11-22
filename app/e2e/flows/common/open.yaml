@@ -1,21 +1,34 @@
-# Opens the dev build on the local Metro server (cold start) and waits until the app shows either the
-# sign-in screen or the Buy list.
+# Opens the app (cold start) and waits until it shows either the sign-in screen or the Buy list.
+# Dev build (default): loads the bundle from the local Metro server. Release build (E2E_BUILD=release,
+# set by run.sh): launches the app, the bundle is inside.
 appId: app.homesetup.household
 ---
 - stopApp
-- openLink: homesetup://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
+- runFlow:
+    when:
+      true: ${E2E_BUILD == 'release'}
+    commands:
+      - launchApp:
+          stopApp: false
+- runFlow:
+    when:
+      true: ${E2E_BUILD != 'release'}
+    commands:
+      - openLink: homesetup://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
 - extendedWaitUntil:
     visible:
       text: "Our flat"
     timeout: 90000
-# First start after a clear: the dev client shows its menu once. Close it.
+# Dev build, first start after a clear: the dev client shows its menu once. Close it.
 - runFlow:
     when:
+      true: ${E2E_BUILD != 'release'}
       visible: "Continue"
     commands:
       - tapOn: "Continue"
 - runFlow:
     when:
+      true: ${E2E_BUILD != 'release'}
       visible: "Close"
     commands:
       - tapOn: "Close"

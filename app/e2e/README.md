@@ -1,6 +1,6 @@
 # End-to-end tests (Maestro)
 
-Flows that drive the dev build on the Android emulator and check the Supabase database as the Claude account.
+Flows that drive the dev build or the release build on the Android emulator and check the Supabase database as the Claude account.
 
 ## Run
 
@@ -16,7 +16,7 @@ It prints `PASS` or `FAIL` per flow (with the failing step) and exits non-zero i
 
 Needs:
 - Maestro 2.x, JDK 17 and the Android platform tools (paths in `env.sh`; `DEVICE` defaults to `emulator-5554`).
-- The dev build (`app.homesetup.household`) installed on the emulator. Metro is used if it is running on port 8081, otherwise `run.sh` starts it. `run.sh` sets up `adb reverse`.
+- `app.homesetup.household` installed on the emulator. `run.sh` detects the build: a debuggable package is the dev build (Metro is used if it is running on port 8081, otherwise `run.sh` starts it, and `adb reverse` is set up); otherwise it is a release build (the bundle is inside, no Metro, `common/open.yaml` launches the app instead of opening the dev-client link). `E2E_BUILD=dev` or `E2E_BUILD=release` overrides the detection.
 - `app/.env` with `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `CLAUDE_EMAIL`, `CLAUDE_PASSWORD`. These are passed to Maestro with `-e` and never written in a flow or printed. Maestro's own debug logs do record typed text, so `run.sh` writes them to a temp folder and deletes it after each flow. Screenshots of a failed flow are kept in `e2e/.out/` (git-ignored).
 
 ## Flows
@@ -30,7 +30,7 @@ Needs:
 | 05 tasks | own task (tick), the other person's task (cannot tick), shared task: my tick changes only my part; the other person's tick (through the database) completes it on the open screen |
 | 06 photos | pick the pushed image in Android's photo picker, it uploads (`item_photos` row under `items/`), shows on the item, and on Home once delivered |
 | 07 flat notes | create (kind "To confirm"), edit details, still there after a cold restart |
-| 08 widget | app not running: the widget's circle marks an item got (database checked); `+` opens the app on the focused add field |
+| 08 widget | app process killed (Home, then `killApp`): the widget's circle marks an item got (database checked); `+` opens the app on the focused add field |
 | 08b widget, app in background | the same got tap while the app is alive in the background |
 | 09 deep links | `homesetup://item/<id>` warm, cold and signed out (sign in, then the item opens); `homesetup://add-item` |
 | 10 live sync | another device (REST API as Claude) adds, marks urgent, renames and delivers an item; the open app follows without a tap |
@@ -51,9 +51,11 @@ Signed in as the Claude account the app acts as Nikita (`me` defaults to Nikita 
 - Cleanup is soft delete only (sets `deleted_at` on items, tasks and flat notes whose name or title starts with `ZZ`), before and after every run. Claude cannot hard-delete.
 - Photo files uploaded by flow 06 stay in the `photos` bucket (only the two people can delete storage objects); their item is soft-deleted.
 
-## Known failures (2026-11-22, dev build)
+## Known failures (2026-11-22, release build)
 
-- **Widget "got" tap is sometimes lost** (flows 08 and 08b, about half of the runs, with the app closed or in the background). The widget shows the item, the tap lands, but the item stays "needed" in the database and nothing is queued; reopening the app does not send it. A tap made a minute after the app was closed worked every time it was tried by hand. Logcat shows the widget worker starting; in the dev build the headless JS also logs "Cannot connect to Expo CLI" (10.0.2.2:8081), so this needs checking on a release build before it is called an app bug.
+- **A deep link is ignored when the widget's background task started the app** (flow 08 fails at the `+` step, 5 of 5 release runs). Repro: app process killed (not force-stopped), tap a widget circle (the got tap works and reaches the database), then tap `+` or open `homesetup://item/<id>`: the app opens on the plain Buy list, the add field is not focused and the item does not open. The same links work warm and on a true cold start (flow 09). App bug, not fixed yet.
+- **`stopApp` kills widget taps.** Maestro's `stopApp` is `am force-stop`, which (like "Force stop" in Settings) cancels the widget's tap intents: taps do nothing until the app runs again and redraws the widget. This was the "got tap is sometimes lost" failure first seen on the dev build (08 with `stopApp` passed 1 of 6 release runs). Flow 08 now uses Home plus `killApp` (`am kill`). The process often survives `am kill` (it stays at "bound top" priority, probably because the launcher reads the widget image from the app); when it does not, 08 tests the background case like 08b.
+- On a freshly placed widget the first tap is probably used by react-native-android-widget (`RNWidgetSizing.correct`) to measure the widget size and is then dropped (08b failed once, right after `place-widget.sh`; 5 of 5 otherwise).
 - A widget placed while the app is not running stays on the grey placeholder until the app next opens and redraws (seen once with `place-widget.sh --force`). `goto-widget` therefore looks for the row it needs, not the first widget.
 
 ## Limits

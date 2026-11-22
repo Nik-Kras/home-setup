@@ -13,8 +13,15 @@ name: 08 widget
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=needed" }
 
-# Tap to got with the app closed.
-- stopApp
+# Tap to got with the app closed: Home, then the process is killed the way Android kills a background app
+# (killApp is `am kill`). Not stopApp: that is `am force-stop`, which also cancels the widget's tap intents,
+# so taps do nothing until the app runs again (Android behaviour, same as "Force stop" in Settings).
+- pressKey: Home
+- extendedWaitUntil:   # a few seconds in the background first, or `am kill` leaves the process alone
+    visible: "ZZ-never-shown"
+    timeout: 5000
+    optional: true
+- killApp
 - runFlow:
     file: common/goto-widget.yaml
     env: { TARGET: "Mark ZZ-e2e-widget as got" }

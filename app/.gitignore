@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# release APK copied here by the M5 build (never committed)
+/build-output

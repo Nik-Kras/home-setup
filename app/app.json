@@ -78,7 +78,8 @@
           "photosPermission": "Allow Home Setup to choose item photos from your library.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "./plugins/with-release-signing"
     ],
     "scheme": "homesetup",
     "backgroundColor": "#0E1110"
