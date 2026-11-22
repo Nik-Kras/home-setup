@@ -23,7 +23,7 @@ export function TaskRow({ task, viewer, me, onToggle, plain = false }: { task: T
   // In a group the chip says "Tomorrow" or "3 days"; the subtitle adds the date itself (the chip already shows far dates).
   const forWhom = [subject === me ? 'For you' : `For ${NAME[subject]}`, task.due && due?.tone !== 'neutral' ? `due ${dayMonth(task.due)}` : null].filter(Boolean).join(' · ');
   const meta = shared
-    ? task.assignments.map((a) => `${a.person === me ? 'You' : NAME[a.person]}: ${a.status === 'done' ? 'done' : a.status === 'in_progress' ? 'in progress' : wait.includes(a.person) ? 'waiting' : 'to do'}`).join(' · ')
+    ? [...task.assignments].sort((a, b) => Number(b.person === me) - Number(a.person === me)).map((a) => `${a.person === me ? 'You' : NAME[a.person]}: ${a.status === 'done' ? 'done' : a.status === 'in_progress' ? 'in progress' : wait.includes(a.person) ? 'waiting' : 'to do'}`).join(' · ')
     : plain ? forWhom : task.group ?? '';
   const status = !shared && mine && mine.status !== 'todo' ? (mine.status === 'done' ? 'done' : mine.status === 'in_progress' ? 'in progress' : 'waiting') : null;
   const label = [task.title, task.urgent ? 'Urgent' : null, meta || null, status, due ? `due ${due.text}` : null].filter(Boolean).join(', ');

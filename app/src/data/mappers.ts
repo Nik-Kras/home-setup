@@ -61,7 +61,7 @@ export function taskFromRow(r: TaskRow): Task {
     (prev, assignment) => Date.parse(assignment.updated_at) > Date.parse(prev.updated_at) ? assignment : prev,
     r,
   );
-  const assignments: Assignment[] = r.task_assignments.map((a) => ({
+  const assignments: Assignment[] = [...r.task_assignments].sort((x, y) => y.person.localeCompare(x.person)).map((a) => ({
     person: a.person,
     status: a.status,
     steps: [...a.task_steps].sort((x, y) => x.sort - y.sort || x.id.localeCompare(y.id)),
