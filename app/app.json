@@ -40,8 +40,8 @@
             {
               "name": "OurFlatSmall",
               "label": "Our flat · small",
-              "minWidth": "144dp",
-              "minHeight": "132dp",
+              "minWidth": "110dp",
+              "minHeight": "110dp",
               "targetCellWidth": 2,
               "targetCellHeight": 2,
               "resizeMode": "none",

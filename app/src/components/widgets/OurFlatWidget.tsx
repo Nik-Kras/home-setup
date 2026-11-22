@@ -3,13 +3,13 @@
 import type { ReactNode } from 'react';
 import { FlexWidget, SvgWidget, TextWidget, type FlexWidgetStyle, type TextWidgetProps, type WidgetInfo } from 'react-native-android-widget';
 import { ICON_PATHS, type IconName } from '../../domain/glyphs';
-import type { WidgetData } from '../../domain/widgetData';
+import { fitRooms, type WidgetView } from '../../domain/widgetData';
 import { colors, fonts, radius, TARGET } from '../../theme/tokens';
 
 export const WIDGET_NAMES = ['OurFlatSmall', 'OurFlatMedium', 'OurFlatLarge'] as const;
 export const MARK_GOT = 'MARK_GOT';
 
-type Row = WidgetData['rooms'][number]['items'][number];
+type Row = WidgetView['rooms'][number]['items'][number];
 
 const fill = { width: 'match_parent', height: 'match_parent' } as const;
 const horizontal = { flexDirection: 'row', alignItems: 'center' } as const;
@@ -42,7 +42,7 @@ function AddButton() {
 
 function Header({ left }: { left: number }) {
   return (
-    <FlexWidget style={{ ...horizontal, width: 'match_parent', height: TARGET }}>
+    <FlexWidget style={{ ...horizontal, width: 'match_parent', height: 'wrap_content' }}>
       <FlexWidget style={{ ...horizontal, flex: 1, width: 0, flexGap: 4 }}>
         <Label text="Our flat" style={{ fontFamily: fonts.serif, fontSize: 25 }} />
         <Label text={`· ${left} left`} style={{ color: colors.textSecondary }} />
@@ -58,7 +58,7 @@ function Status({ status }: { status: Row['status'] }) {
   return (
     <FlexWidget style={{
       paddingHorizontal: 8, paddingVertical: 3, borderRadius: 14,
-      backgroundColor: ordered ? colors.amberFill : got ? colors.mintFill : status === 'Looking' ? '#363B38' : colors.neutralFill,
+      backgroundColor: ordered ? colors.amberFill : got ? colors.mintFill : colors.neutralFill,
     }}>
       <Label text={status} style={{ fontFamily: fonts.semibold, color: ordered ? colors.amber : got ? colors.mint : colors.textSecondary }} />
     </FlexWidget>
@@ -112,6 +112,11 @@ function Frame({ children, label, style }: { children: ReactNode; label: string;
   );
 }
 
+/** Frame padding and border, and the height budgeted for a room label and a 13sp line (text wraps, so these are estimates). */
+const FRAME_INSET = 12;
+const ROOM_LINE = 28;
+const SMALL_LINE = 20;
+
 function updatedLabel(updatedAt: string, now: number) {
   const minutes = Math.max(0, Math.floor((now - Date.parse(updatedAt)) / 60_000));
   if (minutes < 1) return 'Updated just now';
@@ -120,7 +125,7 @@ function updatedLabel(updatedAt: string, now: number) {
   return `Updated ${Math.floor(minutes / 1440)}d ago`;
 }
 
-export function renderOurFlatWidget(info: WidgetInfo, data: WidgetData | null) {
+export function renderOurFlatWidget(info: WidgetInfo, data: WidgetView | null) {
   if (!data) {
     return (
       <Frame label="Our flat. Open the app to sign in" style={{ ...center, flexGap: 6 }}>
@@ -147,33 +152,32 @@ export function renderOurFlatWidget(info: WidgetInfo, data: WidgetData | null) {
 
   const label = `Our flat. ${data.leftCount} left`;
   if (info.widgetName === 'OurFlatMedium') {
-    const rowHeight = Math.min(TARGET, Math.max(30, Math.floor((info.height - TARGET - 12) / 3)));
+    // Rows stay 44dp; a short widget shows fewer of them.
+    const fit = Math.max(0, Math.floor((info.height - TARGET - FRAME_INSET) / TARGET));
     return (
       <Frame label={label}>
         <Header left={data.leftCount} />
-        {data.top.map((row) => <ItemRow key={row.id} row={row} icon={row.icon} height={rowHeight} />)}
+        {data.top.slice(0, fit).map((row) => <ItemRow key={row.id} row={row} icon={row.icon} height={TARGET} />)}
         {data.top.length === 0 && <Label text="Everything is got" style={{ color: colors.textSecondary }} />}
       </Frame>
     );
   }
 
-  // Keep the check and row actions at 44dp on smaller launchers by showing fewer rows when needed.
-  let remaining = info.height - TARGET - 34;
-  const sections = data.rooms.flatMap(({ room, items }) => {
-    const rows = items.slice(0, Math.max(0, Math.floor((remaining - 20) / TARGET)));
-    remaining -= rows.length ? 20 + rows.length * TARGET : 0;
-    return rows.length ? [
-      <FlexWidget key={room} style={{ height: 20, justifyContent: 'center' }}>
-        <Label text={room} style={{ fontFamily: fonts.serif, fontSize: 17, color: colors.textSecondary }} />
-      </FlexWidget>,
-      ...rows.map((row) => <ItemRow key={row.id} row={row} height={TARGET} />),
-    ] : [];
-  });
+  // Keep the check and row actions at 44dp on smaller launchers by showing fewer rows when needed,
+  // dropping by priority (urgent rows stay longest), and say how many are not shown.
+  const { rooms, more } = fitRooms(data, info.height - TARGET - FRAME_INSET - SMALL_LINE, { room: ROOM_LINE, row: TARGET, more: SMALL_LINE });
+  const sections = rooms.flatMap(({ room, items }) => [
+    <FlexWidget key={room} style={{ width: 'match_parent', height: 'wrap_content', paddingTop: 4 }}>
+      <Label text={room} style={{ fontFamily: fonts.serif, fontSize: 17, color: colors.textSecondary }} />
+    </FlexWidget>,
+    ...items.map((row) => <ItemRow key={row.id} row={row} height={TARGET} />),
+  ]);
 
   return (
     <Frame label={label}>
       <Header left={data.leftCount} />
       {sections}
+      {more > 0 && <Label text={`+${more} more`} style={{ color: colors.textSecondary }} />}
       {data.rooms.length === 0 && <Label text="Everything is got" style={{ color: colors.textSecondary }} />}
       <FlexWidget style={{ flex: 1, height: 0 }} />
       <Label text={updatedLabel(data.updatedAt, Date.now())} style={{ color: colors.textMuted }} />
