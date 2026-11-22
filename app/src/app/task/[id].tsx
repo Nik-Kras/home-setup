@@ -3,16 +3,17 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import { ActivityLine } from '../../components/ActivityLine';
 import { shortDate } from '../../components/DatePickerSheet';
+import { HeaderAction, ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetOption, TextSheetBody } from '../../components/Sheet';
 import { AssignmentCard, TaskCallout, TaskChecklist, TaskChip, TaskStatusControl, TASK_STATUS_LABEL, TASK_STATUS_OPTIONS } from '../../components/TaskDetailParts';
-import { Icon } from '../../components/ui';
 import { useStore } from '../../data/store';
 import { actorName } from '../../domain/items';
 import { addDays, endOfWeek, localDate } from '../../domain/taskOptions';
 import { assignmentFor, daysLeft, isShared, parseTaskDate, taskProgressLabel, waitingOn } from '../../domain/tasks';
 import type { Task, TaskStatus } from '../../domain/types';
-import { colors, fonts, personColor, radius, TARGET } from '../../theme/tokens';
+import { colors, fonts, personColor, radius } from '../../theme/tokens';
 
 type Editor = 'title' | 'due' | 'date' | 'status';
 const EDITOR_TITLE: Record<Editor, string> = { title: 'Task title', due: 'Due date', date: 'Pick a date', status: 'Your status' };
@@ -32,18 +33,12 @@ export default function TaskDetail() {
 }
 
 function TaskHeader({ onEdit }: { onEdit?: () => void }) {
-  const { top } = useSafeAreaInsets();
   return (
-    <View style={[s.nav, { paddingTop: top + 8 }]}>
-      <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back to tasks" style={s.navButton}>
-        <Icon name="back" size={24} color={colors.text} stroke={2} />
-      </Pressable>
-      {onEdit ? (
-        <Pressable onPress={onEdit} accessibilityRole="button" accessibilityLabel="Edit task title" style={s.navButton}>
-          <Text style={s.edit}>Edit</Text>
-        </Pressable>
-      ) : null}
-    </View>
+    <ScreenHeader
+      onBack={back}
+      backLabel="Back to tasks"
+      right={onEdit ? <HeaderAction label="Edit" onPress={onEdit} accessibilityLabel="Edit task title" /> : undefined}
+    />
   );
 }
 
@@ -159,9 +154,8 @@ function TaskDetails({ task }: { task: Task }) {
 
         <View style={shared && s.activityCard}>
           {shared ? <Text style={s.activityHeading} accessibilityRole="header">Activity</Text> : null}
-          <View style={[s.activity, !shared && s.activitySolo]}>
-            <View style={[s.dot, s.activityDot]} />
-            <Text style={s.meta}>Last change by <Text style={s.actor}>{actorName(task.updatedBy)}</Text></Text>
+          <View style={!shared && s.activitySolo}>
+            <ActivityLine actor={task.updatedBy} text="made the last change" />
           </View>
         </View>
       </ScrollView>
@@ -232,9 +226,6 @@ function dueLabel(due: string, today: string): string {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   glow: { position: 'absolute', height: 380, top: 0, left: 0, right: 0 },
-  nav: { flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 8, paddingRight: 16 },
-  navButton: { minWidth: TARGET, minHeight: TARGET, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 8 },
-  edit: { fontFamily: fonts.semibold, fontSize: 15, color: colors.textSecondary },
   missing: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 20 },
   scroll: { flex: 1 },
   content: { gap: 12, paddingHorizontal: 16 },
@@ -244,11 +235,8 @@ const s = StyleSheet.create({
   columns: { flexDirection: 'row', gap: 10 },
   stacked: { gap: 10 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  activityDot: { backgroundColor: colors.mint, marginTop: 5 },
   body: { fontFamily: fonts.regular, fontSize: 14, color: colors.text },
   meta: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
-  actor: { color: colors.text, fontFamily: fonts.semibold },
-  activity: { flexDirection: 'row', gap: 10 },
   activitySolo: { paddingHorizontal: 16 },
   activityCard: { gap: 8, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.hairline },
   activityHeading: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },

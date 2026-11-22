@@ -1,0 +1,128 @@
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
+import type { HomeChip, HomeMode } from '../domain/home';
+import { actorName } from '../domain/items';
+import type { Item } from '../domain/types';
+import { colors, fonts, personColor, radius, TARGET } from '../theme/tokens';
+import { glyphFor, Icon } from './ui';
+
+const MODES: { value: HomeMode; label: string; a11y: string }[] = [
+  { value: 'room', label: 'Room', a11y: 'By room' },
+  { value: 'owner', label: 'Owner', a11y: 'By owner' },
+];
+
+/** Room / Owner switch. Each side is 38dp plus 3dp of hit slop above and below: a 44dp target. */
+export function ModeSwitch({ value, onChange }: { value: HomeMode; onChange: (m: HomeMode) => void }) {
+  return (
+    <View style={s.switch} accessibilityRole="tablist" accessibilityLabel="Group things">
+      {MODES.map((m) => {
+        const on = m.value === value;
+        return (
+          <Pressable key={m.value} onPress={() => onChange(m.value)} accessibilityRole="tab" accessibilityLabel={m.a11y} accessibilityState={{ selected: on }} hitSlop={{ top: 3, bottom: 3 }} style={[s.mode, on && s.modeOn]}>
+            <Text style={[s.modeText, on && s.modeTextOn]}>{m.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+/** "All" plus one chip per room that has something in place. Scrolls sideways, fading at the right edge. */
+export function RoomChips({ chips, total, room, onChange }: { chips: HomeChip[]; total: number; room?: string; onChange: (room?: string) => void }) {
+  const all = [{ room: undefined as string | undefined, label: 'All', count: total }, ...chips.map((c) => ({ room: c.room as string | undefined, label: c.room, count: c.count }))];
+  return (
+    <View style={s.chipsWrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips} accessibilityRole="radiogroup" accessibilityLabel="Room">
+        {all.map((c) => {
+          const on = c.room === room;
+          return (
+            <Pressable key={c.label} onPress={() => onChange(c.room)} accessibilityRole="radio" accessibilityState={{ checked: on }} accessibilityLabel={`${c.label}, ${c.count}`} style={[s.chip, on && s.chipOn]}>
+              <Text style={[s.chipText, on && s.chipTextOn]}>{c.label}</Text>
+              <Text style={[s.chipCount, on && s.chipTextOn]}>{c.count}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      <View pointerEvents="none" style={s.fade} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <LinearGradient id="chipFade" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0" stopColor={colors.bg} stopOpacity={0} />
+              <Stop offset="1" stopColor={colors.bg} stopOpacity={1} />
+            </LinearGradient>
+          </Defs>
+          <Rect width="100%" height="100%" fill="url(#chipFade)" />
+        </Svg>
+      </View>
+    </View>
+  );
+}
+
+/** One thing in place: glyph above, serif name, room and the person who bought it. */
+export function HomeTile({ item }: { item: Item }) {
+  const owner = item.boughtBy;
+  return (
+    <View style={s.tile} accessible accessibilityLabel={[item.name, item.room ?? 'No room', owner ? `bought by ${actorName(owner)}` : undefined].filter(Boolean).join(', ')}>
+      <View style={s.glyph}><Icon name={glyphFor(item.name)} size={48} color={colors.textSecondary} stroke={1.4} /></View>
+      <View style={s.cap}>
+        <Text style={s.name} numberOfLines={2}>{item.name}</Text>
+        <View style={s.metaLine}>
+          <Text style={s.meta} numberOfLines={1}>{item.room ?? 'No room'}</Text>
+          {owner ? (
+            <>
+              <View style={[s.dot, { backgroundColor: personColor[owner] }]} />
+              <Text style={s.meta} numberOfLines={1}>{actorName(owner)}</Text>
+            </>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+/** Two-column grid of tiles. */
+export function HomeGrid({ items }: { items: Item[] }) {
+  return <View style={s.grid}>{items.map((i) => <HomeTile key={i.id} item={i} />)}</View>;
+}
+
+/** Shown when nothing is in place yet, so the screen never looks like a failed load. */
+export function HomeEmpty({ onGoToBuy }: { onGoToBuy: () => void }) {
+  return (
+    <View style={s.empty}>
+      <View style={s.emptyGlyph}><Icon name="home" size={28} color={colors.textSecondary} stroke={1.6} /></View>
+      <Text style={s.emptyText}>Nothing in place yet. Items show up here once they are delivered or installed.</Text>
+      <Pressable onPress={onGoToBuy} accessibilityRole="button" style={({ pressed }) => [s.emptyButton, pressed && { opacity: 0.8 }]}>
+        <Text style={s.emptyButtonText}>Go to Buy list</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  switch: { flexDirection: 'row', padding: 3, borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline },
+  mode: { minHeight: TARGET - 6, minWidth: TARGET, paddingHorizontal: 14, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  modeOn: { backgroundColor: colors.mintFill },
+  modeText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },
+  modeTextOn: { fontFamily: fonts.semibold, color: colors.mint },
+  chipsWrap: { marginHorizontal: -16 },
+  chips: { gap: 8, paddingLeft: 16, paddingRight: 40 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: TARGET, paddingHorizontal: 16, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface },
+  chipOn: { backgroundColor: colors.text, borderColor: colors.text },
+  chipText: { fontFamily: fonts.medium, fontSize: 15, color: colors.text },
+  chipCount: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+  chipTextOn: { color: colors.bg },
+  fade: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 40 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  tile: { width: '48.5%', aspectRatio: 1 / 1.02, borderRadius: radius.card, overflow: 'hidden', backgroundColor: colors.neutralFill, borderWidth: 1, borderColor: colors.hairline, justifyContent: 'flex-end' },
+  glyph: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 72, alignItems: 'center', justifyContent: 'center' },
+  cap: { paddingHorizontal: 14, paddingBottom: 14, paddingTop: 8, gap: 4 },
+  name: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 24, color: colors.text },
+  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  meta: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 13, color: '#D5DBD7' },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+  empty: { backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.hairline, padding: 20, gap: 14, alignItems: 'flex-start' },
+  emptyGlyph: { width: 52, height: 52, borderRadius: radius.tile, backgroundColor: colors.neutralFill, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 22, color: colors.textSecondary },
+  emptyButton: { minHeight: TARGET, paddingHorizontal: 20, borderRadius: radius.pill, backgroundColor: colors.mint, justifyContent: 'center' },
+  emptyButtonText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
+});
