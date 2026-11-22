@@ -3,7 +3,7 @@ import { Screen } from '../../components/Screen';
 import { Card, PersonDisc, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
 import { budgetView, gbp, type BudgetRoomRow } from '../../domain/budgetView';
-import { colors, fonts, personColor } from '../../theme/tokens';
+import { colors, fonts, glow, personColor } from '../../theme/tokens';
 
 function RoomBar({ row }: { row: BudgetRoomRow }) {
   return (
@@ -60,7 +60,7 @@ export default function Budget() {
 }
 
 const s = StyleSheet.create({
-  hero: { gap: 8, backgroundColor: colors.surfaceRaised, borderColor: 'rgba(94,224,184,0.32)' },
+  hero: { gap: 8, ...glow },
   label: { fontFamily: fonts.medium, fontSize: 13, color: colors.textSecondary },
   big: { fontFamily: fonts.serif, fontSize: 48, lineHeight: 52, color: colors.text },
   of: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary },

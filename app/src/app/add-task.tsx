@@ -2,11 +2,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ChipScroller } from '../components/ChipScroller';
 import { ChoiceChip } from '../components/ChoiceChip';
 import { DatePickerSheet, shortDate } from '../components/DatePickerSheet';
+import { ScreenHeader } from '../components/ScreenHeader';
 import { SwitchRow } from '../components/SwitchRow';
 import { NAME } from '../components/TaskRow';
-import { Icon, UrgentBadge } from '../components/ui';
+import { UrgentBadge } from '../components/ui';
 import { useStore } from '../data/store';
 import { assigneesFor, dueFor, localDate, TASK_GROUPS, type When, type Who } from '../domain/taskOptions';
 import type { Person } from '../domain/types';
@@ -48,13 +50,8 @@ export default function AddTask() {
   ];
 
   return (
-    <View style={[s.root, { paddingTop: insets.top + 8 }]}>
-      <View style={s.head}>
-        <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="Back to tasks" style={s.back}>
-          <Icon name="back" size={24} color={colors.text} stroke={2} />
-        </Pressable>
-        <Text style={s.heading} accessibilityRole="header">New task</Text>
-      </View>
+    <View style={s.root}>
+      <ScreenHeader onBack={close} backLabel="Back to tasks" title="New task" />
 
       <View style={s.barWrap}>
         <View style={s.bar}>
@@ -78,7 +75,7 @@ export default function AddTask() {
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         <Text style={s.label} accessibilityRole="header">When</Text>
-        <View style={s.chips}>
+        <ChipScroller id="whenFade" label="When">
           {whenChips.map((c) => (
             <ChoiceChip
               key={c.value}
@@ -92,21 +89,21 @@ export default function AddTask() {
               }}
             />
           ))}
-        </View>
+        </ChipScroller>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Group</Text>
-        <View style={s.chips}>
+        <ChipScroller id="groupFade" label="Group">
           {groups.map((g) => (
             <ChoiceChip key={g} label={g} selected={group === g} onPress={() => setGroup(group === g ? undefined : g)} />
           ))}
-        </View>
+        </ChipScroller>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Who</Text>
-        <View style={s.chips}>
+        <ChipScroller id="whoFade" label="Who">
           <ChoiceChip label="Me" selected={who === 'me'} onPress={() => setWho('me')} />
           <ChoiceChip label={NAME[other]} selected={who === 'other'} onPress={() => setWho('other')} />
           <ChoiceChip label="Each of us" selected={who === 'both'} onPress={() => setWho('both')} />
-        </View>
+        </ChipScroller>
         <Text style={s.hint}>Each of us: you both get the task and tick it off separately.</Text>
 
         <SwitchRow label="Urgent" value={urgent} onChange={setUrgent} accessory={<UrgentBadge />} />
@@ -129,10 +126,7 @@ export default function AddTask() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  head: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 },
-  back: { width: TARGET, height: TARGET, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
-  heading: { fontFamily: fonts.semibold, fontSize: 16, color: colors.text },
-  barWrap: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 10 },
+  barWrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10 },
   bar: {
     flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1.5, borderColor: colors.mint, backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5,
     boxShadow: '0 0 0 4px rgba(94,224,184,0.12), 0 8px 28px -10px rgba(94,224,184,0.5)',
@@ -140,9 +134,8 @@ const s = StyleSheet.create({
   input: { flex: 1, minWidth: 0, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 17, color: colors.text },
   add: { minHeight: TARGET, paddingHorizontal: 20, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   addText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
-  body: { paddingHorizontal: 16, gap: 10 },
+  body: { paddingHorizontal: 16, gap: 8 },
   label: { marginHorizontal: 4, marginTop: 2, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
   gapTop: { marginTop: 4 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   hint: { marginHorizontal: 4, marginTop: -2, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
 });

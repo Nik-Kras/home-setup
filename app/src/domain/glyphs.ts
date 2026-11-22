@@ -5,6 +5,7 @@ export const ICON_PATHS = {
   budget: 'M5 20V10M12 20V4M19 20v-7',
   plus: 'M12 5v14M5 12h14',
   back: 'M15 5l-7 7 7 7',
+  sliders: 'M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4',
   check: 'M5 12l5 5 9-10',
   camera: 'M3 7h4l2-3h6l2 3h4v13H3zM15.5 13a3.5 3.5 0 1 1-7 0 3.5 3.5 0 1 1 7 0z',
   kettle: 'M6 10h9v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM15 12l4-3M6 12H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2M8 7h5',
