@@ -71,7 +71,7 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
 
   if (!props.signedIn) {
     return (
-      <VStack spacing={6} modifiers={[containerBackground(c.surface, 'widget'), accessibilityElement('combine')]}>
+      <VStack spacing={6} modifiers={[...frameStyle, padding({ all: 16 }), accessibilityElement('combine')]}>
         <Text modifiers={[serif(25), foregroundStyle(c.text)]}>Our flat</Text>
         <Text modifiers={[sans(13), foregroundStyle(c.textSecondary), lineLimit(2)]}>Open the app to sign in</Text>
       </VStack>
@@ -98,9 +98,11 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
   }
 
   if (environment.widgetFamily === 'systemMedium') {
+    // A medium widget is 158pt tall on a standard iPhone: the 40pt header and three full-width 30pt rows
+    // fill it (44pt rows would show only two of the three the design asks for).
     return (
       <VStack alignment="leading" spacing={2} modifiers={[...frameStyle, padding({ horizontal: 16, vertical: 10 })]}>
-        <Header plus={34} />
+        <Header plus={40} />
         {props.top.slice(0, 3).map((row) => (
           <Link key={row.id} destination={itemUrl(row.id)}
             modifiers={[accessibilityLabel(row.name + ', ' + statusOf(row) + (row.urgent ? ', urgent' : '') + '. Open item details')]}>
@@ -119,10 +121,11 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
     );
   }
 
-  // Large: rooms and up to 4 rows, each with a "got it" check that works without opening the app.
+  // Large: the rooms and rows that fit (chosen in the app, as Android's fitRooms), each with a "got it"
+  // check that works without opening the app.
   return (
     <VStack alignment="leading" spacing={0} modifiers={[...frameStyle, padding({ horizontal: 16, vertical: 12 })]}>
-      <Header plus={40} />
+      <Header plus={44} />
       {props.rooms.map(({ room, items }) => (
         <VStack key={room} alignment="leading" spacing={0}>
           <Text modifiers={[serif(17), foregroundStyle(c.textSecondary), lineLimit(1), padding({ top: 6 })]}>{room}</Text>
@@ -130,16 +133,16 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
             const status = statusOf(row);
             const isGot = status === 'Delivered' || status === 'Installed';
             return (
-              <HStack key={row.id} spacing={4} modifiers={[frame({ height: 40 })]}>
+              <HStack key={row.id} spacing={4} modifiers={[frame({ height: 44 })]}>
                 {isGot ? (
-                  <Image systemName="checkmark.circle" size={24} color={c.mint} modifiers={[frame({ width: 40, height: 40 })]} />
+                  <Image systemName="checkmark.circle" size={24} color={c.mint} modifiers={[frame({ width: 44, height: 44 })]} />
                 ) : (
                   <Button target={'got:' + row.id} modifiers={[buttonStyle('plain'), accessibilityLabel('Mark ' + row.name + ' as got')]}
                     onPress={() => ({
                       got: [...(props.got ?? []), { id: row.id, from: row.from, at: new Date().toISOString() }],
                       leftCount: row.install ? left : Math.max(0, left - 1),
                     })}>
-                    <Image systemName="circle" size={24} color={c.ring} modifiers={[frame({ width: 40, height: 40 })]} />
+                    <Image systemName="circle" size={24} color={c.ring} modifiers={[frame({ width: 44, height: 44 })]} />
                   </Button>
                 )}
                 <Link destination={itemUrl(row.id)}
@@ -155,10 +158,13 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
           })}
         </VStack>
       ))}
+      {props.more > 0 ? <Text modifiers={[sans(13), foregroundStyle(c.textSecondary)]}>{'+' + props.more + ' more'}</Text> : null}
       {props.rooms.length === 0 ? <Text modifiers={[sans(13), foregroundStyle(c.textSecondary), padding({ top: 8 })]}>Everything is got</Text> : null}
       <Spacer />
     </VStack>
   );
 };
 
-export default createWidget<IosWidgetProps>('OurFlat', OurFlatIosWidget, { signedIn: false, leftCount: 0, top: [], rooms: [], got: [] });
+export default createWidget<IosWidgetProps>('OurFlat', OurFlatIosWidget, {
+  signedIn: false, leftCount: 0, top: [], rooms: [], more: 0, got: [],
+});

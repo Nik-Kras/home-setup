@@ -2,7 +2,9 @@ import { addUserInteractionListener } from 'expo-widgets';
 import { useEffect, type RefObject } from 'react';
 import { AppState } from 'react-native';
 import OurFlatIosWidget from '../components/widgets/OurFlatIosWidget';
-import { applyGotLocally, createIosWidgetBridge, IOS_WIDGET_NAME, type IosWidgetApp } from './iosWidget';
+import {
+  applyGotLocally, createIosWidgetBridge, IOS_WIDGET_NAME, iosPublishMode, schedulePublish, type IosWidgetApp,
+} from './iosWidget';
 import type { State } from './reducer';
 import type { AuthStatus } from './store';
 import { syncQueue } from './syncQueue';
@@ -54,20 +56,11 @@ export function useIosWidgetSync(
   }, [auth, current, set]);
 
   useEffect(() => {
-    // Same rules as the Android widgets: signed out (or demo) shows the sign-in widget; while signing
-    // in or loading offline the previous snapshot stays.
-    const signedOut = auth === 'signedOut' || !syncQueue;
-    if (!signedOut && !(auth === 'signedIn' && ready)) return;
-    const app = signedOut ? null : storeApp(current, set);
-    const publish = () => {
+    const mode = iosPublishMode(auth, !!syncQueue, ready);
+    const app = mode === 'live' ? storeApp(current, set) : null;
+    return schedulePublish(mode, () => {
       void bridge.publish(app, () => makeWidgetSnapshot(current.current.items, new Date()))
         .then(async (taken) => { if (taken > 0) await syncQueue?.flush(); }).catch(warn);
-    };
-    if (signedOut) {
-      publish();
-      return;
-    }
-    const timer = setTimeout(publish, 500);
-    return () => clearTimeout(timer);
+    });
   }, [state, auth, ready, current, set]);
 }
