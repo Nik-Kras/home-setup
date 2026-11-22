@@ -1,0 +1,11 @@
+# Adds an item from the Buy add bar. env: NAME
+appId: app.homesetup.household
+---
+- tapOn: "Buy"
+- tapOn: "Add an item"
+- inputText: ${NAME}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "${NAME}"
+    timeout: 5000
+# Not hideKeyboard: on Android it presses Back, which can leave the app.

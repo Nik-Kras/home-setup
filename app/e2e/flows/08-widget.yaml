@@ -1,0 +1,43 @@
+# 8. Home-screen widget, app not running: tap the circle to mark an item got (handled in the
+# background), and tap + to open the app on the add field.
+# Needs a large Our flat widget on a home page (run.sh runs place-widget.sh first).
+appId: app.homesetup.household
+name: 08 widget
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- runFlow:
+    file: common/add-item.yaml
+    env: { NAME: ZZ-e2e-widget }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=needed" }
+
+# Tap to got with the app closed.
+- stopApp
+- runFlow:
+    file: common/goto-widget.yaml
+    env: { TARGET: "Mark ZZ-e2e-widget as got" }
+- tapOn: "Mark ZZ-e2e-widget as got"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=delivered,delivered_at=notnull", TIMEOUT: "45" }
+- extendedWaitUntil:
+    notVisible: "Mark ZZ-e2e-widget as got"
+    timeout: 30000
+
+# Tap to add: + opens the app on the Buy list with the add field focused.
+- tapOn: "Add an item"
+- extendedWaitUntil:
+    visible:
+      text: "Add an item"
+      focused: true
+    timeout: 90000
+- inputText: "ZZ-e2e-widget-add"
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "ZZ-e2e-widget-add, .*"
+    timeout: 5000
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-widget-add, FIELDS: "status=needed" }

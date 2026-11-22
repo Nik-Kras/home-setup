@@ -1,0 +1,40 @@
+# 3. Item lifecycle Needed -> Looking -> Ordered -> Delivered, database checked at each step.
+appId: app.homesetup.household
+name: 03 item lifecycle
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- runFlow:
+    file: common/add-item.yaml
+    env: { NAME: ZZ-e2e-lifecycle }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=needed" }
+
+# The row button; its label is "name, who, price". The bare name also appears in the Next up card.
+- tapOn: "ZZ-e2e-lifecycle, .*"
+- extendedWaitUntil:
+    visible: "Start looking"
+    timeout: 5000
+- tapOn: "Start looking"
+- assertVisible: "Looking, step 2 of 4"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=looking" }
+
+- tapOn: "Mark as ordered"
+- assertVisible: "Ordered, step 3 of 4"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=ordered,delivered_at=null" }
+
+- tapOn: "Mark as delivered"
+- assertVisible: "Delivered, step 4 of 4, done"
+- assertNotVisible: "Mark as.*"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=delivered,delivered_at=notnull,updated_by=claude" }
+
+# Back on the list it is under "Got it", not in the rooms.
+- tapOn: "Back to list"
+- assertNotVisible: "ZZ-e2e-lifecycle.*"

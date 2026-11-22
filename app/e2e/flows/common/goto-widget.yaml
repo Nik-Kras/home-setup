@@ -1,0 +1,16 @@
+# Goes to the home screen and swipes through the launcher pages until TARGET (a widget label, such as
+# "Mark ZZ-e2e-widget as got") shows. Swiping on past a widget that has not drawn yet (it shows the
+# app icon placeholder) means another Our flat widget on a later page can be used.
+appId: app.homesetup.household
+---
+- pressKey: Home
+- repeat:
+    times: 5
+    while:
+      notVisible: ${TARGET}
+    commands:
+      - swipe:
+          direction: LEFT
+- extendedWaitUntil:
+    visible: ${TARGET}
+    timeout: 20000

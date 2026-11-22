@@ -1,0 +1,70 @@
+# 5. Tasks: my own task, the other person's task, and a shared task where each person ticks their own
+# part and it is finished only when both have.
+# Signed in as the Claude account the app acts as Nikita ("Mine"); Daryna's part of the shared task is
+# ticked through the database as Claude, standing in for her phone.
+appId: app.homesetup.household
+name: 05 tasks
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- tapOn: "Tasks"
+
+# Own task: add, tick, it leaves my open list.
+- tapOn:
+    id: "segment-nikita"
+- runFlow:
+    file: common/add-task.yaml
+    env: { NAME: ZZ-e2e-own }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-own, FIELDS: "nikita=todo" }
+- tapOn: "Mark done: ZZ-e2e-own"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-own, FIELDS: "nikita=done" }
+- assertNotVisible: "ZZ-e2e-own.*"
+
+# The other person's task: only on her list, and I cannot tick it.
+- tapOn:
+    id: "segment-daryna"
+- runFlow:
+    file: common/add-task.yaml
+    env: { NAME: ZZ-e2e-other }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-other, FIELDS: "daryna=todo" }
+- assertVisible:
+    text: "Mark done: ZZ-e2e-other"
+    enabled: false
+
+# Shared task: both parts to do.
+- tapOn:
+    id: "segment-both"
+- runFlow:
+    file: common/add-task.yaml
+    env: { NAME: ZZ-e2e-shared }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-shared, FIELDS: "nikita=todo,daryna=todo" }
+# I tick my part: only my part changes, the task stays open.
+- tapOn: "Mark done: ZZ-e2e-shared"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-shared, FIELDS: "nikita=done,daryna=todo" }
+- assertVisible: "ZZ-e2e-shared, You: done · Daryna: waiting.*"
+- tapOn: "ZZ-e2e-shared, .*"
+- assertVisible: "1 of 2 done"
+- assertVisible: "Waiting for Daryna."
+# Daryna ticks hers on her phone: the open screen updates and the task is finished.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-assignment, NAME: ZZ-e2e-shared, FIELDS: "daryna=done" }
+- extendedWaitUntil:
+    visible: "2 of 2 done"
+    timeout: 20000
+- assertNotVisible: "Waiting for Daryna."
+- tapOn: "Back to tasks"
+- assertVisible: "ZZ-e2e-shared, You: done · Daryna: done.*"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-shared, FIELDS: "nikita=done,daryna=done" }

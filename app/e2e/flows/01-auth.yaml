@@ -1,0 +1,52 @@
+# 1. Sign in, wrong password, sign out, session survives an app restart.
+# The app has no sign-out button yet (M4), so "sign out" is done by clearing the app's data, which is
+# what removes the stored session; the flow then checks the sign-in screen comes back.
+appId: app.homesetup.household
+name: 01 auth
+---
+# Start signed out.
+- clearState
+- runFlow: common/open.yaml
+- assertVisible: "Sign in to see the shared list"
+
+# Wrong password: an error, still on the sign-in screen.
+- tapOn: "Email"
+- inputText:
+    text: ${E2E_EMAIL}
+    label: "Type the test account email"
+- tapOn: "Password"
+- inputText: "ZZ-e2e-wrong-password"
+- hideKeyboard
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Invalid login credentials"
+    timeout: 15000
+- assertVisible: "Sign in to see the shared list"
+
+# Right password.
+- tapOn: "Password"
+- eraseText: 40
+- inputText:
+    text: ${E2E_PASSWORD}
+    label: "Type the test account password"
+- hideKeyboard
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Add an item"
+    timeout: 30000
+- assertNotVisible: "Sign in to see the shared list"
+
+# Session survives a cold restart.
+- runFlow: common/open.yaml
+- extendedWaitUntil:
+    visible: "Add an item"
+    timeout: 30000
+- assertNotVisible: "Sign in to see the shared list"
+
+# Sign out (clear the stored session): the sign-in screen is back.
+- clearState
+- runFlow: common/open.yaml
+- assertVisible: "Sign in to see the shared list"
+
+# Leave the app signed in for the next flows.
+- runFlow: common/signin.yaml

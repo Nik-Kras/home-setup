@@ -1,0 +1,22 @@
+# Signs in when the sign-in screen is showing. Credentials come from run.sh (-e), never from a flow.
+appId: app.homesetup.household
+---
+- runFlow:
+    when:
+      visible: "Sign in to see the shared list"
+    commands:
+      - tapOn:
+          text: "Email"
+      - inputText:
+          text: ${E2E_EMAIL}
+          label: "Type the test account email"
+      - tapOn:
+          text: "Password"
+      - inputText:
+          text: ${E2E_PASSWORD}
+          label: "Type the test account password"
+      - hideKeyboard
+      - tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Add an item"
+    timeout: 30000

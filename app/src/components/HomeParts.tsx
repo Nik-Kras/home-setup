@@ -67,7 +67,7 @@ export function HomeTile({ item, photoUri }: { item: Item; photoUri?: string }) 
   return (
     <View style={s.tile} accessible accessibilityLabel={[item.name, item.room ?? 'No room', owner ? `bought by ${actorName(owner)}` : undefined].filter(Boolean).join(', ')}>
       {showPhoto ? (
-        <Image source={{ uri: photoUri }} style={s.photo} resizeMode="cover" accessible={false} onError={() => setFailedUri(photoUri)} />
+        <Image testID={`home-photo-${item.id}`} source={{ uri: photoUri }} style={s.photo} resizeMode="cover" accessible={false} onError={() => setFailedUri(photoUri)} />
       ) : (
         <View style={s.glyph}><Icon name={glyphFor(item.name)} size={48} color={colors.textSecondary} stroke={1.4} /></View>
       )}

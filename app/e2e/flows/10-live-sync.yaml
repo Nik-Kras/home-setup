@@ -1,0 +1,42 @@
+# 10. Live sync from the other phone: rows changed through the Supabase REST API (as the Claude account)
+# appear in the open app without any tap (realtime; the app also polls every 20 s as a fallback).
+appId: app.homesetup.household
+name: 10 live sync
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- tapOn: "Buy"
+- assertNotVisible: "ZZ-e2e-live.*"
+
+# Another device adds an item.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: add-item, NAME: ZZ-e2e-live }
+- extendedWaitUntil:
+    visible: "ZZ-e2e-live, .*"
+    timeout: 25000
+
+# ...marks it urgent.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-live, FIELDS: "urgent=true" }
+- extendedWaitUntil:
+    visible: "ZZ-e2e-live, Urgent, .*"
+    timeout: 25000
+
+# ...renames it.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-live, FIELDS: "name=ZZ-e2e-live-renamed" }
+- extendedWaitUntil:
+    visible: "ZZ-e2e-live-renamed, .*"
+    timeout: 25000
+- assertNotVisible: "ZZ-e2e-live, .*"
+
+# ...and marks it delivered: it leaves the to-buy rooms.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-live-renamed, FIELDS: "status=delivered" }
+- extendedWaitUntil:
+    notVisible: "ZZ-e2e-live-renamed, .*"
+    timeout: 25000

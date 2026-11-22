@@ -1,0 +1,63 @@
+# 9. Deep links to an item: cold start, warm (app already open) and signed out.
+appId: app.homesetup.household
+name: 09 deep links
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- runFlow:
+    file: common/db.yaml
+    env: { OP: add-item, NAME: ZZ-e2e-link }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: get-id, NAME: ZZ-e2e-link }
+
+# Warm: the app is open on the Buy list.
+- tapOn: "Buy"
+- openLink: homesetup://item/${output.id}
+- extendedWaitUntil:
+    visible: "Start looking"
+    timeout: 15000
+- assertVisible: "ZZ-e2e-link"
+- tapOn: "Back to list"
+- assertVisible: "Add an item"
+
+# Cold: the app is not running.
+- stopApp
+- openLink: homesetup://item/${output.id}
+- extendedWaitUntil:
+    visible: "Start looking"
+    timeout: 90000
+- assertVisible: "ZZ-e2e-link"
+- tapOn: "Back to list"
+- assertVisible: "Add an item"
+
+# Widget "add" link: opens the Buy list with the add field focused.
+- openLink: homesetup://add-item
+- extendedWaitUntil:
+    visible:
+      text: "Add an item"
+      focused: true
+    timeout: 15000
+
+# Signed out: the link shows sign-in first, and after signing in the item opens.
+- clearState
+- runFlow: common/open.yaml
+- assertVisible: "Sign in to see the shared list"
+- openLink: homesetup://item/${output.id}
+- extendedWaitUntil:
+    visible: "Sign in to see the shared list"
+    timeout: 30000
+- tapOn: "Email"
+- inputText:
+    text: ${E2E_EMAIL}
+    label: "Type the test account email"
+- tapOn: "Password"
+- inputText:
+    text: ${E2E_PASSWORD}
+    label: "Type the test account password"
+- hideKeyboard
+- tapOn: "Sign in"
+- extendedWaitUntil:
+    visible: "Start looking"
+    timeout: 30000
+- assertVisible: "ZZ-e2e-link"

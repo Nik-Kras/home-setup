@@ -91,7 +91,7 @@ export function Segmented<T extends string>({ value, options, onChange }: { valu
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={[s.segItem, on && s.segOn]}>
+          <Pressable key={o.value} testID={`segment-${o.value}`} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={[s.segItem, on && s.segOn]}>
             <Text style={[s.segText, on && s.segTextOn]}>
               {o.label}{o.count !== undefined ? <Text style={s.segCount}>  {o.count}</Text> : null}
             </Text>

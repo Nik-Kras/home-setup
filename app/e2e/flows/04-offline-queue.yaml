@@ -1,0 +1,56 @@
+# 4. Offline queue: airplane mode on, add an item and edit it, reconnect; the changes land once and
+# there are no duplicates. Metro still works offline because it runs over adb reverse.
+appId: app.homesetup.household
+name: 04 offline queue
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- setAirplaneMode: enabled
+# run.sh also switches airplane mode off after every flow, in case this one stops half way.
+- runFlow:
+    file: common/add-item.yaml
+    env: { NAME: ZZ-e2e-offline }
+- tapOn: "ZZ-e2e-offline, .*"
+- extendedWaitUntil:
+    visible: "Start looking"
+    timeout: 5000
+- tapOn: "Start looking"
+- assertVisible: "Looking, step 2 of 4"
+- scrollUntilVisible:
+    element: "Needs installing"
+    centerElement: true
+- tapOn: "Urgent"
+- assertVisible:
+    text: "Urgent"
+    checked: true
+# Nothing has reached the database while offline.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-offline, COUNT: "0" }
+- tapOn: "Back to list"
+- assertVisible: "ZZ-e2e-offline, .*"
+
+- setAirplaneMode: disabled
+# The queue retries on a 20 s timer, so allow up to 60 s.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-offline, FIELDS: "status=looking,urgent=true", TIMEOUT: "60" }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-offline, COUNT: "1" }
+# One row on screen, not two.
+- assertVisible: "ZZ-e2e-offline, .*"
+- assertNotVisible:
+    text: "ZZ-e2e-offline, .*"
+    index: 1
+# Still exactly one after a later retry cycle and a cold restart.
+- runFlow: common/open.yaml
+- extendedWaitUntil:
+    visible: "ZZ-e2e-offline, .*"
+    timeout: 30000
+- assertNotVisible:
+    text: "ZZ-e2e-offline, .*"
+    index: 1
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-offline, COUNT: "1" }

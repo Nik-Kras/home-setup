@@ -1,0 +1,52 @@
+# 7. Flat notes: create, edit, and the note is still there after a cold restart.
+appId: app.homesetup.household
+name: 07 flat notes
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- runFlow: common/open-notes.yaml
+
+# Create (the header plus, or the empty state's button: both are labelled "Add a note").
+- tapOn: "Add a note"
+- assertVisible: "New note"
+- tapOn: "Title"
+- inputText: "ZZ-e2e-note"
+- tapOn: "Details"
+- inputText: "first version"
+# The kind chips sit below the keyboard; scroll the form (hideKeyboard would press Back and close the sheet).
+- swipe:
+    start: 50%, 42%
+    end: 50%, 15%
+    duration: 600
+- tapOn: "To confirm"
+- tapOn: "Add note"
+- extendedWaitUntil:
+    visible: "ZZ-e2e-note, To confirm, first version"
+    timeout: 5000
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-note, NAME: ZZ-e2e-note, FIELDS: "body=first version,kind=to_confirm,updated_by=claude" }
+
+# Edit the details only.
+- tapOn: "ZZ-e2e-note, .*"
+- assertVisible: "Edit note"
+- tapOn: "Details"
+- eraseText: 30
+- inputText: "second version"
+- tapOn: "Save note"
+- extendedWaitUntil:
+    visible: "ZZ-e2e-note, To confirm, second version"
+    timeout: 5000
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-note, NAME: ZZ-e2e-note, FIELDS: "body=second version,kind=to_confirm" }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: flat_notes, NAME: ZZ-e2e-note, COUNT: "1" }
+
+# Persists across a cold restart.
+- runFlow: common/open.yaml
+- runFlow: common/open-notes.yaml
+- extendedWaitUntil:
+    visible: "ZZ-e2e-note, To confirm, second version"
+    timeout: 15000

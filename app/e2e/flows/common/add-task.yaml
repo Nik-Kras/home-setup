@@ -1,0 +1,9 @@
+# Adds a task from the Tasks add bar in the current view. env: NAME
+appId: app.homesetup.household
+---
+- tapOn: "Add a task"
+- inputText: ${NAME}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "${NAME}"
+    timeout: 5000

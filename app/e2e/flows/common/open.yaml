@@ -1,0 +1,21 @@
+# Opens the dev build on the local Metro server (cold start) and waits until the app shows either the
+# sign-in screen or the Buy list.
+appId: app.homesetup.household
+---
+- stopApp
+- openLink: homesetup://expo-development-client/?url=http%3A%2F%2Flocalhost%3A8081
+- extendedWaitUntil:
+    visible:
+      text: "Our flat"
+    timeout: 90000
+# First start after a clear: the dev client shows its menu once. Close it.
+- runFlow:
+    when:
+      visible: "Continue"
+    commands:
+      - tapOn: "Continue"
+- runFlow:
+    when:
+      visible: "Close"
+    commands:
+      - tapOn: "Close"

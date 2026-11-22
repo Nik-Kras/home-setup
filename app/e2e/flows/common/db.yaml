@@ -1,0 +1,6 @@
+# Runs one database check (see ../../scripts/db.js). Call with env OP, NAME, FIELDS, TABLE, COUNT.
+appId: app.homesetup.household
+---
+- runScript:
+    file: ../../scripts/db.js
+    label: "Database check (see the step env)"

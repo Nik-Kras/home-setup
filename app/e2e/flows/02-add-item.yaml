@@ -1,0 +1,31 @@
+# 2. Add an item in under 5 seconds (type, submit, it appears) and check it reached the database.
+appId: app.homesetup.household
+name: 02 add item
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- tapOn: "Buy"
+- evalScript: ${output.t0 = Date.now()}
+- tapOn: "Add an item"
+- inputText: "ZZ-e2e-add"
+- evalScript: ${output.t1 = Date.now()}
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "ZZ-e2e-add.*"
+    timeout: 5000
+- evalScript: ${output.total = Date.now() - output.t0; output.submit = Date.now() - output.t1}
+- evalScript: ${console.log('E2E-TIMING add item, submit to shown ' + output.submit + ' ms, tap to shown ' + output.total + ' ms (includes Maestro typing)')}
+# The 5 s budget is for the app: from submit to the row on screen. Maestro's own tapping and typing
+# add about 5 s on top, so the whole sequence only gets a loose ceiling.
+- assertTrue:
+    condition: ${output.submit < 5000}
+    label: "Submit to shown under 5 s"
+- assertTrue:
+    condition: ${output.total < 15000}
+    label: "Tap, type and submit under 15 s with Maestro overhead"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-add, FIELDS: "status=needed,updated_by=claude" }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-add, COUNT: "1" }

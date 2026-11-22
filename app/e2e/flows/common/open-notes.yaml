@@ -1,0 +1,11 @@
+# Opens Flat notes from the chip on the Tasks screen.
+appId: app.homesetup.household
+---
+- tapOn: "Tasks"
+- scrollUntilVisible:
+    element: "Flat notes.*"
+    centerElement: true
+- tapOn: "Flat notes.*"
+- extendedWaitUntil:
+    visible: "From the tenancy contract.*"
+    timeout: 5000

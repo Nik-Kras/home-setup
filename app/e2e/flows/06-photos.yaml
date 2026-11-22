@@ -1,0 +1,51 @@
+# 6. Photos: pick an image from the gallery, it uploads, and shows on the item and on Home.
+# run.sh pushes e2e/assets/zz-e2e-photo.jpg to the emulator gallery first, so it is the newest photo.
+appId: app.homesetup.household
+name: 06 photos
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- runFlow:
+    file: common/add-item.yaml
+    env: { NAME: ZZ-e2e-photo }
+- tapOn: "ZZ-e2e-photo, .*"
+- scrollUntilVisible:
+    element: "Add photo"
+    centerElement: true
+- tapOn: "Add photo"
+- tapOn: "Library"
+# Android's photo picker (not part of the app): the newest photo is first.
+- extendedWaitUntil:
+    visible:
+      id: "com.google.android.providers.media.module:id/icon_thumbnail"
+    timeout: 15000
+- tapOn:
+    id: "com.google.android.providers.media.module:id/icon_thumbnail"
+    index: 0
+# Back in the app: the photo tile shows, then finishes uploading (its label loses "pending").
+- extendedWaitUntil:
+    visible: "Photo of ZZ-e2e-photo, 1 of 1.*"
+    timeout: 15000
+- extendedWaitUntil:
+    visible: "Photo of ZZ-e2e-photo, 1 of 1"
+    timeout: 60000
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-photo-row, NAME: ZZ-e2e-photo, COUNT: "1", TIMEOUT: "30" }
+
+# Delivered items are "in place" and show on Home with their photo.
+- scrollUntilVisible:
+    element: "Delivered, step 4 of 4"
+    direction: UP
+- tapOn: "Delivered, step 4 of 4"
+- assertVisible: "Delivered, step 4 of 4, done"
+- tapOn: "Back to list"
+- tapOn: "Home"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: get-id, NAME: ZZ-e2e-photo }
+- scrollUntilVisible:
+    element:
+      id: "home-photo-${output.id}"
+    timeout: 30000
+- assertVisible: "ZZ-e2e-photo, .*"
