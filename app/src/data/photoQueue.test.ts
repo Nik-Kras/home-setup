@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { photoPath, type ItemPhoto } from '../domain/photos';
-import { PhotoQueue } from './photoQueue';
-import type { Outcome } from './queue';
+import { MAX_PHOTO_FAILURES, photoPath, type ItemPhoto } from '../domain/photos';
+import { claimPhotos, PHOTO_OWNER_KEY, photoPickerKey, photoQueueKey, PhotoQueue, type PhotoOutcome } from './photoQueue';
+
+type Outcome = PhotoOutcome;
 
 const photo: ItemPhoto = {
   id: 'photo-id', itemId: 'item-id', path: photoPath('item-id', 'photo-id'), createdAt: '2026-01-01T12:00:00Z',
@@ -13,15 +14,23 @@ function setup() {
   const kv = {
     getItem: async (key: string) => records.get(key) ?? null,
     setItem: async (key: string, data: string) => { records.set(key, data); },
+    removeItem: async (key: string) => { records.delete(key); },
   };
+  // Fake device file system: the ids of photos that have a local file.
+  const files = new Set<string>();
+  const removeFile = vi.fn(async (id: string) => { files.delete(id); });
   const executor = {
-    upload: vi.fn<() => Promise<Outcome>>().mockResolvedValue('ok'),
+    upload: vi.fn<(item: ItemPhoto, retrying?: boolean) => Promise<Outcome>>().mockResolvedValue('ok'),
     insert: vi.fn<() => Promise<Outcome>>().mockResolvedValue('ok'),
     remove: vi.fn<() => Promise<Outcome>>().mockResolvedValue('ok'),
   };
   const drop = vi.fn();
-  const queue = () => new PhotoQueue(kv, 'test-account', executor, () => undefined, drop);
-  return { queue, executor, records, drop };
+  const queue = (scope = 'test-account') => new PhotoQueue(kv, scope, executor, () => undefined, drop, removeFile);
+  const add = async (q: PhotoQueue, item: ItemPhoto) => {
+    files.add(item.id);
+    await q.enqueue(item);
+  };
+  return { queue, executor, records, drop, kv, files, removeFile, add };
 }
 
 describe('PhotoQueue', () => {
@@ -141,5 +150,105 @@ describe('PhotoQueue', () => {
     expect(executor.remove.mock.calls).toEqual([[second], [second]]);
     await restarted.forgetDone(new Set([photo.id, second.id]));
     expect(await queue().list()).toEqual([]);
+  });
+
+  it('fails a photo after five retries and moves on to the next one', async () => {
+    const { queue, executor, drop } = setup();
+    executor.upload.mockImplementation(async (item: ItemPhoto) => (item.id === photo.id ? 'retry' : 'ok'));
+    const q = queue();
+    await q.enqueue(photo);
+    await q.enqueue(second);
+    await q.flush();
+    expect(await q.list()).toMatchObject([
+      { photo, transfer: { status: 'pending', failures: 1 } }, { photo: second, transfer: { status: 'done' } },
+    ]);
+    for (let i = 1; i < MAX_PHOTO_FAILURES; i++) await q.flush();
+    expect(await q.list()).toMatchObject([{ photo, transfer: { status: 'failed', failures: MAX_PHOTO_FAILURES } }, {}]);
+    expect(drop).toHaveBeenCalledOnce();
+    await q.flush();
+    expect(executor.upload).toHaveBeenCalledTimes(MAX_PHOTO_FAILURES + 1);
+    await q.retry(photo.id);
+    expect(await q.list()).toMatchObject([{ transfer: { status: 'pending', failures: 0 } }, {}]);
+  });
+
+  it('keeps an offline photo waiting without a cap and stops the flush at the first offline answer', async () => {
+    const { queue, executor } = setup();
+    executor.upload.mockResolvedValue('offline');
+    const q = queue();
+    await q.enqueue(photo);
+    await q.enqueue(second);
+    for (let i = 0; i < MAX_PHOTO_FAILURES * 2; i++) await q.flush();
+    expect(executor.upload).toHaveBeenCalledTimes(MAX_PHOTO_FAILURES * 2);
+    expect(executor.upload.mock.calls.every(([item]) => item === photo)).toBe(true);
+    expect(await q.list()).toMatchObject([{ transfer: { status: 'pending' } }, { transfer: { status: 'pending', retries: 0 } }]);
+    executor.upload.mockResolvedValue('ok');
+    await q.flush();
+    expect(await q.list()).toMatchObject([{ transfer: { status: 'done' } }, { transfer: { status: 'done' } }]);
+  });
+
+  it('lets any account discard a never-uploaded photo, but not an uploaded one', async () => {
+    const { queue, executor, files, add } = setup();
+    executor.upload.mockResolvedValueOnce('drop').mockResolvedValueOnce('ok');
+    executor.insert.mockResolvedValueOnce('drop');
+    const q = queue();
+    await add(q, photo);
+    await add(q, second);
+    await q.flush();
+    expect(await q.list()).toMatchObject([
+      { photo, uploaded: false, transfer: { status: 'failed' } },
+      { photo: second, uploaded: true, transfer: { status: 'failed' } },
+    ]);
+    expect(await q.discard(photo.id)).toBe(true);
+    expect(await q.discard(second.id)).toBe(false);
+    expect(await q.list()).toMatchObject([{ photo: second }]);
+    expect([...files]).toEqual([second.id]);
+    expect(executor.remove).not.toHaveBeenCalled();
+  });
+
+  it('leaves no local file behind after a successful upload or delete', async () => {
+    const { queue, executor, files, add } = setup();
+    const q = queue();
+    await add(q, photo);
+    await add(q, second);
+    await q.flush();
+    // The uploaded file stays until a display URL exists, so the tile never goes blank.
+    await q.reconcile(new Set([photo.path, second.path]), new Set([second.path]));
+    expect([...files]).toEqual([photo.id]);
+    await q.reconcile(new Set([photo.path, second.path]), new Set([photo.path, second.path]));
+    expect(files.size).toBe(0);
+    expect(await q.list()).toEqual([]);
+
+    const third = { ...photo, id: 'third', path: photoPath('item-id', 'third') };
+    await add(q, third);
+    await q.flush();
+    await q.delete(third);
+    await q.flush();
+    expect(executor.remove).toHaveBeenCalledWith(third);
+    expect(files.size).toBe(0);
+    await q.reconcile(new Set(), new Set());
+    expect(await q.list()).toEqual([]);
+
+    const local = { ...photo, id: 'local', path: photoPath('item-id', 'local') };
+    await add(q, local);
+    await q.delete(local); // never started: deleted on the device without a request
+    expect(files.size).toBe(0);
+  });
+
+  it('drops another account\'s photo jobs and their files when a new account claims the device', async () => {
+    const { queue, kv, records, files, removeFile, add } = setup();
+    await claimPhotos(kv, 'account-a', removeFile);
+    const a = queue('account-a');
+    await add(a, photo);
+    await add(a, second);
+    await kv.setItem(photoPickerKey('account-a'), 'item-id');
+    await claimPhotos(kv, 'account-a', removeFile);
+    expect(files.size).toBe(2); // the same account keeps its photos
+
+    await claimPhotos(kv, 'account-b', removeFile);
+    expect(files.size).toBe(0);
+    expect(records.has(photoQueueKey('account-a'))).toBe(false);
+    expect(records.has(photoPickerKey('account-a'))).toBe(false);
+    expect(records.get(PHOTO_OWNER_KEY)).toBe('account-b');
+    expect(await queue('account-a').list()).toEqual([]);
   });
 });
