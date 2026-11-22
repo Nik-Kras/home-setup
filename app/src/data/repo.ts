@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ItemPhoto } from '../domain/photos';
 import type { FlatNote, Item, Person, Task, TaskStatus, TaskStep } from '../domain/types';
 import { itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
 import type { Op, Outcome } from './queue';
@@ -8,13 +9,14 @@ export interface Snapshot {
   items: Item[];
   tasks: Task[];
   notes: FlatNote[];
+  photos: ItemPhoto[];
 }
 
 /** Read everything the app shows. Deleted rows are hidden. */
 export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
   const [rooms, items, tasks, notes] = await Promise.all([
     db.from('rooms').select('id,name').order('sort'),
-    db.from('items').select('*').is('deleted_at', null).order('added_at', { ascending: false }),
+    db.from('items').select('*, item_photos(id,path,created_at)').is('deleted_at', null).order('added_at', { ascending: false }),
     db.from('tasks').select('*, task_assignments(person,status,updated_by,updated_at, task_steps(id,title,done,sort))').is('deleted_at', null).order('created_at', { ascending: false }),
     db.from('flat_notes').select('id,title,body,reference,kind,sort,updated_by').is('deleted_at', null).order('sort').order('created_at'),
   ]);
@@ -23,10 +25,12 @@ export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
   // Until migration 0005 is run the table does not exist; show no notes rather than failing the whole load.
   if (notes.error && !isMissingTable(notes.error)) throw notes.error;
   const roomNames = new Map((rooms.data ?? []).map((r) => [r.id as string, r.name as string]));
+  const itemRows = (items.data ?? []) as (ItemRow & { item_photos?: { id: string; path: string; created_at: string }[] })[];
   return {
     rooms: (rooms.data ?? []) as Snapshot['rooms'],
-    items: ((items.data ?? []) as ItemRow[]).map((r) => itemFromRow(r, roomNames)),
+    items: itemRows.map((r) => itemFromRow(r, roomNames)),
     tasks: ((tasks.data ?? []) as TaskRow[]).map(taskFromRow),
+    photos: itemRows.flatMap((item) => (item.item_photos ?? []).map((row) => ({ id: row.id, itemId: item.id, path: row.path, createdAt: row.created_at }))),
     notes: notes.error ? [] : ((notes.data ?? []) as FlatNoteRow[]).map(noteFromRow),
   };
 }

@@ -47,6 +47,11 @@ export class OpQueue {
     return this.withOps((ops) => this.storage.setItem(KEY, JSON.stringify([...ops, ...added])));
   }
 
+  /** Forget every unsent Op. Only for a device handed to a different account (see accountScope.ts). */
+  clear(): Promise<void> {
+    return this.withOps(() => this.storage.setItem(KEY, '[]'));
+  }
+
   size(): Promise<number> {
     return this.withOps((ops) => ops.length);
   }

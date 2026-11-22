@@ -6,6 +6,7 @@ export const ICON_PATHS = {
   plus: 'M12 5v14M5 12h14',
   back: 'M15 5l-7 7 7 7',
   check: 'M5 12l5 5 9-10',
+  camera: 'M3 7h4l2-3h6l2 3h4v13H3zM15.5 13a3.5 3.5 0 1 1-7 0 3.5 3.5 0 1 1 7 0z',
   kettle: 'M6 10h9v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM15 12l4-3M6 12H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h2M8 7h5',
   microwave: 'M3 6h18v12H3zM6 9h8v6H6zM17.5 10h.01M17.5 14h.01',
   toaster: 'M4 9h16v9H4zM8 9V6h3v3M13 9V6h3v3',

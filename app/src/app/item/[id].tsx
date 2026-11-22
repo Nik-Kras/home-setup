@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
+import { ItemPhotos } from '../../components/ItemPhotos';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetButton, SheetOption, TextSheet } from '../../components/Sheet';
 import { glyphFor, Icon } from '../../components/ui';
@@ -94,6 +95,7 @@ export default function ItemDetail() {
             <FieldRow label="Product page" value={item.link ? 'Fix link' : 'Add'} tone="action" onPress={() => setSheet('link')} />
           )}
           <FieldRow label="Room" value={item.room ?? 'None'} tone={item.room ? 'value' : 'empty'} onPress={() => setSheet('room')} />
+          <ItemPhotos itemId={item.id} itemName={item.name} />
         </FieldGroup>
 
         <FieldGroup>
