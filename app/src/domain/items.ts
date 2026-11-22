@@ -29,13 +29,6 @@ export function advance(item: Item, now: string, actor: Item['updatedBy']): Item
   };
 }
 
-/** One-tap "Got it": jump to delivered (skips looking and ordered). Items already got are unchanged. */
-export function markGot(item: Item, now: string, actor: Item['updatedBy']): Item {
-  const i = ITEM_STATUSES.indexOf(item.status);
-  if (i >= ITEM_STATUSES.indexOf('delivered')) return item;
-  return { ...item, status: 'delivered', deliveredAt: now, updatedBy: actor };
-}
-
 /**
  * Set any status directly (detail screen). Reaching delivered or installed stamps that time, keeping
  * an existing one (moving back from installed keeps the original deliveredAt); going back before a
@@ -155,22 +148,32 @@ export function currentStepTone(item: Item): 'done' | 'transit' | 'neutral' {
 }
 
 /**
- * The confirmation line for a stepper tap that would clear a delivered or installed date, such as
- * "This clears the delivered date." Undefined when nothing would be lost, so no confirmation is needed.
+ * Label of the one primary button: it moves the item exactly one stage on and names that stage.
+ * "Got it" only when the next stage is delivered. Undefined when there is no next stage.
  */
-export function clearedDatesWarning(item: Item, status: ItemStatus): string | undefined {
-  const after = setStatus(item, status, item.addedAt, item.updatedBy);
-  const lost = [item.deliveredAt && !after.deliveredAt ? 'delivered' : undefined, item.installedAt && !after.installedAt ? 'installed' : undefined].filter(Boolean);
-  if (lost.length === 0) return undefined;
-  return lost.length === 1 ? `This clears the ${lost[0]} date.` : `This clears the ${lost.join(' and ')} dates.`;
-}
-
-/** Label of the one primary button, or undefined when the item is finished. */
 export function nextActionLabel(item: Item): string | undefined {
-  if (isItemDone(item)) return undefined;
   const next = nextStatus(item);
   if (next === item.status) return undefined;
-  return next === 'looking' ? 'Start looking' : `Mark as ${ITEM_STATUS_LABEL[next].toLowerCase()}`;
+  return next === 'delivered' ? 'Got it' : `Mark ${ITEM_STATUS_LABEL[next].toLowerCase()}`;
+}
+
+/**
+ * The stages a person can pick for this item, in order: all five, without 'installed' when the item
+ * needs no installing (unless it already sits there).
+ */
+export function statusChoices(item: Item): ItemStatus[] {
+  const skipped = skippedStatuses(item);
+  return ITEM_STATUSES.filter((s) => !skipped.includes(s));
+}
+
+const GOT: readonly ItemStatus[] = ['delivered', 'installed'];
+
+/**
+ * Whether to offer the optional "Paid?" prompt after a status change: the item has just arrived
+ * (moved to delivered, or straight to installed, from an earlier stage) and has no paid price yet.
+ */
+export function asksForPrice(before: Item, after: Item): boolean {
+  return !GOT.includes(before.status) && GOT.includes(after.status) && after.actualPrice === undefined;
 }
 
 /** £90 for whole pounds, £84.99 otherwise. */

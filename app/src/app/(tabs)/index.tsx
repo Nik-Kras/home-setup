@@ -5,11 +5,13 @@ import Svg, { Circle } from 'react-native-svg';
 import { EmptyState } from '../../components/EmptyState';
 import { ListGate, useListState } from '../../components/LoadState';
 import { PersonFilterDiscs } from '../../components/PersonFilterDiscs';
+import { StatusChipButton } from '../../components/StatusChipButton';
+import { StatusSheet } from '../../components/StatusSheet';
 import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
 import { NAME } from '../../components/TaskRow';
-import { Card, Icon, IconTile, SectionHeading, StatusChip, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../../components/ui';
+import { Card, Icon, IconTile, SectionHeading, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { counts, guessRoom, isItemDone, leftByRoom, nextUp } from '../../domain/items';
+import { counts, guessRoom, isItemDone, leftByRoom, nextActionLabel, nextUp } from '../../domain/items';
 import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
 import type { Item } from '../../domain/types';
 import { colors, fonts, glow, radius, TARGET } from '../../theme/tokens';
@@ -72,14 +74,21 @@ function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
   );
 }
 
-/** Memoised: `item` keeps its identity until it changes and `onGot` is stable, so 300 rows stay cheap. */
-const ItemRow = memo(function ItemRow({ item, onGot }: { item: Item; onGot: (id: string) => void }) {
+/**
+ * Memoised: `item` keeps its identity until it changes and the callbacks are stable, so 300 rows stay
+ * cheap. The tile moves the item one stage on (its label names the stage, the snackbar offers Undo);
+ * the status chip opens every stage, forwards or backwards.
+ */
+const ItemRow = memo(function ItemRow({ item, onAdvance, onStatus }: { item: Item; onAdvance: (id: string) => void; onStatus: (id: string) => void }) {
+  const step = nextActionLabel(item);
   const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
   return (
     <View style={s.row}>
-      <Pressable onPress={() => onGot(item.id)} accessibilityRole="button" accessibilityLabel={`Mark ${item.name} as got`} hitSlop={2}>
-        <IconTile icon={glyphFor(item.name)} />
-      </Pressable>
+      {step ? (
+        <Pressable onPress={() => onAdvance(item.id)} accessibilityRole="button" accessibilityLabel={`${step}: ${item.name}`} hitSlop={2}>
+          <IconTile icon={glyphFor(item.name)} />
+        </Pressable>
+      ) : <IconTile icon={glyphFor(item.name)} />}
       <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details" style={s.rowMid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
@@ -87,12 +96,11 @@ const ItemRow = memo(function ItemRow({ item, onGot }: { item: Item; onGot: (id:
           {item.urgent ? <UrgentMeta key={meta} meta={meta} /> : <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>}
         </View>
       </Pressable>
-      <StatusChip status={item.status} />
+      <StatusChipButton status={item.status} name={item.name} onPress={() => onStatus(item.id)} />
     </View>
   );
 });
 
-const noop = () => undefined;
 const DONE = 'done';
 type BuySection = { key: string; title: string; meta?: string; data: Item[] };
 
@@ -114,7 +122,9 @@ function UrgentMeta({ meta }: { meta: string }) {
 }
 
 export default function Buy() {
-  const { items, addItem, gotItem } = useStore();
+  const { items, addItem, advanceItem, setItemStatus } = useStore();
+  const [statusFor, setStatusFor] = useState<string | null>(null);
+  const closeStatus = useCallback(() => setStatusFor(null), []);
   const [showDone, setShowDone] = useState(false);
   const [person, setPerson] = useState<PersonFilter>(null);
   const ready = useListState(items.length) === 'ready';
@@ -157,12 +167,14 @@ export default function Buy() {
                 <Text style={[s.nextName, next.name.length > 14 && s.nextNameLong]} numberOfLines={2}>{next.name}</Text>
                 <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null].filter(Boolean).join(' · ')}</Text>
               </View>
-              <Pressable onPress={() => gotItem(next.id)} accessibilityRole="button" accessibilityLabel={`Mark ${next.name} as got`} style={s.gotBtn}>
-                <Text style={s.gotText}>Got it</Text>
+              {/* One stage at a time, never straight to the end: "Mark looking", "Mark ordered", "Got it", "Mark installed". */}
+              <Pressable onPress={() => advanceItem(next.id)} accessibilityRole="button" accessibilityLabel={`${nextActionLabel(next)}: ${next.name}`} style={s.gotBtn}>
+                <Text style={s.gotText}>{nextActionLabel(next)}</Text>
               </Pressable>
             </Card>
           ) : null}
           <AddBar onAdd={add} />
+          <StatusSheet item={items.find((i) => i.id === statusFor)} visible={statusFor !== null} onClose={closeStatus} onPick={(status) => statusFor && setItemStatus(statusFor, status)} />
         </View>
       }
       ListEmptyComponent={<View style={s.gap}><ListGate count={items.length}>{empty}</ListGate></View>}
@@ -176,7 +188,7 @@ export default function Buy() {
       ) : (
         <View style={s.sectionBelow}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>
       )}
-      renderItem={({ item, section }) => <ItemRow item={item} onGot={section.key === DONE ? noop : gotItem} />}
+      renderItem={({ item }) => <ItemRow item={item} onAdvance={advanceItem} onStatus={setStatusFor} />}
     />
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advance, budget, guessRoom, markGot, counts, isItemDone, leftByRoom, nextStatus, nextUp } from './items';
+import { advance, budget, guessRoom, counts, isItemDone, leftByRoom, nextStatus, nextUp } from './items';
 import {
   daysLeft,
   isShared,
@@ -58,12 +58,6 @@ describe('items', () => {
     expect(out.status).toBe('delivered');
     expect(out.deliveredAt).toBe('2026-11-22T09:00:00Z');
     expect(out.updatedBy).toBe('claude');
-  });
-
-  it('got it jumps straight to delivered and never moves backwards', () => {
-    expect(markGot(item({ status: 'looking' }), '2026-11-22T09:00:00Z', 'nikita').status).toBe('delivered');
-    const installed = item({ status: 'installed', needsInstall: true });
-    expect(markGot(installed, '2026-11-22T09:00:00Z', 'nikita')).toBe(installed);
   });
 
   it('guesses the room from the name, and stays quiet when unsure', () => {

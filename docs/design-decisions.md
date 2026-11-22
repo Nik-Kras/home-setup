@@ -35,7 +35,7 @@ The sources disagree: the component libraries lean dark with glow, Refero's styl
 
 ## Motion (to build, not shown in the static mocks)
 - List rows spring in on add and removal only, 50ms stagger, about 8% overshoot. No replay on scrolling or reopening.
-- Status change feedback under 250ms: tile pulses, check appears, row moves to Got it. Undo toast for 5 seconds.
+- Status change feedback under 250ms: tile pulses, check appears, row moves to Got it. Undo snackbar above the tab bar for 6 seconds (15 with a screen reader) after every edit (T11).
 - Count-up on budget numbers: about 1.5s, once per open; snaps to the value with reduced motion.
 - Tab bar pill slides between tabs with a short spring.
 - Confetti only when a whole room is finished.
@@ -99,3 +99,11 @@ Same look and tokens as the rest. The tab bar has four tabs: Buy, Tasks, Home, B
 
 ## Colour meaning, as built (2026-11-21)
 Following the decision to use cleaner colour meaning: coral is only for urgent (the "!" badge and the word Urgent); mint is done, primary actions and Nikita; **Daryna is lilac**; amber is only in transit (Ordered, In progress) and to confirm; item tiles are neutral. People appear as initial discs (filled = done, outline = waiting). The mockups on the canvas still show the earlier colours.
+
+## Status changes and Undo (T11, 2026-11-22)
+From user feedback ("Got it" jumped to the end and could not be reverted):
+- One stage per tap. The primary action names the next stage: Mark looking, Mark ordered, Got it (only when the next stage is delivered), Mark installed. Same on the Next-up card, the row tile and the item screen.
+- The status chip on a row opens a sheet with every stage; any stage can be picked, forwards or backwards. The item screen's stepper does the same.
+- Every edit (status, ticks, my task status, assignment, prices, quantity, fields, delete) shows "<Item> → <change>  Undo". Undo puts back only what still holds the value that edit set; if the other person changed it since, theirs stays and the snackbar says "Not undone: it was changed since". An edit not yet sent (offline) is taken back from the queue, so it never reaches the server.
+- Delete is a soft delete with Undo instead of a confirmation. Moving a status back needs no confirmation either: Undo restores the dates.
+- When an item arrives (delivered, or straight to installed) without a paid price, an optional "Paid for <item>? £___ Save / Skip" card floats above the snackbar; it hides by itself after 20 s untouched and remembers nothing.

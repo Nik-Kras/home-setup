@@ -86,6 +86,17 @@ export const ops = {
   patchNote(noteId: string, row: Record<string, unknown>): Op {
     return { id: newId(), kind: 'patch', table: 'flat_notes', match: { id: noteId }, row };
   },
+  /**
+   * Conditional patch, for Undo: changes the row only while every `match` column still has the value
+   * this device set. If the other person has changed it since, their newer value stays.
+   */
+  patchIf(table: 'items' | 'task_assignments' | 'task_steps', match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
+    return { id: newId(), kind: 'patch', table, match, row };
+  },
+  /** Undo of a soft delete. */
+  restore(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
+    return { id: newId(), kind: 'patch', table, match: { id }, row: { deleted_at: null } };
+  },
   softDelete(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
     return { id: newId(), kind: 'patch', table: table, match: { id }, row: { deleted_at: new Date().toISOString() } };
   },
@@ -104,7 +115,7 @@ export function makeExecutor(db: SupabaseClient) {
       ({ error } = await db.from(op.table).upsert(op.row, Object.keys(opts).length ? opts : undefined));
     } else {
       let q = db.from(op.table).update(op.row);
-      for (const [k, v] of Object.entries(op.match)) q = q.eq(k, v);
+      for (const [k, v] of Object.entries(op.match)) q = v === null ? q.is(k, null) : q.eq(k, v);
       ({ error } = await q);
     }
     if (!error) return 'ok';

@@ -200,3 +200,18 @@ describe('task assignment edits', () => {
     expect(reducer(withSteps, { type: 'addStep', id: 't1', title: ' ' })).toBe(withSteps);
   });
 });
+
+describe('deleteItem and advanceItem', () => {
+  it('delete hides the item; diffToOps sends nothing for it (the store sends the soft delete explicitly)', () => {
+    const next = reducer(state, { type: 'deleteItem', id: 'i1' });
+    expect(next.items).toEqual([]);
+    expect(diffToOps(state, next, new Map())).toEqual([]);
+    expect(reducer(state, { type: 'deleteItem', id: 'nope' })).toBe(state);
+  });
+
+  it('advance is one stage and one patch of status only', () => {
+    const next = reducer(state, { type: 'advanceItem', id: 'i1' });
+    expect(next.items[0]).toMatchObject({ status: 'looking', updatedBy: 'daryna' });
+    expect(diffToOps(state, next, new Map([['Kitchen', 'k']]))).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { status: 'looking' } }]);
+  });
+});

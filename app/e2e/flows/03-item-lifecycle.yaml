@@ -1,4 +1,5 @@
-# 3. Item lifecycle Needed -> Looking -> Ordered -> Delivered, database checked at each step.
+# 3. Item lifecycle Needed -> Looking -> Ordered -> Delivered, one stage per tap, database checked at
+# each step; then Undo and a move back through the status sheet.
 appId: app.homesetup.household
 name: 03 item lifecycle
 ---
@@ -14,27 +15,51 @@ name: 03 item lifecycle
 # The row button; its label is "name, who, price". The bare name also appears in the Next up card.
 - tapOn: "ZZ-e2e-lifecycle, .*"
 - extendedWaitUntil:
-    visible: "Start looking"
+    visible: "Mark looking"
     timeout: 5000
-- tapOn: "Start looking"
+- tapOn: "Mark looking"
 - assertVisible: "Looking, step 2 of 4"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=looking" }
 
-- tapOn: "Mark as ordered"
+- tapOn: "Mark ordered"
 - assertVisible: "Ordered, step 3 of 4"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=ordered,delivered_at=null" }
 
-- tapOn: "Mark as delivered"
+# Got it, then Undo at once (the snackbar stays 6 s): back to Ordered, and the "Paid?" prompt goes too.
+- tapOn: "Got it"
 - assertVisible: "Delivered, step 4 of 4, done"
-- assertNotVisible: "Mark as.*"
+- assertVisible: "Paid for ZZ-e2e-lifecycle.*"
+- assertNotVisible: "Mark .*"
+- tapOn: "Undo: .*"
+- assertVisible: "Ordered, step 3 of 4"
+- assertNotVisible: "Paid for ZZ-e2e-lifecycle.*"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=ordered,delivered_at=null" }
+
+# Got it again and skip the price.
+- tapOn: "Got it"
+- tapOn: "Skip, no price now"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=delivered,delivered_at=notnull,updated_by=claude" }
 
-# Back on the list it is under "Got it", not in the rooms.
+# Back on the list it is under "Got it", not in the rooms (once the snackbar naming it has gone).
 - tapOn: "Back to list"
-- assertNotVisible: "ZZ-e2e-lifecycle.*"
+- extendedWaitUntil:
+    notVisible: "ZZ-e2e-lifecycle.*"
+    timeout: 20000
+
+# A mistaken "Got it" is reverted from the list: open the got items, tap the status chip, pick Ordered.
+- tapOn: "Got it, .*"
+- tapOn: "Status Delivered: ZZ-e2e-lifecycle"
+- assertVisible: "ZZ-e2e-lifecycle: status"
+- tapOn: "Ordered"
+- assertVisible: "ZZ-e2e-lifecycle → Ordered"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=ordered,delivered_at=null" }
