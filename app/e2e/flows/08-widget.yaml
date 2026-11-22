@@ -1,5 +1,6 @@
-# 8. Home-screen widget, app not running: tap the circle to mark an item got (handled in the
-# background), and tap + to open the app on the add field.
+# 8. Home-screen widget, app not running: tap the circle to move an item one stage on (handled in the
+# background; a needed item goes to looking and stays on the widget), and tap + to open the app on the
+# add field. The circle's label names the stage: "Mark looking: <name>", "Mark ordered", "Got it".
 # Needs a large Our flat widget on a home page (run.sh runs place-widget.sh first).
 appId: app.homesetup.household
 name: 08 widget
@@ -14,16 +15,16 @@ name: 08 widget
     env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=needed" }
 
 # Prime the widget: after clearState (flows 01 and 09) its first tap only measures the widget size and is
-# dropped (react-native-android-widget, RNWidgetSizing.correct). Tap a spare row: dropped, or it is marked got.
+# dropped (react-native-android-widget, RNWidgetSizing.correct). Tap a spare row: dropped, or it moves to looking.
 - runFlow:   # added in the app, so the widget has it before Home (a row added through the database did not show in time)
     file: common/add-item.yaml
     env: { NAME: ZZ-e2e-widget-prime }
 - runFlow:
     file: common/goto-widget.yaml
-    env: { TARGET: "Mark ZZ-e2e-widget-prime as got" }
-- tapOn: "Mark ZZ-e2e-widget-prime as got"
+    env: { TARGET: "Mark looking: ZZ-e2e-widget-prime" }
+- tapOn: "Mark looking: ZZ-e2e-widget-prime"
 
-# Tap to got with the app closed: Home, then the process is killed the way Android kills a background app
+# One stage on with the app closed: Home, then the process is killed the way Android kills a background app
 # (killApp is `am kill`). Not stopApp: that is `am force-stop`, which also cancels the widget's tap intents,
 # so taps do nothing until the app runs again (Android behaviour, same as "Force stop" in Settings).
 - pressKey: Home
@@ -34,13 +35,14 @@ name: 08 widget
 - killApp
 - runFlow:
     file: common/goto-widget.yaml
-    env: { TARGET: "Mark ZZ-e2e-widget as got" }
-- tapOn: "Mark ZZ-e2e-widget as got"
+    env: { TARGET: "Mark looking: ZZ-e2e-widget" }
+- tapOn: "Mark looking: ZZ-e2e-widget"
 - runFlow:
     file: common/db.yaml
-    env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=delivered,delivered_at=notnull", TIMEOUT: "45" }
+    env: { OP: expect-item, NAME: ZZ-e2e-widget, FIELDS: "status=looking,delivered_at=null", TIMEOUT: "45" }
+# Still on the widget, now offering the next stage.
 - extendedWaitUntil:
-    notVisible: "Mark ZZ-e2e-widget as got"
+    visible: "Mark ordered: ZZ-e2e-widget"
     timeout: 30000
 
 # Tap to add: + opens the app on the Buy list with the add field focused.
@@ -59,7 +61,10 @@ name: 08 widget
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget-add, FIELDS: "status=needed" }
 
-# Mark the spare rows got so they leave the widget: it shows four rows, and 08b needs room for its own.
+# Mark the test rows got so they leave the widget: it shows four rows, and 08b needs room for its own.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-widget, FIELDS: "status=delivered" }
 - runFlow:
     file: common/db.yaml
     env: { OP: set-item, NAME: ZZ-e2e-widget-prime, FIELDS: "status=delivered" }

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { StageStep } from '../domain/items';
 import type { ItemPhoto } from '../domain/photos';
 import type { FlatNote, Item, ItemStatus, Person, Task, TaskStatus, TaskStep } from '../domain/types';
 import { itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
@@ -50,11 +51,14 @@ export const ops = {
     return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId }, row };
   },
   /**
-   * Widget "got it". Matches only while the row still has the status the widget showed, so a stale tap
-   * changes nothing if the other person has moved the item on (for example to installed) since.
+   * Widget tap: one stage on (see nextStage), with the date that stage stamps. Matches only while the
+   * row still has the status the widget showed, so a stale tap changes nothing if the item moved since.
    */
-  markGotIf(itemId: string, seen: ItemStatus, deliveredAt: string): Op {
-    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId, status: seen }, row: { status: 'delivered', delivered_at: deliveredAt } };
+  advanceIf(itemId: string, seen: ItemStatus, step: StageStep): Op {
+    const row: Record<string, unknown> = { status: step.status };
+    if (step.deliveredAt) row.delivered_at = step.deliveredAt;
+    if (step.installedAt) row.installed_at = step.installedAt;
+    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId, status: seen }, row };
   },
   /**
    * A new task. Insert-only (ignoreDuplicates): if the first send succeeded but its reply was lost, the retry

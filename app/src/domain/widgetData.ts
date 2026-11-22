@@ -1,5 +1,5 @@
 import { glyphFor } from './glyphs';
-import { isItemDone, ITEM_STATUS_LABEL, leftByRoom } from './items';
+import { isItemDone, ITEM_STATUS_LABEL, leftByRoom, nextActionLabel } from './items';
 import { localDate } from './taskOptions';
 import { daysLeft, openTasksSorted } from './tasks';
 import type { Item, Person, Task } from './types';
@@ -45,7 +45,11 @@ export function buildWidgetItemData(items: readonly WidgetItem[]) {
   const left = items.filter((item) => !isItemDone(item)).sort(
     (a, b) => Number(b.urgent) - Number(a.urgent) || a.addedAt.localeCompare(b.addedAt),
   );
-  const row = ({ id, name, status, urgent }: WidgetItem) => ({ id, name, status: ITEM_STATUS_LABEL[status], urgent });
+  // `action` names the stage a tap on the row's circle moves it to ("Mark ordered", "Got it"); every
+  // row shown is left, so it always has a next stage.
+  const row = ({ id, name, status, urgent, needsInstall }: WidgetItem) => (
+    { id, name, status: ITEM_STATUS_LABEL[status], urgent, action: nextActionLabel({ status, needsInstall }) ?? 'Next stage' }
+  );
   const grouped = leftByRoom(items).map(({ room, items: group }) => ({ room, items: group.map(row) }));
   return {
     left,

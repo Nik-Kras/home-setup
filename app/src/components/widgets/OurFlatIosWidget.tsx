@@ -29,7 +29,8 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
   } as const;
   const got = new Set((props.got ?? []).map((tap) => tap.id));
   const left = props.leftCount ?? 0;
-  const statusOf = (row: { id: string; status: string }) => (got.has(row.id) ? 'Delivered' : row.status);
+  // A tapped row shows the stage it moved to until the app takes the tap.
+  const statusOf = (row: { id: string; status: string; toLabel?: string }) => (got.has(row.id) ? row.toLabel ?? row.status : row.status);
   const itemUrl = (id: string) => 'homesetup://item/' + encodeURIComponent(id);
   const serif = (size: number) => font({ design: 'serif', size });
   const sans = (size: number, weight: 'regular' | 'semibold' = 'regular') => font({ size, weight });
@@ -121,8 +122,8 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
     );
   }
 
-  // Large: the rooms and rows that fit (chosen in the app, as Android's fitRooms), each with a "got it"
-  // check that works without opening the app.
+  // Large: the rooms and rows that fit (chosen in the app, as Android's fitRooms), each with a circle
+  // that moves the item exactly one stage on without opening the app ("Mark ordered", "Got it").
   return (
     <VStack alignment="leading" spacing={0} modifiers={[...frameStyle, padding({ horizontal: 16, vertical: 12 })]}>
       <Header plus={44} />
@@ -131,16 +132,18 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
           <Text modifiers={[serif(17), foregroundStyle(c.textSecondary), lineLimit(1), padding({ top: 6 })]}>{room}</Text>
           {items.map((row) => {
             const status = statusOf(row);
-            const isGot = status === 'Delivered' || status === 'Installed';
+            // One tap per row until the app takes it; a row with no next stage has nothing to tap.
+            const canTap = !got.has(row.id) && !!row.to && row.to !== row.from;
+            const leaves = row.to === 'installed' || (row.to === 'delivered' && !row.install);
             return (
               <HStack key={row.id} spacing={4} modifiers={[frame({ height: 44 })]}>
-                {isGot ? (
+                {!canTap ? (
                   <Image systemName="checkmark.circle" size={24} color={c.mint} modifiers={[frame({ width: 44, height: 44 })]} />
                 ) : (
-                  <Button target={'got:' + row.id} modifiers={[buttonStyle('plain'), accessibilityLabel('Mark ' + row.name + ' as got')]}
+                  <Button target={'got:' + row.id} modifiers={[buttonStyle('plain'), accessibilityLabel((row.action || 'Next stage') + ': ' + row.name)]}
                     onPress={() => ({
-                      got: [...(props.got ?? []), { id: row.id, from: row.from, at: new Date().toISOString() }],
-                      leftCount: row.install ? left : Math.max(0, left - 1),
+                      got: [...(props.got ?? []), { id: row.id, from: row.from, to: row.to, at: new Date().toISOString() }],
+                      leftCount: leaves ? Math.max(0, left - 1) : left,
                     })}>
                     <Image systemName="circle" size={24} color={c.ring} modifiers={[frame({ width: 44, height: 44 })]} />
                   </Button>

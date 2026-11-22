@@ -1,4 +1,5 @@
-import { ITEM_STATUSES, type Item } from '../domain/types';
+import { nextStage, type StageStep } from '../domain/items';
+import type { Item } from '../domain/types';
 import { buildWidgetView, type WidgetItem, type WidgetView } from '../domain/widgetData';
 import type { KV, OpQueue } from './queue';
 import { ops } from './repo';
@@ -9,10 +10,10 @@ import { ops } from './repo';
  *   {
  *     data: {                                    // what the widgets draw (WidgetView)
  *       v: 1, updatedAt: ISO string, leftCount: number,
- *       top: [{ id, name, status, urgent, icon }],          // medium widget, 3 rows
- *       rooms: [{ room, items: [{ id, name, status, urgent }] }],  // large widget, 4 rows
+ *       top: [{ id, name, status, urgent, action, icon }],          // medium widget, 3 rows
+ *       rooms: [{ room, items: [{ id, name, status, urgent, action }] }],  // large widget, 4 rows
  *     },
- *     items: [{ id, name, room?, status, urgent, needsInstall, addedAt }],  // for the headless "got it" tap
+ *     items: [{ id, name, room?, status, urgent, needsInstall, addedAt }],  // for the headless stage tap
  *   }
  *
  * `items` holds only what the tap needs: the status the widget showed (for the conditional patch) and the
@@ -80,25 +81,30 @@ export function createWidgetStorage(storage: KV) {
       await write(next);
       return next.data;
     }),
-    markGot: (
+    /**
+     * The large widget's circle: one stage on (domain nextStage, as the app's buttons), never straight
+     * to the end. Returns the redrawn data, or null when there is nothing to do.
+     */
+    advance: (
       id: string,
       now: Date,
       queue: Pick<OpQueue, 'enqueueAll'>,
       current?: () => WidgetSnapshot | null | undefined,
-      onChange?: (before: WidgetItem, deliveredAt: string) => void,
+      onChange?: (before: WidgetItem, step: StageStep) => void,
     ) => serialize(async () => {
       const stored = await read();
       const live = current?.();
       const snapshot = live === undefined ? stored : live;
       if (!snapshot) return null;
       const before = snapshot.items.find((item) => item.id === id);
-      if (!before || ITEM_STATUSES.indexOf(before.status) >= ITEM_STATUSES.indexOf('delivered')) return null;
-      const updatedAt = now.toISOString();
+      const step = before && nextStage(before, now.toISOString());
+      if (!before || !step) return null;
       // Conditional on the status shown: if it changed on the server meanwhile, the patch matches no row.
-      await queue.enqueueAll([ops.markGotIf(id, before.status, updatedAt)]);
-      onChange?.(before, updatedAt);
-      // Optimistic: show it as got now; the next refresh corrects it if the patch matched nothing.
-      const items = snapshot.items.map((item): WidgetItem => item.id === id ? { ...item, status: 'delivered' } : item);
+      await queue.enqueueAll([ops.advanceIf(id, before.status, step)]);
+      onChange?.(before, step);
+      // Optimistic: the row shows its new stage now (and leaves once done); the next refresh corrects it
+      // if the patch matched nothing.
+      const items = snapshot.items.map((item): WidgetItem => item.id === id ? { ...item, status: step.status } : item);
       const data = buildWidgetView(items, now);
       await write({ items, data });
       return data;

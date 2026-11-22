@@ -19,7 +19,7 @@ const items: Item[] = [
   { ...base, id: 'item-2', name: 'Shelf', status: 'needed', urgent: false, needsInstall: true, room: 'Bedroom' },
   { ...base, id: 'item-3', name: 'Kettle', status: 'delivered', urgent: false, room: 'Kitchen' },
 ];
-const tap: IosPendingGot = { id: 'item-1', from: 'ordered', at: tappedAt };
+const tap: IosPendingGot = { id: 'item-1', from: 'ordered', to: 'delivered', at: tappedAt };
 
 function fakeWidget(props: IosWidgetProps) {
   const timeline = [{ props: props as unknown }];
@@ -43,6 +43,10 @@ describe('iPhone widget props', () => {
     expect(props.top.map((row) => [row.id, row.from, row.install, row.status])).toEqual([
       ['item-1', 'ordered', false, 'Ordered'], ['item-2', 'needed', true, 'Needed'],
     ]);
+    // The one next stage of each row, from the shared domain rule, for the widget's tap.
+    expect(props.top.map((row) => [row.to, row.toLabel, row.action])).toEqual([
+      ['delivered', 'Delivered', 'Got it'], ['looking', 'Looking', 'Mark looking'],
+    ]);
     expect(props.rooms.flatMap((r) => r.items.map((row) => row.id))).toEqual(['item-1', 'item-2']);
     expect(JSON.stringify(props)).not.toMatch(/addedAt|updatedBy|estPrice|notes/);
     expect(props.more).toBe(0);
@@ -57,22 +61,28 @@ describe('iPhone widget props', () => {
   });
 });
 
-describe('pending got taps', () => {
-  it('reads well-formed taps once per item and skips anything that cannot be got', () => {
+describe('pending stage taps', () => {
+  it('reads well-formed taps once per item, each exactly one stage on, and skips the rest', () => {
     expect(pendingGot([
       { props: { got: [tap, { ...tap, at: '2026-11-22T10:00:00Z' }] } },
-      { props: { got: [{ id: 'item-2', from: 'delivered', at: tappedAt }, { id: 'item-4', from: 'needed', at: 'soon' }, null] } },
+      { props: { got: [{ id: 'item-2', from: 'installed', to: 'installed', at: tappedAt }, { id: 'item-4', from: 'needed', to: 'looking', at: 'soon' }, null] } },
+      // Two stages at once is never a widget tap.
+      { props: { got: [{ id: 'item-6', from: 'needed', to: 'delivered', at: tappedAt }] } },
+      // A tap from an older build has no `to`: it means the next stage.
       { props: { got: [{ id: 'item-5', from: 'looking', at: tappedAt }] } },
       { props: null },
       {},
-    ])).toEqual([tap, { id: 'item-5', from: 'looking', at: tappedAt }]);
+    ])).toEqual([tap, { id: 'item-5', from: 'looking', to: 'ordered', at: tappedAt }]);
   });
 
-  it('shows a tap as got only where the item still has the status the widget showed', () => {
-    const next = applyGotLocally(items, me, [tap, { id: 'item-2', from: 'looking', at: tappedAt }]);
+  it('applies a tap only where the item still has the status the widget showed, with the dates the app stamps', () => {
+    const next = applyGotLocally(items, me, [tap, { id: 'item-2', from: 'looking', to: 'ordered', at: tappedAt }]);
     expect(next[0]).toMatchObject({ status: 'delivered', deliveredAt: tappedAt, updatedBy: me });
     expect(next[1]).toBe(items[1]);
-    expect(applyGotLocally(items, me, [{ id: 'item-2', from: 'looking', at: tappedAt }])).toBe(items);
+    expect(applyGotLocally(items, me, [{ id: 'item-2', from: 'looking', to: 'ordered', at: tappedAt }])).toBe(items);
+    const looking = applyGotLocally(items, me, [{ id: 'item-2', from: 'needed', to: 'looking', at: tappedAt }])[1]!;
+    expect(looking).toMatchObject({ status: 'looking', updatedBy: me });
+    expect(looking.deliveredAt).toBeUndefined();
   });
 });
 
@@ -178,10 +188,14 @@ describe('iPhone widget bridge', () => {
 
 describe('settling taken taps', () => {
   it('marks only the taken rows as got and keeps other waiting taps', () => {
-    const props = { ...toIosWidgetProps(makeWidgetSnapshot(items, time)), got: [tap, { id: 'item-2', from: 'needed' as const, at: tappedAt }] };
+    const shelfTap: IosPendingGot = { id: 'item-2', from: 'needed', to: 'looking', at: tappedAt };
+    const props = { ...toIosWidgetProps(makeWidgetSnapshot(items, time)), got: [tap, shelfTap] };
     const settled = settleGot(props, [tap]);
-    expect(settled.got).toEqual([{ id: 'item-2', from: 'needed', at: tappedAt }]);
+    expect(settled.got).toEqual([shelfTap]);
     expect(settled.top.map((row) => row.status)).toEqual(['Delivered', 'Needed']);
+    // A settled row that needs installing can be tapped again, to the following stage.
+    const shelf = settleGot(props, [shelfTap]).top[1]!;
+    expect(shelf).toMatchObject({ status: 'Looking', from: 'looking', to: 'ordered', action: 'Mark ordered' });
   });
 });
 

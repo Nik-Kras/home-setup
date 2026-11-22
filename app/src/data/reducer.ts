@@ -1,4 +1,4 @@
-import { nextStatus, setStatus } from '../domain/items';
+import { advance, setStatus } from '../domain/items';
 import { addStep, setAssignmentStatus, toggleStep } from '../domain/tasks';
 import type { Actor, FlatNote, Item, ItemStatus, NoteKind, Person, Task, TaskStatus } from '../domain/types';
 import { newId } from './mappers';
@@ -63,7 +63,7 @@ export function reducer(state: State, action: Action): State {
     case 'replace':
       return { ...state, items: action.items, tasks: action.tasks, notes: action.notes ?? state.notes };
     case 'advanceItem': {
-      const items = state.items.map((i) => (i.id === action.id ? setStatus(i, nextStatus(i), now, actor) : i));
+      const items = state.items.map((i) => (i.id === action.id ? advance(i, now, actor) : i));
       return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
     }
     case 'deleteItem': {

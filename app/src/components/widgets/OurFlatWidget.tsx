@@ -7,7 +7,8 @@ import { fitRooms, type WidgetView } from '../../domain/widgetData';
 import { colors, fonts, radius, TARGET } from '../../theme/tokens';
 
 export const WIDGET_NAMES = ['OurFlatSmall', 'OurFlatMedium', 'OurFlatLarge'] as const;
-export const MARK_GOT = 'MARK_GOT';
+/** The circle's click action: one stage on. The value stays 'MARK_GOT' so widgets drawn by an older build keep working. */
+export const ADVANCE_STAGE = 'MARK_GOT';
 
 type Row = WidgetView['rooms'][number]['items'][number];
 
@@ -65,11 +66,12 @@ function Status({ status }: { status: Row['status'] }) {
   );
 }
 
+/** One stage on per tap; the label names the stage ("Mark ordered: Kettle"). A delivered row still here needs installing. */
 function GotButton({ row, height }: { row: Row; height: number }) {
   const delivered = row.status === 'Delivered';
   return (
-    <FlexWidget clickAction={delivered ? undefined : MARK_GOT} clickActionData={{ id: row.id }}
-      accessibilityLabel={delivered ? undefined : `Mark ${row.name} as got`}
+    <FlexWidget clickAction={ADVANCE_STAGE} clickActionData={{ id: row.id }}
+      accessibilityLabel={`${row.action ?? 'Next stage'}: ${row.name}`}
       style={{ ...center, width: TARGET, height }}>
       <FlexWidget style={{
         ...center, width: 24, height: 24, borderRadius: 12, borderWidth: 2,

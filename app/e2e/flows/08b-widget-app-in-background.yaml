@@ -1,5 +1,6 @@
-# 8b. Widget tap to got while the app is still alive in the background (the usual case: use the app,
-# press Home, tap the widget). 08 covers the same tap with the app closed.
+# 8b. Widget taps while the app is still alive in the background (the usual case: use the app, press
+# Home, tap the widget): each tap moves the item one stage, needed -> looking -> ordered -> delivered,
+# and it leaves the widget once delivered. 08 covers a tap with the app closed.
 # Known intermittent failure on the dev build (2026-11-22): the tap is sometimes lost, the item stays
 # "needed" and nothing is queued (08 and 08b each failed about half of their runs). See README.
 appId: app.homesetup.household
@@ -15,8 +16,25 @@ name: 08b widget, app in background
     env: { OP: expect-item, NAME: ZZ-e2e-widget-warm, FIELDS: "status=needed" }
 - runFlow:
     file: common/goto-widget.yaml
-    env: { TARGET: "Mark ZZ-e2e-widget-warm as got" }
-- tapOn: "Mark ZZ-e2e-widget-warm as got"
+    env: { TARGET: "Mark looking: ZZ-e2e-widget-warm" }
+- tapOn: "Mark looking: ZZ-e2e-widget-warm"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-widget-warm, FIELDS: "status=looking,delivered_at=null", TIMEOUT: "45" }
+- extendedWaitUntil:
+    visible: "Mark ordered: ZZ-e2e-widget-warm"
+    timeout: 30000
+- tapOn: "Mark ordered: ZZ-e2e-widget-warm"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-widget-warm, FIELDS: "status=ordered,delivered_at=null", TIMEOUT: "45" }
+- extendedWaitUntil:
+    visible: "Got it: ZZ-e2e-widget-warm"
+    timeout: 30000
+- tapOn: "Got it: ZZ-e2e-widget-warm"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget-warm, FIELDS: "status=delivered,delivered_at=notnull", TIMEOUT: "45" }
+- extendedWaitUntil:
+    notVisible: "Got it: ZZ-e2e-widget-warm"
+    timeout: 30000

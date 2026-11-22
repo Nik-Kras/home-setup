@@ -1,4 +1,5 @@
 import type { IconName } from '../domain/glyphs';
+import { ITEM_STATUS_LABEL, nextActionLabel, nextStatus, stageStep } from '../domain/items';
 import { fitRooms } from '../domain/widgetData';
 import { ITEM_STATUSES, type Item, type ItemStatus, type Person } from '../domain/types';
 import type { OpQueue } from './queue';
@@ -8,14 +9,16 @@ import type { WidgetSnapshot } from './widgetSnapshot';
 /**
  * The iPhone widget (expo-widgets). One widget kind, three sizes. Its props live in the App Group
  * (`group.app.homesetup.household`) as the widget timeline, which the app writes and the widget's
- * "got it" App Intent edits:
+ * stage-tap App Intent edits:
  *
- *   { signedIn, leftCount, top: [row + icon], rooms: [{ room, items: [row] }], more, got: [{ id, from, at }] }
+ *   { signedIn, leftCount, top: [row + icon], rooms: [{ room, items: [row] }], more, got: [{ id, from, to, at }] }
  *
- * A row is { id, name, status (label), urgent, from (the status the widget showed), install }. `rooms`
- * holds what fits the large widget and `more` the left items it does not show.
- * `got` holds the taps not yet applied: the app turns each into a conditional patch in the offline
- * queue at its next launch or foreground. No credentials, prices, notes or people go into the group.
+ * A row is { id, name, status (label), urgent, from (the status the widget showed), install, to (the
+ * one next stage, worked out here with domain nextStage since the widget runtime cannot import it),
+ * toLabel, action ("Mark ordered") }. `rooms` holds what fits the large widget and `more` the left
+ * items it does not show.
+ * `got` holds the taps not yet applied (one stage each, from -> to): the app turns each into a
+ * conditional patch in the offline queue at its next launch or foreground. No credentials, prices, notes or people go into the group.
  */
 export const IOS_WIDGET_NAME = 'OurFlat';
 
@@ -27,12 +30,24 @@ export interface IosWidgetRow {
   from: ItemStatus;
   /** Needs installing, so it stays on the list after it is got. */
   install: boolean;
+  /** The stage a tap moves it to, its chip label and the tap's label. `to` equals `from` when there is none. */
+  to: ItemStatus;
+  toLabel: string;
+  action: string;
 }
 
 export interface IosPendingGot {
   id: string;
   from: ItemStatus;
+  /** Exactly one stage after `from`. */
+  to: ItemStatus;
   at: string;
+}
+
+/** A row's next-stage fields, from the shared domain rule (one stage at a time). */
+function nextFields(status: ItemStatus, install: boolean): Pick<IosWidgetRow, 'to' | 'toLabel' | 'action'> {
+  const to = nextStatus({ status, needsInstall: install });
+  return { to, toLabel: ITEM_STATUS_LABEL[to], action: nextActionLabel({ status, needsInstall: install }) ?? '' };
 }
 
 export interface IosWidgetProps {
@@ -59,7 +74,9 @@ export function toIosWidgetProps(snapshot: WidgetSnapshot | null): IosWidgetProp
   const byId = new Map(snapshot.items.map((item) => [item.id, item]));
   const row = <T extends { id: string }>(shown: T) => {
     const item = byId.get(shown.id);
-    return { ...shown, from: item?.status ?? 'needed', install: item?.needsInstall ?? false };
+    const from = item?.status ?? 'needed';
+    const install = item?.needsInstall ?? false;
+    return { ...shown, from, install, ...nextFields(from, install) };
   };
   const { leftCount, top } = snapshot.data;
   const { rooms, more } = fitRooms(snapshot.data, IOS_LARGE_SPACE, IOS_LARGE_HEIGHTS);
@@ -73,10 +90,15 @@ export function toIosWidgetProps(snapshot: WidgetSnapshot | null): IosWidgetProp
   };
 }
 
-/** Taken taps leave `got`, so their rows must show as got by themselves until the next snapshot. */
+/** Taken taps leave `got`, so their rows must show their new stage by themselves until the next snapshot. */
 export function settleGot(props: IosWidgetProps, taken: readonly IosPendingGot[]): IosWidgetProps {
-  const ids = new Set(taken.map((tap) => tap.id));
-  const settle = <T extends IosWidgetRow>(row: T): T => (ids.has(row.id) ? { ...row, status: 'Delivered', from: 'delivered' } : row);
+  const taps = new Map(taken.map((tap) => [tap.id, tap]));
+  const ids = new Set(taps.keys());
+  const settle = <T extends IosWidgetRow>(row: T): T => {
+    const tap = taps.get(row.id);
+    if (!tap) return row;
+    return { ...row, status: ITEM_STATUS_LABEL[tap.to], from: tap.to, ...nextFields(tap.to, row.install ?? false) };
+  };
   return {
     ...props,
     top: (props.top ?? []).map(settle),
@@ -85,9 +107,15 @@ export function settleGot(props: IosWidgetProps, taken: readonly IosPendingGot[]
   };
 }
 
-const canGet = (status: unknown): status is ItemStatus =>
-  typeof status === 'string' && ITEM_STATUSES.indexOf(status as ItemStatus) >= 0
-  && ITEM_STATUSES.indexOf(status as ItemStatus) < ITEM_STATUSES.indexOf('delivered');
+const stageIndex = (status: unknown) => (typeof status === 'string' ? ITEM_STATUSES.indexOf(status as ItemStatus) : -1);
+
+/** A tap's target: exactly one stage after `from`. A tap without `to` (an older widget build) means the next one. */
+function tapTarget(from: unknown, to: unknown): ItemStatus | undefined {
+  const at = stageIndex(from);
+  if (at < 0 || at >= ITEM_STATUSES.length - 1) return undefined;
+  const target = to === undefined ? ITEM_STATUSES[at + 1] : to;
+  return stageIndex(target) === at + 1 ? target as ItemStatus : undefined;
+}
 
 /** The well-formed taps across the timeline entries, first tap per item. */
 export function pendingGot(entries: readonly { props?: unknown }[]): IosPendingGot[] {
@@ -97,16 +125,17 @@ export function pendingGot(entries: readonly { props?: unknown }[]): IosPendingG
     const got = (props as Partial<IosWidgetProps> | null | undefined)?.got;
     if (!Array.isArray(got)) continue;
     for (const tap of got as unknown[]) {
-      const { id, from, at } = (tap ?? {}) as Partial<IosPendingGot>;
-      if (typeof id !== 'string' || !id || seen.has(id) || !canGet(from) || typeof at !== 'string' || Number.isNaN(Date.parse(at))) continue;
+      const { id, from, to, at } = (tap ?? {}) as Partial<IosPendingGot>;
+      const target = tapTarget(from, to);
+      if (typeof id !== 'string' || !id || seen.has(id) || !target || typeof at !== 'string' || Number.isNaN(Date.parse(at))) continue;
       seen.add(id);
-      out.push({ id, from, at });
+      out.push({ id, from: from as ItemStatus, to: target, at });
     }
   }
   return out;
 }
 
-/** Show the taps as got now, like the Android widget does; only where the item still has the status the widget showed. */
+/** Show the taps' new stages now, like the Android widget does; only where the item still has the status the widget showed. Dates as the app stamps them (stageStep). */
 export function applyGotLocally(items: Item[], me: Person, pending: readonly IosPendingGot[]): Item[] {
   if (pending.length === 0) return items;
   const taps = new Map(pending.map((tap) => [tap.id, tap]));
@@ -115,7 +144,7 @@ export function applyGotLocally(items: Item[], me: Person, pending: readonly Ios
     const tap = taps.get(item.id);
     if (!tap || item.status !== tap.from) return item;
     changed = true;
-    return { ...item, status: 'delivered' as const, deliveredAt: tap.at, updatedBy: me };
+    return { ...item, ...stageStep(tap.to, tap.at), updatedBy: me };
   });
   return changed ? next : items;
 }
@@ -151,7 +180,7 @@ export function createIosWidgetBridge(widget: IosWidgetHandle, queue: Pick<OpQue
     const pending = pendingGot(entries);
     if (pending.length === 0) return 0;
     if (app && queue) {
-      await queue.enqueueAll(pending.map(({ id, from, at }) => ops.markGotIf(id, from, at)));
+      await queue.enqueueAll(pending.map(({ id, from, to, at }) => ops.advanceIf(id, from, stageStep(to, at))));
       app.applyGot(pending);
     }
     const last = entries[entries.length - 1]?.props as IosWidgetProps | undefined;

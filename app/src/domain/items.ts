@@ -10,23 +10,33 @@ export function isItemDone(item: Pick<Item, 'status' | 'needsInstall'>): boolean
 }
 
 /** Next status in the flow, skipping 'installed' for items that need no installing. */
-export function nextStatus(item: Item): ItemStatus {
+export function nextStatus(item: Pick<Item, 'status' | 'needsInstall'>): ItemStatus {
   const i = ITEM_STATUSES.indexOf(item.status);
   const next = ITEM_STATUSES[Math.min(i + 1, ITEM_STATUSES.length - 1)]!;
   if (next === 'installed' && !item.needsInstall) return item.status;
   return next;
 }
 
-export function advance(item: Item, now: string, actor: Item['updatedBy']): Item {
+/** The fields that change when an item moves forward into `status`: the status and the date that stage stamps. */
+export type StageStep = Pick<Item, 'status'> & Partial<Pick<Item, 'deliveredAt' | 'installedAt'>>;
+
+/** Moving forward into `status` at `now`: delivered stamps deliveredAt, installed stamps installedAt. */
+export function stageStep(status: ItemStatus, now: string): StageStep {
+  return { status, ...(status === 'delivered' ? { deliveredAt: now } : {}), ...(status === 'installed' ? { installedAt: now } : {}) };
+}
+
+/**
+ * Exactly one stage on, or undefined when the item has no next stage. The one rule for the app's
+ * buttons and both home-screen widgets: nothing ever jumps to the end.
+ */
+export function nextStage(item: Pick<Item, 'status' | 'needsInstall'>, now: string): StageStep | undefined {
   const status = nextStatus(item);
-  if (status === item.status) return item;
-  return {
-    ...item,
-    status,
-    updatedBy: actor,
-    deliveredAt: status === 'delivered' ? now : item.deliveredAt,
-    installedAt: status === 'installed' ? now : item.installedAt,
-  };
+  return status === item.status ? undefined : stageStep(status, now);
+}
+
+export function advance(item: Item, now: string, actor: Item['updatedBy']): Item {
+  const step = nextStage(item, now);
+  return step ? { ...item, ...step, updatedBy: actor } : item;
 }
 
 /**
@@ -151,7 +161,7 @@ export function currentStepTone(item: Item): 'done' | 'transit' | 'neutral' {
  * Label of the one primary button: it moves the item exactly one stage on and names that stage.
  * "Got it" only when the next stage is delivered. Undefined when there is no next stage.
  */
-export function nextActionLabel(item: Item): string | undefined {
+export function nextActionLabel(item: Pick<Item, 'status' | 'needsInstall'>): string | undefined {
   const next = nextStatus(item);
   if (next === item.status) return undefined;
   return next === 'delivered' ? 'Got it' : `Mark ${ITEM_STATUS_LABEL[next].toLowerCase()}`;
