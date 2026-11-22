@@ -26,14 +26,12 @@ function AddTaskBar({ text, setText, placeholder, onAdd, onMore }: { text: strin
     ref.current?.focus();
   };
   return (
-    <View style={{ gap: 6, marginVertical: 4 }}>
-      <View style={s.addBar}>
-        <TextInput ref={ref} value={text} onChangeText={setText} onSubmitEditing={submit} submitBehavior="submit" returnKeyType="done" placeholder={placeholder} placeholderTextColor={colors.textSecondary} accessibilityLabel="Add a task" style={s.addInput} />
-        <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Add task" style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></Pressable>
-      </View>
-      <Pressable onPress={() => onMore(text.trim())} accessibilityRole="button" accessibilityLabel="More options" accessibilityHint="Due date, group, who and urgent" hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }} style={s.more}>
-        <Text style={s.moreText}>More options</Text>
+    <View style={s.addBar}>
+      <TextInput ref={ref} value={text} onChangeText={setText} onSubmitEditing={submit} submitBehavior="submit" returnKeyType="done" placeholder={placeholder} placeholderTextColor={colors.textSecondary} accessibilityLabel="Add a task" style={s.addInput} />
+      <Pressable onPress={() => onMore(text.trim())} accessibilityRole="button" accessibilityLabel="More options" accessibilityHint="Due date, group, who and urgent" style={({ pressed }) => [s.moreBtn, pressed && { opacity: 0.6 }]}>
+        <Icon name="sliders" size={20} color={colors.textSecondary} stroke={2} />
       </Pressable>
+      <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Add task" style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></Pressable>
     </View>
   );
 }
@@ -94,7 +92,7 @@ export default function Tasks() {
     >
       {focus ? <DeadlineCard task={focus} person={viewer ?? me} today={localDate()} /> : null}
       <AddTaskBar text={text} setText={setText} placeholder={view === 'both' ? 'Add a shared task...' : 'Add a task...'} onAdd={quickAdd} onMore={openOptions} />
-      {urgent.length > 0 ? <SectionHeading meta={`${urgent.length}`}>Most urgent</SectionHeading> : null}
+      {urgent.length > 0 ? <SectionHeading meta={urgent.length > 1 ? `${urgent.length} tasks` : undefined}>Most urgent</SectionHeading> : null}
       {urgent.map((t) => <TaskRow key={t.id} task={t} viewer={viewer} me={me} onToggle={toggle(t.id)} />)}
       {rest.length > 0 ? <SectionHeading>{view === 'both' ? 'Each of you ticks it' : 'Next up'}</SectionHeading> : null}
       {rest.map((t) => <TaskRow key={t.id} task={t} viewer={viewer} me={me} onToggle={toggle(t.id)} />)}
@@ -107,10 +105,10 @@ export default function Tasks() {
 }
 
 const s = StyleSheet.create({
-  addBar: { flexDirection: 'row', alignItems: 'center', minHeight: 54, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 },
+  // Bottom margin -2: with the list gap (8) and the heading's top padding (10) the next heading sits 16 below.
+  addBar: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 54, marginTop: 4, marginBottom: -2, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 },
   addInput: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 16, color: colors.text },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
-  more: { alignSelf: 'flex-end', paddingVertical: 7, paddingHorizontal: 10 },
-  moreText: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 18, color: colors.mint },
+  moreBtn: { width: TARGET, height: TARGET, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   empty: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
 });

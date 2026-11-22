@@ -117,7 +117,7 @@ function AddStepInput({ onAdd, compact }: { onAdd: StepActions['add']; compact: 
         disabled={disabled}
         onPress={submit}
         hitSlop={4}
-        style={({ pressed }) => [s.addButton, pressed && s.pressed]}
+        style={({ pressed }) => [s.addButton, compact && s.addButtonCompact, pressed && s.pressed]}
       >
         <Icon name="plus" size={20} color={disabled ? colors.textMuted : colors.mint} stroke={2} />
       </Pressable>
@@ -139,7 +139,10 @@ function Steps({ steps, actions, compact = false }: { steps: TaskStep[]; actions
           {!compact && steps.length > 0 ? <Rule /> : null}
           <AddStepInput onAdd={actions.add} compact={compact} />
         </>
-      ) : steps.length === 0 ? <Text style={[s.empty, compact && s.emptyCompact]}>No steps yet</Text> : null}
+      ) : steps.length === 0 ? (
+        // In a person's card this sits where the other card's "Add step" input is, on the same line.
+        <View style={compact && s.emptyRowCompact}><Text style={[s.empty, compact && s.emptyCompact]}>No steps yet</Text></View>
+      ) : null}
     </View>
   );
 }
@@ -224,13 +227,17 @@ const s = StyleSheet.create({
   stepTextCompact: { fontFamily: fonts.regular, fontSize: 14 },
   stepDone: { color: colors.textSecondary },
   empty: { color: colors.textMuted, fontFamily: fonts.regular, fontSize: 13, padding: 14 },
-  emptyCompact: { paddingHorizontal: 0 },
+  emptyCompact: { padding: 0, fontSize: 14 },
+  // Same box as the compact add row (4 + 44 + 4), so the text shares the input's line.
+  emptyRowCompact: { minHeight: TARGET, marginVertical: 4, justifyContent: 'center' },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginHorizontal: 8, marginVertical: 4 },
   addRowCompact: { marginHorizontal: 0 },
   stepInput: { flex: 1, minHeight: TARGET, paddingHorizontal: 6, paddingVertical: 8, fontFamily: fonts.regular, fontSize: 14, color: colors.text },
   // In a person's card the input starts at the card's content edge, like the name, track and steps.
   stepInputCompact: { paddingLeft: 0 },
   addButton: { width: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
+  // The plus ends at the card's padding edge (its stroke about 16 from the card edge), not 12dp inside it.
+  addButtonCompact: { alignItems: 'flex-end', marginRight: -2 },
   assignment: { flex: 1, padding: 14 },
   mine: { borderColor: 'rgba(94,224,184,0.44)' },
   person: { flexDirection: 'row', alignItems: 'center', gap: 10 },

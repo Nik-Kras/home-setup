@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { focusEyebrow, stepProgress } from '../domain/focus';
 import type { Person, Task } from '../domain/types';
-import { colors, fonts, radius, TARGET } from '../theme/tokens';
+import { colors, fonts, glow, radius, TARGET } from '../theme/tokens';
 
 /**
  * The Tasks screen's focal card (its one accent glow): the task due soonest, with its own steps' progress
@@ -31,10 +31,7 @@ export function DeadlineCard({ task, person, today }: { task: Task; person: Pers
 }
 
 const s = StyleSheet.create({
-  card: {
-    gap: 6, padding: 16, paddingTop: 14, borderRadius: radius.card, borderWidth: 1, borderColor: 'rgba(94,224,184,0.38)', backgroundColor: colors.surfaceRaised,
-    boxShadow: '0 10px 32px -12px rgba(94,224,184,0.45)',
-  },
+  card: { gap: 6, padding: 16, paddingTop: 14, borderRadius: radius.card, borderWidth: 1, ...glow },
   eyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   title: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 32, color: colors.text },
   foot: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4 },

@@ -34,3 +34,13 @@ export const personColor = { nikita: colors.mint, daryna: colors.lilac } as cons
 
 /** Minimum touch target in dp. */
 export const TARGET = 44;
+
+/**
+ * The one accent glow a screen may have (Tasks deadline card, Buy "Next up", Budget "Spent so far"):
+ * raised surface, mint hairline and a soft mint shadow. Spread it into the card's style.
+ */
+export const glow = {
+  backgroundColor: colors.surfaceRaised,
+  borderColor: 'rgba(94,224,184,0.38)',
+  boxShadow: '0 10px 32px -12px rgba(94,224,184,0.45)',
+} as const;

@@ -2,12 +2,14 @@ import { router } from 'expo-router';
 import { useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import { PersonFilterDiscs } from '../../components/PersonFilterDiscs';
 import { Screen } from '../../components/Screen';
 import { Card, Icon, IconTile, SectionHeading, StatusChip, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../../components/ui';
 import { useStore } from '../../data/store';
 import { counts, guessRoom, isItemDone, leftByRoom, nextUp } from '../../domain/items';
+import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
 import type { Item } from '../../domain/types';
-import { colors, fonts, radius, TARGET } from '../../theme/tokens';
+import { colors, fonts, glow, radius, TARGET } from '../../theme/tokens';
 
 const today = () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -69,7 +71,7 @@ function ItemRow({ item, onGot }: { item: Item; onGot: () => void }) {
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
           {item.assignedTo ? <PersonDisc person={item.assignedTo} size={16} /> : null}
-          <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>
+          {item.urgent ? <UrgentMeta key={meta} meta={meta} /> : <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>}
         </View>
       </Pressable>
       <StatusChip status={item.status} />
@@ -77,20 +79,43 @@ function ItemRow({ item, onGot }: { item: Item; onGot: () => void }) {
   );
 }
 
+/**
+ * An urgent row's meta line ends with the coral word "Urgent" when it fits on one line. If it would
+ * wrap, the word is dropped and the "!" badge (labelled Urgent) carries the meaning alone.
+ */
+function UrgentMeta({ meta }: { meta: string }) {
+  const [fits, setFits] = useState(true);
+  return (
+    <Text
+      style={s.metaOne}
+      numberOfLines={fits ? undefined : 1}
+      onTextLayout={fits ? (e) => { if (e.nativeEvent.lines.length > 1) setFits(false); } : undefined}
+    >
+      {meta}{fits ? <Text style={s.urgentWord}> · Urgent</Text> : null}
+    </Text>
+  );
+}
+
 export default function Buy() {
   const { items, addItem, gotItem } = useStore();
   const [showDone, setShowDone] = useState(false);
+  const [person, setPerson] = useState<PersonFilter>(null);
   const { done, left, total } = counts(items);
   const next = nextUp(items);
-  const groups = leftByRoom(items);
-  const doneItems = items.filter(isItemDone);
+  // The filter narrows the room list and the "Got it" list; the ring and Next up stay for the whole flat.
+  const shown = itemsForPerson(items, person);
+  const groups = leftByRoom(shown);
+  const doneItems = shown.filter(isItemDone);
 
   return (
     <Screen
       header={
-        <View>
-          <Title>Our flat</Title>
-          <Sub>{today()} · {left} left</Sub>
+        <View style={s.header}>
+          <View style={s.headerText}>
+            <Title>Our flat</Title>
+            <Sub>{today()} · {left} left</Sub>
+          </View>
+          <PersonFilterDiscs value={person} onChange={setPerson} />
         </View>
       }
     >
@@ -116,22 +141,25 @@ export default function Buy() {
           {g.items.map((i) => <ItemRow key={i.id} item={i} onGot={() => gotItem(i.id)} />)}
         </View>
       ))}
+      {person && shown.length === 0 ? <Text style={s.emptyFilter}>Nothing assigned to {person === 'nikita' ? 'Nikita' : 'Daryna'} yet.</Text> : null}
 
-      {done > 0 ? (
-        <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Got it, ${done}`} style={s.doneToggle}>
-          <Text style={s.doneText}>Got it ({done})</Text>
+      {doneItems.length > 0 ? (
+        <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Got it, ${doneItems.length}`} style={s.doneToggle}>
+          <Text style={s.doneText}>Got it ({doneItems.length})</Text>
           <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
             <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
           </View>
         </Pressable>
       ) : null}
-      {showDone && done > 0 ? doneItems.map((i) => <ItemRow key={i.id} item={i} onGot={() => undefined} />) : null}
+      {showDone && doneItems.length > 0 ? doneItems.map((i) => <ItemRow key={i.id} item={i} onGot={() => undefined} />) : null}
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  next: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, backgroundColor: colors.surfaceRaised, borderColor: 'rgba(94,224,184,0.38)' },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  headerText: { flex: 1 },
+  next: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, ...glow },
   nextEyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.textSecondary },
   nextName: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 30, color: colors.text },
   nextNameLong: { fontSize: 24, lineHeight: 26 },
@@ -150,6 +178,8 @@ const s = StyleSheet.create({
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   metaOne: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary, flexShrink: 1 },
+  urgentWord: { color: colors.coral },
+  emptyFilter: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
   doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4 },
   doneText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },
 });

@@ -2,6 +2,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Fragment, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EmptyState } from '../../components/EmptyState';
+import { HeaderIconButton, ScreenHeader } from '../../components/ScreenHeader';
 import { NAME, TaskRow } from '../../components/TaskRow';
 import { Icon, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
@@ -39,15 +41,9 @@ export default function GroupDetail() {
   );
 
   return (
-    <View style={[s.root, { paddingTop: insets.top + 8 }]}>
-      <View style={s.head}>
-        <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back to tasks" style={s.iconBtn}>
-          <Icon name="back" size={24} color={colors.text} stroke={2} />
-        </Pressable>
-        <Pressable onPress={add} accessibilityRole="button" accessibilityLabel={`Add a task to ${name}`} style={[s.iconBtn, s.addBtn]}>
-          <Icon name="plus" size={22} color={colors.onMint} stroke={2.6} />
-        </Pressable>
-      </View>
+    <View style={s.root}>
+      {/* One add control: the header plus, or the empty state's button when the group is empty. */}
+      <ScreenHeader onBack={back} backLabel="Back to tasks" right={total > 0 ? <HeaderIconButton icon="plus" onPress={add} accessibilityLabel={`Add a task to ${name}`} /> : undefined} />
 
       <View style={s.titleBlock}>
         <Title>{name}</Title>
@@ -63,14 +59,12 @@ export default function GroupDetail() {
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]}>
         {open.length > 0 ? card(open, `${name}, open tasks`) : null}
         {total === 0 ? (
-          <View style={s.emptyCard}>
-            <Text style={s.emptyTitle}>Nothing in this group yet</Text>
-            <Text style={s.emptyBody}>{person === me ? 'Tasks you add here' : `Tasks for ${NAME[person]} added here`} show up in this list and on the Tasks screen.</Text>
-            <Pressable onPress={add} accessibilityRole="button" accessibilityLabel={`Add a task to ${name}`} style={s.emptyBtn}>
-              <Icon name="plus" size={18} color={colors.mint} stroke={2.4} />
-              <Text style={s.emptyBtnText}>Add a task</Text>
-            </Pressable>
-          </View>
+          <EmptyState
+            icon="tasks"
+            title="Nothing in this group yet"
+            line={`${person === me ? 'Tasks you add here' : `Tasks for ${NAME[person]} added here`} also show on the Tasks screen.`}
+            action={{ label: 'Add a task', onPress: add, accessibilityLabel: `Add a task to ${name}` }}
+          />
         ) : null}
         {total > 0 && open.length === 0 ? <Text style={s.empty}>All done in this group.</Text> : null}
         {done.length > 0 ? (
@@ -89,10 +83,7 @@ export default function GroupDetail() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 10, paddingLeft: 8, paddingRight: 20 },
-  iconBtn: { width: TARGET, height: TARGET, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  addBtn: { backgroundColor: colors.mint },
-  titleBlock: { paddingTop: 2, paddingHorizontal: 20, paddingBottom: 10 },
+  titleBlock: { paddingHorizontal: 20, paddingBottom: 10 },
   progressLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8 },
   track: { flex: 1, height: 6, borderRadius: 3, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: 6, backgroundColor: colors.mint },
@@ -104,9 +95,4 @@ const s = StyleSheet.create({
   doneText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.textSecondary },
   doneCount: { fontFamily: fonts.regular, color: colors.textMuted },
   empty: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
-  emptyCard: { gap: 6, padding: 18, borderRadius: 22, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, alignItems: 'flex-start' },
-  emptyTitle: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 26, color: colors.text },
-  emptyBody: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.textSecondary },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: TARGET, marginTop: 6, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5, borderColor: colors.mint },
-  emptyBtnText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.mint },
 });
