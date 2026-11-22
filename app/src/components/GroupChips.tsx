@@ -31,7 +31,7 @@ export function GroupChips({ groups, person, children }: { groups: GroupSummary[
 const s = StyleSheet.create({
   scroll: { marginTop: 4, marginRight: -16, flexGrow: 0 },
   row: { gap: 8, paddingRight: 16 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 8, height: TARGET, paddingHorizontal: 14, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', backgroundColor: colors.surface },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: TARGET, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', backgroundColor: colors.surface },
   name: { fontFamily: fonts.medium, fontSize: 14, color: '#D5DBD7' },
   count: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
 });

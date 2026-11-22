@@ -36,8 +36,9 @@ export function TaskRow({ task, viewer, me, onToggle, plain = false }: { task: T
       </Pressable>
       <View style={s.side}>
         {due ? (
-          <View style={[s.due, due.tone === 'coral' && { backgroundColor: colors.coralFill }, due.tone === 'amber' && { backgroundColor: colors.amberFill }]}>
-            <Text style={[s.dueText, due.tone === 'coral' && { color: colors.coral }, due.tone === 'amber' && { color: colors.amber }]} numberOfLines={1}>{due.text}</Text>
+          // Coral for overdue or due today; any other date is a neutral chip (amber means in transit only).
+          <View style={[s.due, due.tone === 'coral' && { backgroundColor: colors.coralFill }]}>
+            <Text style={[s.dueText, due.tone === 'coral' && { color: colors.coral }]} numberOfLines={1}>{due.text}</Text>
           </View>
         ) : !shared && mine && mine.status !== 'todo' ? <StatusChip status={mine.status} /> : null}
         {shared ? (
@@ -58,6 +59,6 @@ const s = StyleSheet.create({
   name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   side: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 0 },
-  due: { height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: 'center', backgroundColor: colors.neutralFill },
-  dueText: { fontFamily: fonts.medium, fontSize: 13, color: '#D5DBD7' },
+  due: { minHeight: 28, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 14, justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.09)' },
+  dueText: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, color: colors.text },
 });

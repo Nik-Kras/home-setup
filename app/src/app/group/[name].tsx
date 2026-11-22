@@ -52,17 +52,26 @@ export default function GroupDetail() {
       <View style={s.titleBlock}>
         <Title>{name}</Title>
         {person !== me ? <Sub>{NAME[person]}&apos;s tasks</Sub> : null}
-        <View style={s.progressLine}>
+        {total > 0 ? <View style={s.progressLine}>
           <View style={s.track} accessible accessibilityRole="progressbar" accessibilityLabel={`${done.length} of ${total} done`} accessibilityValue={{ min: 0, max: Math.max(total, 1), now: done.length }}>
             <View style={[s.fill, { width: `${total ? (done.length / total) * 100 : 0}%` }]} />
           </View>
           <Text style={s.count} importantForAccessibility="no" accessibilityElementsHidden>{done.length} of {total}</Text>
-        </View>
+        </View> : null}
       </View>
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]}>
         {open.length > 0 ? card(open, `${name}, open tasks`) : null}
-        {total === 0 ? <Text style={s.empty}>No tasks here yet.</Text> : null}
+        {total === 0 ? (
+          <View style={s.emptyCard}>
+            <Text style={s.emptyTitle}>Nothing in this group yet</Text>
+            <Text style={s.emptyBody}>{person === me ? 'Tasks you add here' : `Tasks for ${NAME[person]} added here`} show up in this list and on the Tasks screen.</Text>
+            <Pressable onPress={add} accessibilityRole="button" accessibilityLabel={`Add a task to ${name}`} style={s.emptyBtn}>
+              <Icon name="plus" size={18} color={colors.mint} stroke={2.4} />
+              <Text style={s.emptyBtnText}>Add a task</Text>
+            </Pressable>
+          </View>
+        ) : null}
         {total > 0 && open.length === 0 ? <Text style={s.empty}>All done in this group.</Text> : null}
         {done.length > 0 ? (
           <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Done, ${done.length}`} style={s.doneToggle}>
@@ -95,4 +104,9 @@ const s = StyleSheet.create({
   doneText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.textSecondary },
   doneCount: { fontFamily: fonts.regular, color: colors.textMuted },
   empty: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
+  emptyCard: { gap: 6, padding: 18, borderRadius: 22, borderWidth: 1, borderColor: colors.hairline, backgroundColor: colors.surface, alignItems: 'flex-start' },
+  emptyTitle: { fontFamily: fonts.serif, fontSize: 22, lineHeight: 26, color: colors.text },
+  emptyBody: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.textSecondary },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: TARGET, marginTop: 6, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1.5, borderColor: colors.mint },
+  emptyBtnText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.mint },
 });

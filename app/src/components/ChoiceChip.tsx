@@ -13,7 +13,7 @@ export function ChoiceChip({ label, selected, onPress, a11yLabel, hint }: { labe
 }
 
 const s = StyleSheet.create({
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, height: TARGET, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: TARGET, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 22, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface },
   on: { borderWidth: 1.5, borderColor: colors.mint, backgroundColor: 'rgba(94,224,184,0.14)', paddingHorizontal: 15 },
   text: { fontFamily: fonts.medium, fontSize: 14, color: '#D5DBD7' },
   textOn: { fontFamily: fonts.semibold, color: colors.mint },
