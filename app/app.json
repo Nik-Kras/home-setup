@@ -8,7 +8,8 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "app.homesetup.household"
+      "bundleIdentifier": "app.homesetup.household",
+      "deploymentTarget": "17.0"
     },
     "android": {
       "adaptiveIcon": {
@@ -67,6 +68,26 @@
               "targetCellHeight": 4,
               "resizeMode": "horizontal|vertical",
               "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ],
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "app.homesetup.household.ExpoWidgetsTarget",
+          "groupIdentifier": "group.app.homesetup.household",
+          "widgets": [
+            {
+              "name": "OurFlat",
+              "displayName": "Our flat",
+              "description": "What is left to get for the flat",
+              "ios": {
+                "supportedFamilies": ["systemSmall", "systemMedium", "systemLarge"],
+                "contentMarginsDisabled": true,
+                "initialLayout": "./src/components/widgets/OurFlatIosWidget.tsx"
+              },
+              "android": null
             }
           ]
         }

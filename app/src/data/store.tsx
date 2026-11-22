@@ -14,6 +14,7 @@ import { db, kv } from './supabase';
 import { syncQueue } from './syncQueue';
 import { useItemPhotos } from './useItemPhotos';
 import { trySignOut } from './signOut';
+import { resetIosWidget, useIosWidgetSync } from './iosWidgetSync';
 import { resetWidgets, useWidgetSync } from './widgetSync';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
@@ -113,6 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useWidgetSync(state, ref, set, auth, widgetReady);
+  useIosWidgetSync(state, ref, set, auth, widgetReady);
 
   // `me` comes from the signed-in account's member row. A failed lookup is retried on the next refresh.
   const memberKnown = useRef<string | null>(null);
@@ -227,7 +229,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSync('pending');
     void (async () => {
       // Before the first flush: drop another account's unsent Ops and its widget snapshot.
-      if (await claimDevice(kv, syncQueue, account).catch(() => false)) await resetWidgets().catch(() => undefined);
+      if (await claimDevice(kv, syncQueue, account).catch(() => false)) {
+        await Promise.all([resetWidgets().catch(() => undefined), resetIosWidget()]);
+      }
       if (!active) return;
       await countPending().catch(() => 0);
       const [cached, cachedMember] = await Promise.all([
