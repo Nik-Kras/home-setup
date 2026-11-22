@@ -35,7 +35,7 @@ const appEdit = (before: Item, after: Item) => diffToOps({ items: [before], task
 describe('widgets and app share one queue', () => {
   it('sends an app edit, a widget MARK_GOT and a later app edit in the order they happened', async () => {
     const { queue, widget, sent, goOnline } = device();
-    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], [], me, time));
+    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
 
     await queue.enqueueAll(appEdit(kettle, { ...kettle, name: 'Electric kettle' }));
     const tapped = await widget.markGot(lamp.id, new Date('2026-11-22T09:05:00Z'), queue);
@@ -56,7 +56,7 @@ describe('widgets and app share one queue', () => {
 
   it('loses nothing when a widget tap and an app edit append at the same moment as a flush', async () => {
     const { queue, widget, sent, goOnline } = device();
-    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], [], me, time));
+    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
     goOnline();
     await Promise.all([
       queue.enqueueAll(appEdit(kettle, { ...kettle, name: 'Electric kettle' })),
@@ -73,7 +73,7 @@ describe('account change on one device', () => {
   it('drops the previous account\'s ops and widget snapshot, so nothing of theirs is sent or tapped', async () => {
     const { kv, queue, widget, sent, goOnline } = device();
     expect(await claimDevice(kv, queue, 'account-a')).toBe(false);
-    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], [], me, time));
+    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
     await queue.enqueueAll(appEdit(kettle, { ...kettle, name: 'Electric kettle' }));
     await widget.markGot(lamp.id, time, queue);
     expect(await queue.size()).toBe(2);
