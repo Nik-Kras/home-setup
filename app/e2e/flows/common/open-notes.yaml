@@ -1,4 +1,4 @@
-# Opens Flat notes from the chip on the Tasks screen.
+# Opens Flat notes from the chip on the Tasks screen (under the Mine / Daryna / Both switch).
 appId: app.homesetup.household
 ---
 - tapOn: "Tasks"
@@ -7,5 +7,5 @@ appId: app.homesetup.household
     centerElement: true
 - tapOn: "Flat notes.*"
 - extendedWaitUntil:
-    visible: "From the tenancy contract.*"
+    visible: "Facts about the flat.*"
     timeout: 5000

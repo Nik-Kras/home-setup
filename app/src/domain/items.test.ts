@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actorName, asksForPrice, canJumpToGot, statusChoices, currentStepTone, formatMoney, itemMeta, itemSteps, needsPrice, nextActionLabel, nextUpFor, parseLink, parsePrice, roomOptions, stageHint, stageNote } from './items';
+import { actorName, asksForPrice, canJumpToGot, nextUpAction, rowGotIt, statusChoices, currentStepTone, formatMoney, itemMeta, itemSteps, needsPrice, nextActionLabel, nextUpFor, parseLink, parsePrice, roomOptions, stageHint, stageNote } from './items';
 import type { Item } from './types';
 
 const item = (over: Partial<Item> = {}): Item => ({
@@ -46,6 +46,20 @@ describe('item detail helpers', () => {
     expect(canJumpToGot(item({ status: 'looking' }))).toBe(true);
     expect(canJumpToGot(item({ status: 'ordered' }))).toBe(false);
     expect(canJumpToGot(item({ status: 'delivered' }))).toBe(false);
+  });
+
+  it('never pushes the other person\'s item as my next step when no filter is on', () => {
+    expect(nextUpAction(item({ assignedTo: 'daryna' }), null, 'nikita')).toEqual({ kind: 'open', label: 'For Daryna' });
+    expect(nextUpAction(item({ assignedTo: 'daryna' }), 'daryna', 'nikita')).toEqual({ kind: 'advance', label: 'Mark looking', jump: true });
+    expect(nextUpAction(item(), null, 'nikita')).toEqual({ kind: 'advance', label: 'Mark looking', jump: true });
+    expect(nextUpAction(item({ assignedTo: 'nikita', status: 'ordered' }), null, 'nikita')).toEqual({ kind: 'advance', label: 'Got it', jump: false });
+  });
+
+  it('a row offers its own Got it only on my or unclaimed items still Needed or Looking', () => {
+    expect(rowGotIt(item(), 'nikita')).toBe(true);
+    expect(rowGotIt(item({ assignedTo: 'nikita', status: 'looking' }), 'nikita')).toBe(true);
+    expect(rowGotIt(item({ assignedTo: 'daryna' }), 'nikita')).toBe(false);
+    expect(rowGotIt(item({ status: 'ordered' }), 'nikita')).toBe(false);
   });
 
   it('asks for a price on ordered and got rows that have none', () => {

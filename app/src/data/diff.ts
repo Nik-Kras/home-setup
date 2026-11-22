@@ -44,9 +44,11 @@ export function diffToOps(
       if (before[key] !== task[key]) fields[col] = task[key] ?? null;
     }
     if (Object.keys(fields).length > 0) out.push(ops.patchTask(task.id, fields));
-    // Who it is for: each person added or taken off is one op on their own part only.
+    // Who it is for: each person added or taken off is one op on their own part only. A removal applies
+    // only while that part still has the status this phone saw, and reports when it removed nothing
+    // (changed since, refused for the last person, or an account that may not delete).
     for (const was of before.assignments) {
-      if (!task.assignments.some((a) => a.person === was.person)) out.push(ops.removeAssignment(task.id, was.person));
+      if (!task.assignments.some((a) => a.person === was.person)) out.push(ops.removeAssignment(task.id, was.person, { status: was.status }));
     }
     for (const a of task.assignments) {
       const was = before.assignments.find((x) => x.person === a.person);

@@ -17,10 +17,12 @@ import { UrgentBadge } from './ui';
  * hands back the draft; the screen sends only what changed (see taskEditChanges). Delete is a soft
  * delete with Undo, so it asks nothing.
  */
-export function TaskEditSheet({ visible, task, me, onClose, onSave, onDelete }: {
+export function TaskEditSheet({ visible, task, me, canRemove, onClose, onSave, onDelete }: {
   visible: boolean;
   task: Task;
   me: Person;
+  /** Whether this account may take a person off a task (the database lets only the two people delete). */
+  canRemove: boolean;
   onClose: () => void;
   /** `original` is the task as it was when the sheet opened, to diff against (see taskEditChanges). */
   onSave: (draft: TaskDraft, original: Task) => void;
@@ -56,11 +58,13 @@ export function TaskEditSheet({ visible, task, me, onClose, onSave, onDelete }: 
   ];
   const quickHit = quick.some((q) => q.date === draft.due);
   const groups: string[] = draft.group && !(TASK_GROUPS as readonly string[]).includes(draft.group) ? [draft.group, ...TASK_GROUPS] : [...TASK_GROUPS];
-  const whoChoices: { value: Who; label: string }[] = [
+  // An account that may not remove people only sees the choices that keep everyone already on it.
+  const keepsEveryone = (who: Who) => original.assignments.every((a) => assigneesFor(who, me).includes(a.person));
+  const whoChoices = ([
     { value: 'me', label: 'Me' },
     { value: 'other', label: NAME[other] },
     { value: 'both', label: 'Each of us' },
-  ];
+  ] as { value: Who; label: string }[]).filter((w) => canRemove || w.value === draft.who || keepsEveryone(w.value));
   // Honest about what Save does to a part that already exists: taking a person off removes it.
   const after = assigneesFor(draft.who, me);
   const removed = original.assignments.map((a) => a.person).filter((p) => !after.includes(p));
@@ -109,6 +113,7 @@ export function TaskEditSheet({ visible, task, me, onClose, onSave, onDelete }: 
               ))}
             </View>
             <Text style={s.hint}>
+              {!canRemove ? 'This account can add people to a task but not take them off. ' : ''}
               {removing ? `Saving takes ${removing === 'you' ? 'you' : removing} off this task, with ${removing === 'you' ? 'your' : 'their'} steps. Undo puts it back.` : 'Each of us: you both get the task and tick it off separately.'}
             </Text>
 

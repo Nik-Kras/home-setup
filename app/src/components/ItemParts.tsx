@@ -126,7 +126,7 @@ const s = StyleSheet.create({
   stepTextCurrent: { color: colors.text },
   stepTextTransit: { color: colors.amber },
   stepTextCurrentDone: { color: colors.mint },
-  optional: { fontFamily: fonts.regular, fontSize: 12, lineHeight: 14, color: colors.textMuted, textAlign: 'center', marginTop: -4 },
+  optional: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 15, color: colors.textMuted, textAlign: 'center', marginTop: -4 },
   note: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 19, color: colors.textSecondary, textAlign: 'center', marginTop: -4 },
   primary: { height: 52, borderRadius: 26, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
   primaryPressed: { opacity: 0.85 },

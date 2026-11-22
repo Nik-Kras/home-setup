@@ -85,6 +85,11 @@ export function memberIdentity(row: { key: string; is_person: boolean } | null):
   return person ? { identity: 'known', me: row.key as 'nikita' | 'daryna', canDelete: true } : { identity: 'standIn', canDelete: false };
 }
 
+/** The status while an edit is being sent: offline stays offline until a send works (no "Sending" flicker). */
+export function statusWhileSending(status: SyncStatus): SyncStatus {
+  return status === 'offline' || status === 'demo' ? status : 'pending';
+}
+
 /**
  * The small pill in the screen headers: only when something is off. Hidden for demo data, when
  * synced, and while a first load runs with nothing waiting. "Sending" is shown only once it has

@@ -212,6 +212,21 @@ export function canJumpToGot(item: Pick<Item, 'status' | 'needsInstall'>): boole
   return (item.status === 'needed' || item.status === 'looking') && nextStatus(item) !== 'delivered';
 }
 
+/**
+ * The Next-up card's main button. With no person filter, an item that is the other person's is not
+ * pushed on me: the button says "For Daryna" and opens the item. Otherwise it moves one stage on
+ * (see nextActionLabel); `jump` says whether the labelled "Got it" shortcut is offered too.
+ */
+export function nextUpAction(item: Item, filter: Person | null, me: Person): { kind: 'open'; label: string } | { kind: 'advance'; label: string; jump: boolean } {
+  if (!filter && item.assignedTo && item.assignedTo !== me) return { kind: 'open', label: `For ${actorName(item.assignedTo)}` };
+  return { kind: 'advance', label: nextActionLabel(item) ?? 'Open', jump: canJumpToGot(item) };
+}
+
+/** A row's own small "Got it" (the shop case): only on my or unclaimed items still Needed or Looking. */
+export function rowGotIt(item: Item, me: Person): boolean {
+  return canJumpToGot(item) && (item.assignedTo === undefined || item.assignedTo === me);
+}
+
 /** Stages at which money has usually changed hands: ordered online, or got in a shop. */
 const PAID_STAGES: readonly ItemStatus[] = ['ordered', 'delivered', 'installed'];
 

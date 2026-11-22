@@ -15,7 +15,8 @@ name: 04 offline queue
     visible: "Mark looking"
     timeout: 5000
 - tapOn: "Mark looking"
-- assertVisible: "Looking, step 2 of 4"
+- assertVisible: "Looking, step 2 of 5"
+# The Needs installing and Urgent switches sit right under the stages.
 - scrollUntilVisible:
     element: "Needs installing"
     centerElement: true

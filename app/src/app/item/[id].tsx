@@ -32,7 +32,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, rooms, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
+  const { items, rooms, pending, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   /** Set by Delete, so the screen sliding away shows nothing rather than "Item not found". */
@@ -42,8 +42,9 @@ export default function ItemDetail() {
   const state = useDetailState(item !== undefined);
   // The real history from the activity log when it can be read; reloads only when the item really
   // changes (a periodic refresh hands over new but equal objects).
-  const rows = useItemActivity(id, item ? JSON.stringify(item) : '');
-  const history = useMemo(() => (rows ? itemActivity(rows, Date.now()) : null), [rows]);
+  const rows = useItemActivity(id, item ? JSON.stringify(item) : '', pending === 0);
+  // While my edits wait in the queue the log cannot have them yet: show the plain line instead.
+  const history = useMemo(() => (rows && pending === 0 ? itemActivity(rows, Date.now()) : null), [rows, pending]);
 
   const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 

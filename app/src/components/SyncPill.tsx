@@ -9,7 +9,8 @@ const SENDING_DELAY_MS = 1_500;
 
 /**
  * A small pill in the tab screens' headers, only when something is off: "Offline · 3 unsent" or
- * "Sending 2". Hidden when synced. Tapping it tries to send now. Amber only while edits wait (to
+ * "Sending 2". Hidden when synced, its slot kept. Offline it stays put while edits are made (the store
+ * keeps "offline" until a send works). Tapping it tries to send now. Amber only while edits wait (to
  * confirm), never for a plain "Offline".
  */
 export function SyncPill() {
@@ -23,7 +24,9 @@ export function SyncPill() {
     const timer = setTimeout(() => setLate(true), SENDING_DELAY_MS);
     return () => clearTimeout(timer);
   }, [sending]);
-  if (!pill || (pill.sending && !late)) return null;
+  // The slot keeps its height whether or not the pill shows, so the list below never jumps.
+  if (sync === 'demo') return null;
+  if (!pill || (pill.sending && !late)) return <View style={s.slot} />;
   const amber = pill.tone === 'amber';
   return (
     <Pressable onPress={retry} accessibilityRole="button" accessibilityLabel={`Sync, ${pill.label}`} accessibilityHint="Tries to send now" hitSlop={8} style={({ pressed }) => [s.hit, pressed && { opacity: 0.7 }]}>
@@ -36,7 +39,8 @@ export function SyncPill() {
 }
 
 const s = StyleSheet.create({
-  hit: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center', marginTop: 6, minWidth: TARGET },
+  slot: { height: 32, marginTop: 4 },
+  hit: { alignSelf: 'flex-start', height: 32, justifyContent: 'center', marginTop: 4, minWidth: TARGET },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 26, paddingHorizontal: 10, borderRadius: 13, backgroundColor: colors.neutralFill },
   pillAmber: { backgroundColor: colors.amberFill },
   dot: { width: 7, height: 7, borderRadius: 4 },

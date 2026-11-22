@@ -12,9 +12,9 @@ import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
 import { NAME } from '../../components/TaskRow';
 import { Card, Icon, IconTile, itemGlyph, PersonDot, SectionHeading, Sub, Title, UrgentBadge } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { canJumpToGot, counts, guessRoom, isItemDone, leftByRoom, needsPrice, nextActionLabel, nextUpFor } from '../../domain/items';
+import { counts, guessRoom, isItemDone, leftByRoom, needsPrice, nextUpAction, nextUpFor, rowGotIt } from '../../domain/items';
 import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
-import type { Item } from '../../domain/types';
+import type { Item, Person } from '../../domain/types';
 import { colors, fonts, glow, radius, TARGET } from '../../theme/tokens';
 
 const today = () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -78,12 +78,15 @@ function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
 /**
  * Memoised: `item` keeps its identity until it changes and the callbacks are stable, so 300 rows stay
  * cheap. Compact as in the design: name and one meta line. Tile and name open the item; the status
- * chip (every stage, forwards or backwards) and the "Add price" pill on an ordered or got item with
- * no paid price are the only things that change anything here.
+ * chip (every stage, forwards or backwards) and one small pill change things here: "Got it" (straight
+ * to Delivered) on my or an unclaimed item still Needed or Looking, or "Add price" on an ordered or got
+ * item with no paid price.
  */
-const ItemRow = memo(function ItemRow({ item, onStatus, onPrice }: { item: Item; onStatus: (id: string) => void; onPrice: (id: string) => void }) {
+const ItemRow = memo(function ItemRow({ item, me, onStatus, onPrice, onGot }: { item: Item; me: Person; onStatus: (id: string) => void; onPrice: (id: string) => void; onGot: (id: string) => void }) {
   const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
   const price = needsPrice(item);
+  const got = rowGotIt(item, me);
+  const pill = price ? { label: 'Add price', action: 'addPrice', run: () => onPrice(item.id) } : got ? { label: 'Got it', action: 'gotIt', run: () => onGot(item.id) } : null;
   return (
     <View style={s.row}>
       {/* Same target as the name; hidden from screen readers so the row is not announced twice. */}
@@ -95,18 +98,19 @@ const ItemRow = memo(function ItemRow({ item, onStatus, onPrice }: { item: Item;
         accessibilityRole="button"
         accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta, price ? 'no price yet' : null].filter(Boolean).join(', ')}
         accessibilityHint="Opens details"
-        // Screen readers reach "Add price" as an action on the row (the pill sits inside it).
-        accessibilityActions={price ? [{ name: 'addPrice', label: 'Add price' }] : undefined}
-        onAccessibilityAction={(e) => e.nativeEvent.actionName === 'addPrice' && onPrice(item.id)}
+        // Screen readers reach the pill as an action on the row (it sits inside it).
+        accessibilityActions={pill ? [{ name: pill.action, label: pill.label === 'Got it' ? 'Got it, straight to Delivered' : pill.label }] : undefined}
+        onAccessibilityAction={(e) => pill && e.nativeEvent.actionName === pill.action && pill.run()}
         style={s.rowMid}
       >
         <View style={s.nameLine}><Text style={s.name} numberOfLines={1}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
           {item.assignedTo ? <PersonDot person={item.assignedTo} /> : null}
-          {price ? <Text style={s.metaOne} numberOfLines={1}>{meta}</Text> : item.urgent ? <UrgentMeta key={meta} meta={meta} /> : <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>}
-          {price ? (
-            <Pressable onPress={() => onPrice(item.id)} hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }} importantForAccessibility="no" style={({ pressed }) => [s.pricePill, pressed && { opacity: 0.7 }]}>
-              <Text style={s.pricePillText}>Add price</Text>
+          {pill ? <Text style={s.metaOne} numberOfLines={1}>{meta}</Text> : item.urgent ? <UrgentMeta key={meta} meta={meta} /> : <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>}
+          {pill ? (
+            // 24 high plus 10 above and below: a 44dp target in the compact row.
+            <Pressable onPress={pill.run} hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }} importantForAccessibility="no" style={({ pressed }) => [s.rowPill, pressed && { opacity: 0.7 }]}>
+              <Text style={s.rowPillText}>{pill.label}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -147,6 +151,8 @@ export default function Buy() {
   const { done, left, total } = useMemo(() => counts(items), [items]);
   // Next up follows the person filter; with no filter it prefers what is mine or not claimed yet.
   const next = useMemo(() => nextUpFor(items, person, me), [items, person, me]);
+  const nextAction = next ? nextUpAction(next, person, me) : null;
+  const gotIt = useCallback((id: string) => setItemStatus(id, 'delivered'), [setItemStatus]);
   // The filter narrows Next up, the room list and the "Got it" list; the ring stays for the whole flat.
   const sections = useMemo<BuySection[]>(() => {
     const shown = itemsForPerson(items, person);
@@ -176,7 +182,7 @@ export default function Buy() {
       keyExtractor={(i) => i.id}
       ListHeaderComponent={
         <View style={s.listHeader}>
-          {next ? (
+          {next && nextAction ? (
             <Card style={s.next}>
               <Ring done={done} total={total} />
               <View style={{ flex: 1 }}>
@@ -186,16 +192,25 @@ export default function Buy() {
                 <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null, next.assignedTo === undefined ? 'Not claimed yet' : next.assignedTo !== me ? `For ${NAME[next.assignedTo]}` : null].filter(Boolean).join(' · ')}</Text>
               </View>
               <View style={s.nextActions}>
-                {/* One stage at a time, never straight to the end: "Mark looking", "Mark ordered", "Got it", "Mark installed". */}
-                <Pressable onPress={() => advanceItem(next.id)} accessibilityRole="button" accessibilityLabel={`${nextActionLabel(next)}: ${next.name}`} style={s.gotBtn}>
-                  <Text style={s.gotText}>{nextActionLabel(next)}</Text>
-                </Pressable>
-                {/* The shop case, clearly labelled: bought on the spot, straight to Delivered (Undo puts it back). */}
-                {canJumpToGot(next) ? (
-                  <Pressable onPress={() => setItemStatus(next.id, 'delivered')} accessibilityRole="button" accessibilityLabel={`Got it, straight to Delivered: ${next.name}`} hitSlop={{ top: 4, bottom: 4 }} style={({ pressed }) => [s.jumpBtn, pressed && { opacity: 0.7 }]}>
-                    <Text style={s.jumpText}>Got it</Text>
+                {nextAction.kind === 'open' ? (
+                  // The other person's item (no filter on): not pushed on me as a step; opens it instead.
+                  <Pressable onPress={() => router.push(`/item/${next.id}`)} accessibilityRole="button" accessibilityLabel={`${nextAction.label}, open ${next.name}`} style={({ pressed }) => [s.jumpBtn, s.openBtn, pressed && { opacity: 0.7 }]}>
+                    <Text style={s.jumpText}>{nextAction.label}</Text>
                   </Pressable>
-                ) : null}
+                ) : (
+                  <>
+                    {/* One stage at a time, never straight to the end: "Mark looking", "Mark ordered", "Got it", "Mark installed". */}
+                    <Pressable onPress={() => advanceItem(next.id)} accessibilityRole="button" accessibilityLabel={`${nextAction.label}: ${next.name}`} style={s.gotBtn}>
+                      <Text style={s.gotText}>{nextAction.label}</Text>
+                    </Pressable>
+                    {/* The shop case, clearly labelled: bought on the spot, straight to Delivered (Undo puts it back). */}
+                    {nextAction.jump ? (
+                      <Pressable onPress={() => setItemStatus(next.id, 'delivered')} accessibilityRole="button" accessibilityLabel={`Got it (straight to Delivered): ${next.name}`} hitSlop={{ top: 4, bottom: 4 }} style={({ pressed }) => [s.jumpBtn, pressed && { opacity: 0.7 }]}>
+                        <Text style={s.jumpText}>Got it</Text>
+                      </Pressable>
+                    ) : null}
+                  </>
+                )}
               </View>
             </Card>
           ) : null}
@@ -215,7 +230,7 @@ export default function Buy() {
       ) : (
         <View style={s.sectionBelow}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>
       )}
-      renderItem={({ item }) => <ItemRow item={item} onStatus={setStatusFor} onPrice={setPriceFor} />}
+      renderItem={({ item }) => <ItemRow item={item} me={me} onStatus={setStatusFor} onPrice={setPriceFor} onGot={gotIt} />}
     />
   );
 }
@@ -235,6 +250,7 @@ const s = StyleSheet.create({
   gotBtn: { flexShrink: 0, minHeight: TARGET, paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   jumpBtn: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
   jumpText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.text },
+  openBtn: { minHeight: TARGET, borderRadius: 22 },
   gotText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
   ringLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ringNum: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },
@@ -251,8 +267,8 @@ const s = StyleSheet.create({
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   metaOne: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary, flexShrink: 1 },
   urgentWord: { color: colors.coral },
-  pricePill: { minHeight: 22, paddingHorizontal: 8, borderRadius: 11, borderWidth: 1, borderColor: 'rgba(94,224,184,0.5)', justifyContent: 'center', flexShrink: 0 },
-  pricePillText: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, color: colors.mint },
+  rowPill: { height: 24, minWidth: TARGET, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(94,224,184,0.5)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  rowPillText: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.mint },
   emptyFilter: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
   doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4, marginTop: 8 },
   doneText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },

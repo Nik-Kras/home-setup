@@ -5,7 +5,7 @@ import { diffToOps } from './diff';
 import type { Op } from './queue';
 import { reducer, type Action, type State } from './reducer';
 import { makeExecutor, ops } from './repo';
-import { applyUndo, DELETE_SNACK_MS, offerSnack, SNACK_MS, undoEntryFor, type UndoEntry } from './undo';
+import { applyUndo, DELETE_SNACK_MS, offerSnack, removalNotice, SNACK_MS, undoEntryFor, type UndoEntry } from './undo';
 
 const rooms = new Map<string, string>();
 const kettle: Item = { id: 'i1', name: 'Kettle', status: 'ordered', quantity: 1, urgent: false, needsInstall: false, addedAt: '2026-11-21T10:00:00Z', updatedBy: 'claude' };
@@ -78,7 +78,8 @@ describe('task edit: fields and who it is for', () => {
   it('taking someone off removes only their part; the other person\'s status and steps stay', () => {
     const { next, out } = edit(start, { type: 'updateTask', id: 't2', patch: {}, assignees: ['daryna'] });
     expect(task(next, 't2').assignments).toEqual([shared.assignments[1]]);
-    expect(out).toEqual([{ id: expect.any(String), kind: 'delete', table: 'task_assignments', match: { task_id: 't2', person: 'nikita' }, row: {} }]);
+    // Conditional on the status this phone saw, and reported when it removed nothing.
+    expect(out).toEqual([{ id: expect.any(String), kind: 'delete', table: 'task_assignments', match: { task_id: 't2', person: 'nikita', status: 'in_progress' }, row: {}, reportMiss: true }]);
   });
 
   it('never leaves a task with nobody, and the same people change nothing', () => {
@@ -128,6 +129,64 @@ describe('task edit Undo', () => {
     const kept = applyUndo(started, entry, rooms);
     expect(kept.outcome).toBe('none');
     expect(people(task(kept.state, 't1'))).toEqual(['nikita', 'daryna']);
+  });
+});
+
+describe('Undo of who a task is for restores exactly the people it had', () => {
+  const hers: Task = { id: 't3', title: 'Call the bank', urgent: false, updatedBy: 'claude', assignments: [{ person: 'daryna', status: 'done', steps: [] }] };
+  const base: State = { ...start, tasks: [solo, shared, hers] };
+  const parts = (t: Task) => t.assignments.map((a) => [a.person, a.status]);
+
+  it('Me -> Daryna -> Undo: back to me alone, as it was, not shared', () => {
+    const { next, entry } = edit(base, { type: 'updateTask', id: 't1', patch: {}, assignees: ['daryna'] });
+    expect(parts(task(next, 't1'))).toEqual([['daryna', 'todo']]);
+    const undone = applyUndo(next, entry, rooms);
+    expect(undone.outcome).toBe('done');
+    expect(task(undone.state, 't1').assignments).toEqual(solo.assignments);
+    expect(undone.ops.map((o) => [o.kind, o.table, o.kind === 'upsert' ? o.row : o.match])).toEqual([
+      ['upsert', 'task_assignments', { task_id: 't1', person: 'nikita', status: 'todo' }],
+      ['delete', 'task_assignments', { task_id: 't1', person: 'daryna', status: 'todo' }],
+    ]);
+  });
+
+  it('both -> Me -> Undo: Daryna comes back with her status and steps, insert-only', () => {
+    const { next, entry } = edit(base, { type: 'updateTask', id: 't2', patch: {}, assignees: ['nikita'] });
+    const undone = applyUndo(next, entry, rooms);
+    expect(undone.outcome).toBe('done');
+    expect(task(undone.state, 't2').assignments).toEqual(shared.assignments);
+    expect(undone.ops.every((o) => o.kind === 'upsert' && o.ignoreDuplicates)).toBe(true);
+  });
+
+  it('Daryna -> both -> Undo: I go again and her finished part is untouched', () => {
+    const { next, entry } = edit(base, { type: 'updateTask', id: 't3', patch: {}, assignees: ['daryna', 'nikita'] });
+    const undone = applyUndo(next, entry, rooms);
+    expect(undone.outcome).toBe('done');
+    expect(task(undone.state, 't3').assignments).toEqual(hers.assignments);
+    expect(undone.ops).toEqual([expect.objectContaining({ kind: 'delete', match: { task_id: 't3', person: 'nikita', status: 'todo' }, reportMiss: true })]);
+  });
+
+  it('leaves who it is for alone when someone changed it since', () => {
+    const { next, entry } = edit(base, { type: 'updateTask', id: 't1', patch: {}, assignees: ['daryna'] });
+    const readded: State = { ...next, tasks: next.tasks.map((t) => (t.id === 't1' ? { ...t, assignments: [...t.assignments, { person: 'nikita' as const, status: 'done' as const, steps: [] }] } : t)) };
+    const undone = applyUndo(readded, entry, rooms);
+    expect(undone.outcome).toBe('none');
+    expect(undone.ops).toEqual([]);
+  });
+
+  it('keeps a person added by the edit who has started their part since (partial), never leaving nobody', () => {
+    const { next, entry } = edit(base, { type: 'updateTask', id: 't1', patch: {}, assignees: ['daryna'] });
+    const started: State = { ...next, tasks: next.tasks.map((t) => (t.id === 't1' ? { ...t, assignments: [{ person: 'daryna' as const, status: 'in_progress' as const, steps: [] }] } : t)) };
+    const undone = applyUndo(started, entry, rooms);
+    expect(undone.outcome).toBe('partial');
+    expect(parts(task(undone.state, 't1'))).toEqual([['nikita', 'todo'], ['daryna', 'in_progress']]);
+  });
+});
+
+describe('a removal that did not happen on the server', () => {
+  it('names the person and the task; other ops get no notice', () => {
+    const op = ops.removeAssignment('t2', 'daryna', { status: 'done' });
+    expect(removalNotice(op, start.tasks)).toBe('Could not remove Daryna from Register with a GP');
+    expect(removalNotice(ops.patchTask('t2', { title: 'x' }), start.tasks)).toBeUndefined();
   });
 });
 

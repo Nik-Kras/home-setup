@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detailState, identityFor, memberIdentity, syncPill, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
+import { detailState, identityFor, memberIdentity, statusWhileSending, syncPill, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
 
 describe('syncView', () => {
   it('says Synced in mint when the queue is empty', () => {
@@ -102,5 +102,14 @@ describe('syncPill', () => {
     expect(syncPill('offline', 3)).toEqual({ label: 'Offline · 3 unsent', tone: 'amber', sending: false });
     expect(syncPill('offline', 0)).toEqual({ label: 'Offline', tone: 'neutral', sending: false });
     expect(syncPill('pending', 2)).toEqual({ label: 'Sending 2', tone: 'amber', sending: true });
+  });
+});
+
+describe('statusWhileSending', () => {
+  it('an edit made offline keeps the pill on Offline instead of flipping to Sending', () => {
+    expect(statusWhileSending('offline')).toBe('offline');
+    expect(statusWhileSending('synced')).toBe('pending');
+    expect(statusWhileSending('pending')).toBe('pending');
+    expect(syncPill(statusWhileSending('offline'), 4)).toEqual({ label: 'Offline · 4 unsent', tone: 'amber', sending: false });
   });
 });

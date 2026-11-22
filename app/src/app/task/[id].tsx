@@ -63,7 +63,7 @@ function TaskHeader({ onEdit }: { onEdit?: () => void }) {
 }
 
 function TaskDetails({ task, onDelete }: { task: Task; onDelete: () => void }) {
-  const { me, updateTask, setTaskStatus, toggleStep, addStep } = useStore();
+  const { me, canDeletePhotos, updateTask, setTaskStatus, toggleStep, addStep } = useStore();
   const [editing, setEditing] = useState(false);
   const saveEdit = (draft: TaskDraft, original: Task) => {
     const { patch, assignees } = taskEditChanges(original, draft, me);
@@ -197,7 +197,7 @@ function TaskDetails({ task, onDelete }: { task: Task; onDelete: () => void }) {
         </View>
       ) : null}
 
-      <TaskEditSheet visible={editing} task={task} me={me} onClose={() => setEditing(false)} onSave={saveEdit} onDelete={onDelete} />
+      <TaskEditSheet visible={editing} task={task} me={me} canRemove={canDeletePhotos} onClose={() => setEditing(false)} onSave={saveEdit} onDelete={onDelete} />
 
       {editor ? (
         <Sheet visible title={EDITOR_TITLE[editor]} onClose={close}>

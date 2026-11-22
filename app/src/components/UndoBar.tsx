@@ -36,7 +36,7 @@ function useKeyboardHeight() {
  * footer on a task, and above the keyboard when one is open.
  */
 export function UndoBar() {
-  const { snack, undo, dismissSnack, pricePrompt, closePricePrompt, items } = useStore();
+  const { snack, undo, dismissSnack, pricePrompt, pricePromptKey, closePricePrompt, items } = useStore();
   const segments = useSegments() as string[];
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
@@ -71,7 +71,7 @@ export function UndoBar() {
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <View pointerEvents="box-none" style={[s.stack, { bottom }]}>
-        {ask ? <PricePrompt key={ask.id} item={ask} onDone={closePricePrompt} /> : null}
+        {ask ? <PricePrompt key={`${ask.id}:${pricePromptKey}`} item={ask} onDone={closePricePrompt} /> : null}
         {snack ? (
           <View style={s.snack}>
             <Text style={s.snackText} numberOfLines={2}>{snack.message}</Text>

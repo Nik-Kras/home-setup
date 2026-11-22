@@ -2,7 +2,7 @@ import { isAuthRetryableFetchError } from '@supabase/supabase-js';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AppState } from 'react-native';
 import type { DisplayPhoto } from '../domain/photos';
-import { identityFor, memberIdentity, type Identity, type SyncStatus } from '../domain/sync';
+import { identityFor, memberIdentity, statusWhileSending, type Identity, type SyncStatus } from '../domain/sync';
 import type { Item, ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { asksForPrice } from '../domain/items';
 import { diffToOps } from './diff';
@@ -10,12 +10,12 @@ import { newId } from './mappers';
 import type { Op } from './queue';
 import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
 import { loadAll, ops, subscribe } from './repo';
-import { afterUndoSnack, applyUndo, offerSnack, popUndo, pushUndo, undoEntryFor, type Snack, type UndoEntry } from './undo';
+import { afterUndoSnack, applyUndo, noticeSnack, offerSnack, popUndo, pushUndo, removalNotice, undoEntryFor, type Snack, type UndoEntry } from './undo';
 import { seedItems, seedNotes, seedRooms, seedTasks } from './seed';
 import { claimDevice } from './accountScope';
 import type { PhotoSource } from './photoFiles';
 import { db, kv } from './supabase';
-import { missListeners, syncQueue } from './syncQueue';
+import { dropListeners, missListeners, syncQueue } from './syncQueue';
 import { useItemPhotos } from './useItemPhotos';
 import { trySignOut } from './signOut';
 import { resetIosWidget, useIosWidgetSync } from './iosWidgetSync';
@@ -76,8 +76,10 @@ interface Store extends State {
   undo: () => void;
   /** Hide the snackbar if it still shows `key` (its timer ran out). */
   dismissSnack: (key: string) => void;
-  /** The item that has just arrived, for the optional "Paid?" prompt; null when none. */
+  /** The item that has just been ordered or arrived, for the optional "Paid?" prompt; null when none. */
   pricePrompt: string | null;
+  /** Changes each time the prompt is offered, so a second stage change (Ordered, then Delivered) restarts its timer. */
+  pricePromptKey: number;
   closePricePrompt: () => void;
 }
 
@@ -133,6 +135,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const lastUndo = useRef<{ key: string; ids: Set<string>; missed: number } | null>(null);
   const [snack, setSnack] = useState<Snack | null>(null);
   const [pricePrompt, setPricePrompt] = useState<string | null>(null);
+  const [pricePromptKey, setPricePromptKey] = useState(0);
 
   const set = useCallback((next: State) => {
     ref.current = next;
@@ -311,7 +314,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const list = typeof out === 'function' ? await out(q) : out;
         if (list.length > 0) {
           await q.enqueueAll(list);
-          setSync('pending');
+          // Offline stays offline until a send works, so the header pill does not flip to "Sending".
+          setSync(statusWhileSending);
           await countPending();
           await q.flush();
         }
@@ -340,11 +344,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (action.type === 'advanceItem' || action.type === 'setItemStatus') {
         const before = prev.items.find((i) => i.id === action.id);
         const after = next.items.find((i) => i.id === action.id);
-        if (before && after && asksForPrice(before, after)) setPricePrompt(after.id);
+        if (before && after && asksForPrice(before, after)) {
+          setPricePrompt(after.id);
+          setPricePromptKey((k) => k + 1);
+        }
       }
     },
     [commit],
   );
+
+  // Taking a person off a task did not happen on the server (their part changed since, they were the
+  // last person, or this account may not delete): say so, and load again so the screen shows them.
+  useEffect(() => {
+    const listener = (op: Op) => {
+      if (lastUndo.current?.ids.has(op.id)) return; // an Undo's own op: its snackbar says how it went
+      const message = removalNotice(op, ref.current.tasks);
+      if (!message) return;
+      setSnack(noticeSnack(message, newId()));
+      void refresh();
+    };
+    missListeners.add(listener);
+    dropListeners.add(listener);
+    return () => {
+      missListeners.delete(listener);
+      dropListeners.delete(listener);
+    };
+  }, [refresh]);
 
   // An Undo patch matched no row: the other person changed that field first, and theirs stayed.
   // Say so on the snackbar if it is still up, and load again so the screen shows their value.
@@ -416,6 +441,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...state,
       snack,
       pricePrompt,
+      pricePromptKey,
       rooms,
       auth,
       sync,
@@ -463,7 +489,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       ...actions,
     }),
-    [state, snack, pricePrompt, rooms, auth, sync, pending, identity, widgetReady, actions, account, photos, canDeletePhotos, addPhoto, deletePhoto, retryPhoto, refresh, countPending, lookupMember, flushPhotos, unsentPhotos],
+    [state, snack, pricePrompt, pricePromptKey, rooms, auth, sync, pending, identity, widgetReady, actions, account, photos, canDeletePhotos, addPhoto, deletePhoto, retryPhoto, refresh, countPending, lookupMember, flushPhotos, unsentPhotos],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

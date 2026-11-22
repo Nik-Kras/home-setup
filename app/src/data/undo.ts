@@ -275,32 +275,35 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
     out.push(ops.patchIf('tasks', { id: before.id, [col]: nowRow[col] as string | boolean | null }, { [col]: wasRow[col] }));
   }
 
-  // A person this edit took off comes back with their part as it was, unless someone added them since.
-  const restored = before.assignments.filter((was) => !after.assignments.some((a) => a.person === was.person));
+  // Who it is for goes back to exactly the people it had, but only while it is still for exactly the
+  // people this edit left (otherwise someone changed it since, and theirs stays). People taken off come
+  // back with their part as it was (insert-only, so a part that exists is never overwritten); people
+  // added go again unless they have started their part since (the delete is conditional on that too).
+  const people = (list: readonly { person: Person }[]) => list.map((a) => a.person).sort().join(',');
   const back: typeof cur.assignments = [];
-  for (const was of restored) {
-    if (cur.assignments.some((a) => a.person === was.person)) {
-      skipped++;
-      continue;
-    }
-    back.push(was);
-    out.push(ops.addAssignment(before.id, was.person, was.status));
-    was.steps.forEach((step, i) => out.push(ops.saveStep(before.id, was.person, step, i, true)));
-    reverted++;
-  }
-  // A person this edit added goes again, unless they have started their part since.
-  const added = after.assignments.filter((a) => !before.assignments.some((was) => was.person === a.person)).map((a) => a.person);
   const drop = new Set<Person>();
-  for (const person of added) {
-    const now = cur.assignments.find((a) => a.person === person);
-    if (!now) continue;
-    if (now.status !== 'todo' || now.steps.length > 0 || cur.assignments.length === 1) {
-      skipped++;
-      continue;
+  if (people(before.assignments) !== people(after.assignments)) {
+    if (people(cur.assignments) !== people(after.assignments)) skipped++;
+    else {
+      for (const was of before.assignments) {
+        if (after.assignments.some((a) => a.person === was.person)) continue;
+        back.push(was);
+        out.push(ops.addAssignment(before.id, was.person, was.status));
+        was.steps.forEach((step, i) => out.push(ops.saveStep(before.id, was.person, step, i, true)));
+        reverted++;
+      }
+      for (const a of after.assignments) {
+        if (before.assignments.some((was) => was.person === a.person)) continue;
+        const now = cur.assignments.find((x) => x.person === a.person)!;
+        if (now.status !== 'todo' || now.steps.length > 0) {
+          skipped++;
+          continue;
+        }
+        drop.add(a.person);
+        out.push(ops.removeAssignment(before.id, a.person, { status: 'todo' }));
+        reverted++;
+      }
     }
-    drop.add(person);
-    out.push(ops.removeAssignment(before.id, person, { status: 'todo' }));
-    reverted++;
   }
 
   const assignments = cur.assignments.filter((a) => !drop.has(a.person)).map((curA) => {
@@ -339,6 +342,23 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
   });
   const tasks = current.tasks.map((t) => (t === cur ? { ...cur, ...fieldPatch, assignments: merged, updatedBy: me } : t));
   return { state: { ...current, tasks }, ops: out, outcome: skipped > 0 ? 'partial' : 'done' };
+}
+
+/**
+ * The notice when taking a person off a task did not happen on the server: their part changed since,
+ * it was the last person on the task, or this account may not remove people. Undefined for any other op.
+ */
+export function removalNotice(op: Op, tasks: readonly Task[]): string | undefined {
+  if (op.kind !== 'delete' || op.table !== 'task_assignments') return undefined;
+  const person = op.match.person;
+  const name = person === 'nikita' || person === 'daryna' ? PERSON[person] : 'That person';
+  const title = tasks.find((t) => t.id === op.match.task_id)?.title;
+  return `Could not remove ${name}${title ? ` from ${title}` : ''}`;
+}
+
+/** A plain notice on the snackbar (no Undo), such as a removal that did not happen. */
+export function noticeSnack(message: string, key: string): Snack {
+  return { key, message, spoken: `${message}.`, canUndo: false, ms: DELETE_SNACK_MS };
 }
 
 /* ---------- The stack ---------- */
