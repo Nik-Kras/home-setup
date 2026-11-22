@@ -108,7 +108,7 @@ function AddStepInput({ onAdd, compact }: { onAdd: StepActions['add']; compact: 
         placeholderTextColor={colors.textMuted}
         accessibilityLabel="New step"
         returnKeyType="done"
-        style={s.stepInput}
+        style={[s.stepInput, compact && s.stepInputCompact]}
       />
       <Pressable
         accessibilityRole="button"
@@ -116,6 +116,7 @@ function AddStepInput({ onAdd, compact }: { onAdd: StepActions['add']; compact: 
         accessibilityState={{ disabled }}
         disabled={disabled}
         onPress={submit}
+        hitSlop={4}
         style={({ pressed }) => [s.addButton, pressed && s.pressed]}
       >
         <Icon name="plus" size={20} color={disabled ? colors.textMuted : colors.mint} stroke={2} />
@@ -208,7 +209,8 @@ const s = StyleSheet.create({
   chipTarget: { minWidth: TARGET, minHeight: TARGET, maxWidth: '100%', justifyContent: 'center' },
   pressed: { opacity: 0.72 },
   segments: { flexDirection: 'row', padding: 4, borderRadius: 26 },
-  segment: { flex: 1, minWidth: TARGET, minHeight: TARGET, justifyContent: 'center', alignItems: 'center', borderRadius: 22, padding: 4 },
+  // Sized by their labels (padding 12) and sharing what is left, so "In progress" is never squeezed.
+  segment: { flexGrow: 1, flexShrink: 1, minWidth: TARGET, minHeight: TARGET, justifyContent: 'center', alignItems: 'center', borderRadius: 22, paddingHorizontal: 12, paddingVertical: 4 },
   segmentText: { textAlign: 'center', fontFamily: fonts.medium, fontSize: 13, color: colors.textSecondary },
   checklistHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, paddingHorizontal: 16, paddingTop: 12 },
   heading: { fontFamily: fonts.serif, fontSize: 23, color: colors.text },
@@ -226,6 +228,8 @@ const s = StyleSheet.create({
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginHorizontal: 8, marginVertical: 4 },
   addRowCompact: { marginHorizontal: 0 },
   stepInput: { flex: 1, minHeight: TARGET, paddingHorizontal: 6, paddingVertical: 8, fontFamily: fonts.regular, fontSize: 14, color: colors.text },
+  // In a person's card the input starts at the card's content edge, like the name, track and steps.
+  stepInputCompact: { paddingLeft: 0 },
   addButton: { width: TARGET, minHeight: TARGET, alignItems: 'center', justifyContent: 'center' },
   assignment: { flex: 1, padding: 14 },
   mine: { borderColor: 'rgba(94,224,184,0.44)' },

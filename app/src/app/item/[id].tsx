@@ -3,7 +3,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityLine } from '../../components/ActivityLine';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
+import { ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetButton, SheetOption, TextSheet } from '../../components/Sheet';
 import { glyphFor, Icon } from '../../components/ui';
 import { useStore } from '../../data/store';
@@ -33,18 +35,12 @@ export default function ItemDetail() {
   const close = () => setSheet(null);
   const loading = auth === 'loading' || sync === 'pending';
 
-  const header = (
-    <View style={s.header}>
-      <Pressable onPress={back} accessibilityRole="button" accessibilityLabel="Back to list" style={s.back}>
-        <Icon name="back" size={24} color={colors.text} stroke={2} />
-      </Pressable>
-    </View>
-  );
+  const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 
   if (!item) {
     // On a cold start items are not loaded yet: show a neutral loading state, not "gone".
     return (
-      <View style={[s.root, { paddingTop: insets.top + 8 }]}>
+      <View style={s.root}>
         {header}
         {loading ? (
           <View style={s.loading} accessible accessibilityLabel="Loading item" accessibilityLiveRegion="polite">
@@ -71,7 +67,7 @@ export default function ItemDetail() {
   };
 
   return (
-    <View style={[s.root, { paddingTop: insets.top + 8 }]}>
+    <View style={s.root}>
       {header}
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
         <View style={s.titleBlock}>
@@ -89,15 +85,15 @@ export default function ItemDetail() {
         <StatusCard item={item} onSet={setStatus} onNext={() => setItemStatus(item.id, nextStatus(item))} />
 
         <FieldGroup>
-          <FieldRow first label="Assigned to" value={person(item.assignedTo)} muted={!item.assignedTo} dot={item.assignedTo && personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
-          <FieldRow label="Price" value={priceValue} muted={item.actualPrice === undefined} a11yValue={item.actualPrice === undefined ? (item.estPrice !== undefined ? `not paid yet, estimate ${formatMoney(item.estPrice)}` : 'not set') : undefined} onPress={() => setSheet('price')} />
-          <FieldRow label="Bought by" value={person(item.boughtBy)} muted={!item.boughtBy} dot={item.boughtBy && personColor[item.boughtBy]} onPress={() => setSheet('boughtBy')} />
+          <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone={item.assignedTo ? 'value' : 'empty'} dot={item.assignedTo && personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
+          <FieldRow label="Price" value={priceValue} tone={item.actualPrice !== undefined ? 'value' : item.estPrice !== undefined ? 'empty' : 'action'} a11yValue={item.actualPrice === undefined ? (item.estPrice !== undefined ? `not paid yet, estimate ${formatMoney(item.estPrice)}` : 'not set') : undefined} onPress={() => setSheet('price')} />
+          <FieldRow label="Bought by" value={person(item.boughtBy)} tone={item.boughtBy ? 'value' : 'empty'} dot={item.boughtBy && personColor[item.boughtBy]} onPress={() => setSheet('boughtBy')} />
           {link ? (
             <LinkRow onEdit={() => setSheet('link')} onOpen={() => void Linking.openURL(link).catch(() => undefined)} />
           ) : (
-            <FieldRow label="Product page" value={item.link ? 'Fix link' : 'Add'} muted onPress={() => setSheet('link')} />
+            <FieldRow label="Product page" value={item.link ? 'Fix link' : 'Add'} tone="action" onPress={() => setSheet('link')} />
           )}
-          <FieldRow label="Room" value={item.room ?? 'None'} muted={!item.room} onPress={() => setSheet('room')} />
+          <FieldRow label="Room" value={item.room ?? 'None'} tone={item.room ? 'value' : 'empty'} onPress={() => setSheet('room')} />
         </FieldGroup>
 
         <FieldGroup>
@@ -105,9 +101,9 @@ export default function ItemDetail() {
           <ToggleRow label="Needs installing" value={item.needsInstall} onChange={(needsInstall) => updateItem(item.id, { needsInstall })} />
         </FieldGroup>
 
-        <View style={s.footer}>
-          <Text style={s.footerText}>Added {shortDate(item.addedAt)}</Text>
-          <Text style={s.footerText}>Last change by {actorName(item.updatedBy)}</Text>
+        <View style={s.activity}>
+          <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
+          <ActivityLine actor={item.updatedBy} text="made the last change" />
         </View>
       </ScrollView>
 
@@ -178,8 +174,6 @@ export default function ItemDetail() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', paddingHorizontal: 8, paddingTop: 10 },
-  back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center' },
   loading: { paddingTop: 32, alignItems: 'center' },
   missing: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, paddingHorizontal: 20, paddingTop: 12 },
   content: { paddingHorizontal: 16, gap: 12 },
@@ -189,8 +183,7 @@ const s = StyleSheet.create({
   nameTarget: { minHeight: TARGET, justifyContent: 'center' },
   name: { fontFamily: fonts.serif, fontSize: 38, lineHeight: 42, letterSpacing: -0.5, color: colors.text },
   meta: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.textSecondary },
-  footer: { gap: 4, paddingHorizontal: 16, paddingTop: 2 },
-  footerText: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
+  activity: { gap: 8, paddingHorizontal: 16, paddingTop: 4 },
   roomList: { maxHeight: 360 },
   confirmText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.textSecondary, paddingHorizontal: 4, paddingBottom: 8 },
 });

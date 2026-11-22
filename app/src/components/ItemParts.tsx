@@ -29,8 +29,8 @@ export function StatusCard({ item, onSet, onNext }: { item: Item; onSet: (s: Ite
               {state === 'done' || (state === 'current' && tone === 'done') ? <Icon name="check" size={12} color={colors.onMint} stroke={3.5} /> : null}
               {state === 'current' && tone !== 'done' ? <View style={s.currentDot} /> : null}
             </View>
-            {/* Equal widths; at large font scale the label shrinks to fit rather than clipping or breaking a word. */}
-            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={[s.stepText, state === 'done' && s.stepTextDone, state === 'current' && cur.text]}>
+            {/* Equal widths; the label never shrinks below 13px and wraps to a second line instead (hyphenated on Android). */}
+            <Text numberOfLines={2} android_hyphenationFrequency="normal" style={[s.stepText, state === 'done' && s.stepTextDone, state === 'current' && cur.text]}>
               {ITEM_STATUS_LABEL[status]}
             </Text>
           </Pressable>
@@ -45,14 +45,18 @@ export function StatusCard({ item, onSet, onNext }: { item: Item; onSet: (s: Ite
   );
 }
 
-/** A tappable field row: key on the left, value and a chevron on the right. */
-export function FieldRow({ label, value, a11yValue, onPress, first, dot, muted }: { label: string; value: string; a11yValue?: string; onPress: () => void; first?: boolean; dot?: string; muted?: boolean }) {
+/**
+ * A tappable field row: key on the left, value and a chevron on the right. Tone sets the value's weight:
+ * a real value is bright and semibold, an empty one ("Nobody", an estimate) is secondary, and an
+ * invitation to fill it in ("Add") is mint like other actions.
+ */
+export function FieldRow({ label, value, a11yValue, onPress, first, dot, tone = 'value' }: { label: string; value: string; a11yValue?: string; onPress: () => void; first?: boolean; dot?: string; tone?: 'value' | 'empty' | 'action' }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}, ${a11yValue ?? value}`} accessibilityHint="Opens a sheet to change it" style={({ pressed }) => [s.row, !first && s.rowRule, pressed && s.pressed]}>
       <Text style={s.key}>{label}</Text>
       <View style={s.value}>
         {dot ? <View style={[s.dot, { backgroundColor: dot }]} /> : null}
-        <Text style={[s.valueText, muted && s.valueMuted]} numberOfLines={1}>{value}</Text>
+        <Text style={[s.valueText, tone === 'empty' && s.valueEmpty, tone === 'action' && s.valueAction]} numberOfLines={1}>{value}</Text>
         <Chevron />
       </View>
     </Pressable>
@@ -104,7 +108,8 @@ function Chevron() {
 const s = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, borderRadius: 24, padding: 16, gap: 14 },
   steps: { flexDirection: 'row', gap: 6 },
-  step: { flex: 1, minWidth: 0, minHeight: TARGET, alignItems: 'stretch', justifyContent: 'center', gap: 6 },
+  // Top-aligned so the bars stay level when one label wraps to two lines.
+  step: { flex: 1, minWidth: 0, minHeight: TARGET, alignItems: 'stretch', justifyContent: 'flex-start', gap: 6, paddingTop: 2 },
   bar: { alignSelf: 'stretch', height: 18, borderRadius: 9, backgroundColor: colors.track, alignItems: 'center', justifyContent: 'center' },
   barDone: { backgroundColor: colors.mint },
   barCurrent: { backgroundColor: colors.text },
@@ -125,8 +130,9 @@ const s = StyleSheet.create({
   key: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary },
   value: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  valueText: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
-  valueMuted: { fontFamily: fonts.regular, color: colors.textMuted },
+  valueText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
+  valueEmpty: { fontFamily: fonts.regular, color: colors.textSecondary },
+  valueAction: { fontFamily: fonts.medium, color: colors.mint },
   linkRow: { paddingLeft: 0, paddingRight: 0, gap: 0 },
   linkEdit: { flex: 1, alignSelf: 'stretch', justifyContent: 'center', paddingLeft: 16 },
   open: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'stretch', minWidth: TARGET, paddingLeft: 12, paddingRight: 14 },

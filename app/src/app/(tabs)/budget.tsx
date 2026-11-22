@@ -2,16 +2,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../../components/Screen';
 import { Card, PersonDisc, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { budget } from '../../domain/items';
+import { budgetView, gbp, type BudgetRoomRow } from '../../domain/budgetView';
 import { colors, fonts, personColor } from '../../theme/tokens';
 
-const gbp = (n: number) => `£${Math.round(n).toLocaleString('en-GB')}`;
-
-function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
+function RoomBar({ row }: { row: BudgetRoomRow }) {
   return (
-    <View style={{ gap: 6 }}>
-      <View style={s.barRow}><Text style={s.barLabel}>{label}</Text><Text style={s.barValue}>{gbp(value)}</Text></View>
-      <View style={s.track} accessible accessibilityLabel={`${label} ${gbp(value)}`}><View style={[s.fill, { width: `${max === 0 ? 0 : Math.max((value / max) * 100, 2)}%`, backgroundColor: color }]} /></View>
+    <View style={{ gap: 6 }} accessible accessibilityLabel={`${row.room}, ${row.label}`}>
+      <View style={s.barRow}><Text style={s.barLabel}>{row.room}</Text><Text style={s.barValue}>{row.label}</Text></View>
+      <View style={s.track}><View style={[s.fill, { width: `${row.fill * 100}%`, backgroundColor: colors.textSecondary }]} /></View>
     </View>
   );
 }
@@ -19,18 +17,14 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
 /** Everything here is derived from the prices entered on items; there is nothing to type on this screen. */
 export default function Budget() {
   const { items } = useStore();
-  const b = budget(items);
-  const people = (['nikita', 'daryna'] as const).map((p) => ({ p, v: b.byPerson[p] }));
-  const rooms = Object.entries(b.byRoom).sort((a, c) => c[1] - a[1]);
-  const maxRoom = Math.max(0, ...rooms.map(([, v]) => v));
-  const pct = b.estimatedTotal === 0 ? 0 : Math.round((b.spent / b.estimatedTotal) * 100);
+  const b = budgetView(items);
 
   return (
     <Screen header={<View><Title>Budget</Title><Sub>Worked out from the prices you enter</Sub></View>}>
       <Card style={s.hero}>
         <Text style={s.label}>Spent so far</Text>
         <Text style={s.big}>{gbp(b.spent)}<Text style={s.of}>  of {gbp(b.estimatedTotal)}</Text></Text>
-        <View style={s.track} accessible accessibilityLabel={`${pct} percent of the estimate spent`}><View style={[s.fill, { width: `${pct}%`, backgroundColor: colors.mint }]} /></View>
+        <View style={s.track} accessible accessibilityLabel={`${b.percent} percent of the estimate spent`}><View style={[s.fill, { width: `${b.percent}%`, backgroundColor: colors.mint }]} /></View>
       </Card>
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <Card style={{ flex: 1, gap: 2 }}><Text style={s.label}>Still to buy</Text><Text style={s.mid}>{gbp(b.toBuy)}</Text></Card>
@@ -38,17 +32,29 @@ export default function Budget() {
       </View>
       <Card style={{ gap: 12 }}>
         <Text style={s.label}>Who paid</Text>
-        <View style={s.split}>
-          {people.map(({ p, v }) => <View key={p} style={{ flex: Math.max(v, 1), backgroundColor: personColor[p], borderRadius: 7 }} />)}
+        {/* Only the neutral track until someone has paid, so an empty budget never looks split. */}
+        <View style={[s.split, b.split.length === 0 && s.splitEmpty]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {b.split.map(({ person, share }) => <View key={person} style={{ flex: share, backgroundColor: personColor[person], borderRadius: 7 }} />)}
         </View>
-        <View style={s.barRow}>
-          {people.map(({ p, v }) => <View key={p} style={s.legend}><PersonDisc person={p} size={18} /><Text style={s.barLabel}>{p === 'nikita' ? 'Nikita' : 'Daryna'} {gbp(v)}</Text></View>)}
-        </View>
+        {b.splitNote ? (
+          <Text style={s.note}>{b.splitNote}</Text>
+        ) : (
+          <View style={s.barRow}>
+            {(['nikita', 'daryna'] as const).map((p) => (
+              <View key={p} style={s.legend}>
+                <PersonDisc person={p} size={18} />
+                <Text style={s.barLabel}>{p === 'nikita' ? 'Nikita' : 'Daryna'} {gbp(b.byPerson[p])}</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Card>
-      <Card style={{ gap: 12 }}>
-        <Text style={s.label}>By room</Text>
-        {rooms.map(([room, v]) => <Bar key={room} label={room} value={v} max={maxRoom} color={colors.textSecondary} />)}
-      </Card>
+      {b.rooms.length > 0 ? (
+        <Card style={{ gap: 12 }}>
+          <Text style={s.label}>By room</Text>
+          {b.rooms.map((row) => <RoomBar key={row.room} row={row} />)}
+        </Card>
+      ) : null}
     </Screen>
   );
 }
@@ -62,8 +68,10 @@ const s = StyleSheet.create({
   track: { height: 8, borderRadius: 4, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: 8 },
   split: { flexDirection: 'row', height: 14, gap: 3 },
-  barRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  barLabel: { fontFamily: fonts.medium, fontSize: 15, color: colors.text },
-  barValue: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary },
+  splitEmpty: { borderRadius: 7, backgroundColor: colors.track },
+  barRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  barLabel: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 15, color: colors.text },
+  barValue: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  note: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary },
 });

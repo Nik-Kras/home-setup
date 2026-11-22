@@ -1,40 +1,54 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { HomeEmpty, HomeGrid, ModeSwitch, RoomChips } from '../../components/HomeParts';
 import { Screen } from '../../components/Screen';
-import { Icon, PersonDisc, Sub, Title, glyphFor } from '../../components/ui';
+import { SectionHeading, Sub, Title } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { isItemDone } from '../../domain/items';
-import { colors, fonts, radius } from '../../theme/tokens';
+import { homeView, placedLabel, type HomeMode } from '../../domain/home';
 
 /** Inventory of what is in place. Photos replace the glyphs once added (phase 3). */
 export default function Home() {
-  const { items } = useStore();
-  const placed = items.filter(isItemDone);
+  const { items, rooms } = useStore();
+  const [mode, setMode] = useState<HomeMode>('room');
+  const [room, setRoom] = useState<string | undefined>();
+  const view = homeView(items, { mode, room, roomOrder: rooms.map((r) => r.name) });
+  const empty = view.total === 0;
+
   return (
-    <Screen header={<View><Title>Home</Title><Sub>{placed.length} things in place</Sub></View>}>
-      <View style={s.grid}>
-        {placed.map((i) => (
-          <View key={i.id} style={s.card} accessible accessibilityLabel={`${i.name}, ${i.room ?? 'no room'}`}>
-            <View style={s.glyph}><Icon name={glyphFor(i.name)} size={56} color={colors.textSecondary} stroke={1.2} /></View>
-            <View style={s.cap}>
-              <Text style={s.name} numberOfLines={1}>{i.name}</Text>
-              <View style={s.metaLine}>
-                {i.boughtBy ? <PersonDisc person={i.boughtBy} size={16} /> : null}
-                <Text style={s.meta}>{i.room ?? 'No room'}</Text>
-              </View>
-            </View>
+    <Screen
+      header={
+        <View style={s.header}>
+          <View style={s.titleText}>
+            <Title>Home</Title>
+            <Sub>{placedLabel(view.total)}</Sub>
           </View>
-        ))}
-      </View>
+          {empty ? null : <ModeSwitch value={mode} onChange={setMode} />}
+        </View>
+      }
+    >
+      {empty ? (
+        <HomeEmpty onGoToBuy={() => router.navigate('/')} />
+      ) : (
+        <>
+          <RoomChips chips={view.chips} total={view.total} room={view.room} onChange={setRoom} />
+          <View style={s.groups}>
+            {view.groups.map((g) => (
+              <View key={g.key} style={s.group}>
+                {g.title ? <SectionHeading meta={String(g.items.length)}>{g.title}</SectionHeading> : null}
+                <HomeGrid items={g.items} />
+              </View>
+            ))}
+          </View>
+        </>
+      )}
     </Screen>
   );
 }
 
 const s = StyleSheet.create({
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  card: { width: '48.5%', aspectRatio: 1 / 1.02, borderRadius: 22, overflow: 'hidden', backgroundColor: colors.neutralFill, borderWidth: 1, borderColor: colors.hairline, justifyContent: 'flex-end' },
-  glyph: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 64, alignItems: 'center', justifyContent: 'center' },
-  cap: { padding: 12, paddingTop: 28, backgroundColor: 'rgba(14,17,16,0.72)', gap: 2 },
-  name: { fontFamily: fonts.serif, fontSize: 21, lineHeight: 24, color: colors.text },
-  metaLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  meta: { fontFamily: fonts.regular, fontSize: 13, color: '#D5DBD7' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  titleText: { flexShrink: 1 },
+  groups: { gap: 14, paddingTop: 4 },
+  group: { gap: 10 },
 });
