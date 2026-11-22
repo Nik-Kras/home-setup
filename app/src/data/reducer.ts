@@ -1,4 +1,4 @@
-import { advance, markGot, setStatus } from '../domain/items';
+import { advance, setStatus } from '../domain/items';
 import { addStep, setAssignmentStatus, toggleStep } from '../domain/tasks';
 import type { Actor, FlatNote, Item, ItemStatus, NoteKind, Person, Task, TaskStatus } from '../domain/types';
 import { newId } from './mappers';
@@ -30,11 +30,13 @@ const clean = (v: string | undefined) => (v?.trim() ? v.trim() : undefined);
 
 export type Action =
   | { type: 'replace'; items: Item[]; tasks: Task[]; notes?: FlatNote[] }
+  /** Exactly one stage on (see nextStatus). Nothing ever jumps to the end. */
   | { type: 'advanceItem'; id: string }
-  | { type: 'gotItem'; id: string }
   | { type: 'addItem'; name: string; room?: string; urgent?: boolean; assignedTo?: Person }
   | { type: 'updateItem'; id: string; patch: ItemPatch }
   | { type: 'setItemStatus'; id: string; status: ItemStatus }
+  /** Hides the item here; the database row is soft-deleted (deleted_at), so Undo can bring it back. */
+  | { type: 'deleteItem'; id: string }
   | { type: 'addTask'; title: string; assignees: Person[]; due?: string; urgent?: boolean; group?: string }
   | { type: 'updateTask'; id: string; patch: TaskPatch }
   | { type: 'setTaskStatus'; id: string; person: Person; status: TaskStatus }
@@ -60,10 +62,14 @@ export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'replace':
       return { ...state, items: action.items, tasks: action.tasks, notes: action.notes ?? state.notes };
-    case 'advanceItem':
-      return { ...state, items: state.items.map((i) => (i.id === action.id ? advance(i, now, actor) : i)) };
-    case 'gotItem':
-      return { ...state, items: state.items.map((i) => (i.id === action.id ? markGot(i, now, actor) : i)) };
+    case 'advanceItem': {
+      const items = state.items.map((i) => (i.id === action.id ? advance(i, now, actor) : i));
+      return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
+    }
+    case 'deleteItem': {
+      const items = state.items.filter((i) => i.id !== action.id);
+      return items.length === state.items.length ? state : { ...state, items };
+    }
     case 'addItem': {
       const name = action.name.trim();
       if (!name) return state;

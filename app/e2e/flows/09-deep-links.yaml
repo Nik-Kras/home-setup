@@ -15,7 +15,7 @@ name: 09 deep links
 - tapOn: "Buy"
 - openLink: homesetup://item/${output.id}
 - extendedWaitUntil:
-    visible: "Start looking"
+    visible: "Mark looking"
     timeout: 15000
 - assertVisible: "ZZ-e2e-link"
 - tapOn: "Back to list"
@@ -25,7 +25,7 @@ name: 09 deep links
 - stopApp
 - openLink: homesetup://item/${output.id}
 - extendedWaitUntil:
-    visible: "Start looking"
+    visible: "Mark looking"
     timeout: 90000
 - assertVisible: "ZZ-e2e-link"
 - tapOn: "Back to list"
@@ -58,6 +58,6 @@ name: 09 deep links
 - hideKeyboard
 - tapOn: "Sign in"
 - extendedWaitUntil:
-    visible: "Start looking"
+    visible: "Mark looking"
     timeout: 30000
 - assertVisible: "ZZ-e2e-link"

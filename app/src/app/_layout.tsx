@@ -5,9 +5,11 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
+import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { IdentityState, useIdentityReady } from '../components/IdentityState';
 import { SignIn } from '../components/SignIn';
+import { UndoBar } from '../components/UndoBar';
 import { StoreProvider, useStore } from '../data/store';
 import { colors } from '../theme/tokens';
 
@@ -21,10 +23,14 @@ function Gate() {
   // `me` must be known before any screen can add or tick something for "me".
   if (!identityReady) return <IdentityState />;
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="add-task" options={{ presentation: 'modal' }} />
-    </Stack>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="add-task" options={{ presentation: 'modal' }} />
+      </Stack>
+      {/* Undo snackbar and the "Paid?" prompt, above every screen. */}
+      <UndoBar />
+    </View>
   );
 }
 

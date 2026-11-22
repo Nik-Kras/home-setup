@@ -33,12 +33,12 @@ function device() {
 const appEdit = (before: Item, after: Item) => diffToOps({ items: [before], tasks: [] }, { items: [after], tasks: [] }, new Map());
 
 describe('widgets and app share one queue', () => {
-  it('sends an app edit, a widget MARK_GOT and a later app edit in the order they happened', async () => {
+  it('sends an app edit, a widget stage tap and a later app edit in the order they happened', async () => {
     const { queue, widget, sent, goOnline } = device();
     await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
 
     await queue.enqueueAll(appEdit(kettle, { ...kettle, name: 'Electric kettle' }));
-    const tapped = await widget.markGot(lamp.id, new Date('2026-11-22T09:05:00Z'), queue);
+    const tapped = await widget.advance(lamp.id, new Date('2026-11-22T09:05:00Z'), queue);
     expect(tapped).not.toBeNull();
     await queue.enqueueAll(appEdit(kettle, { ...kettle, urgent: true }));
     await queue.flush(); // offline: everything stays queued
@@ -54,6 +54,16 @@ describe('widgets and app share one queue', () => {
     expect(await queue.size()).toBe(0);
   });
 
+  it('a widget tap on a needed item moves it to looking only, with no date', async () => {
+    const { queue, widget, sent, goOnline } = device();
+    await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
+    const data = await widget.advance(kettle.id, time, queue);
+    expect(data?.rooms[0]?.items.find((row) => row.id === kettle.id)).toMatchObject({ status: 'Looking', action: 'Mark ordered' });
+    goOnline();
+    await queue.flush();
+    expect(sent).toEqual([expect.objectContaining({ match: { id: kettle.id, status: 'needed' }, row: { status: 'looking' } })]);
+  });
+
   it('loses nothing when a widget tap and an app edit append at the same moment as a flush', async () => {
     const { queue, widget, sent, goOnline } = device();
     await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
@@ -61,7 +71,7 @@ describe('widgets and app share one queue', () => {
     await Promise.all([
       queue.enqueueAll(appEdit(kettle, { ...kettle, name: 'Electric kettle' })),
       queue.flush(),
-      widget.markGot(lamp.id, time, queue),
+      widget.advance(lamp.id, time, queue),
       queue.flush(),
     ]);
     await queue.flush();
@@ -75,7 +85,7 @@ describe('account change on one device', () => {
     expect(await claimDevice(kv, queue, 'account-a')).toBe(false);
     await widget.publish(() => makeWidgetSnapshot([lamp, kettle], time));
     await queue.enqueueAll(appEdit(kettle, { ...kettle, name: 'Electric kettle' }));
-    await widget.markGot(lamp.id, time, queue);
+    await widget.advance(lamp.id, time, queue);
     expect(await queue.size()).toBe(2);
 
     // Account A signs out offline, account B signs in: the store claims the device before flushing.
@@ -83,7 +93,7 @@ describe('account change on one device', () => {
     await widget.publish(() => null); // resetWidgets(): the signed-out widget
     expect(await queue.size()).toBe(0);
     expect(await widget.read()).toBeNull();
-    expect(await widget.markGot(kettle.id, time, queue)).toBeNull(); // a stale widget tap queues nothing
+    expect(await widget.advance(kettle.id, time, queue)).toBeNull(); // a stale widget tap queues nothing
 
     goOnline();
     await queue.flush();

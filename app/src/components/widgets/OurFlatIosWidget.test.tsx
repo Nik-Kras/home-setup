@@ -60,23 +60,28 @@ describe('iPhone widget layout', () => {
     expect(text(render({ ...props, more: 2 }, 'systemLarge'))).toContain('+2 more');
   });
 
-  it('a got press writes a tap the app can queue and shows the row as got', () => {
+  it('a press moves a row one stage: it writes a tap the app can queue and shows the new stage', () => {
     const large = render(props, 'systemLarge');
     const buttons = find(large, 'Button');
     expect(buttons.map((b) => b.props.target)).toEqual(['got:item-1', 'got:item-2']);
+    // The label names the stage the tap moves it to.
+    expect(text(buttons[0])).toContain('Got it: Lamp');
+    expect(text(buttons[1])).toContain('Mark looking: Shelf');
 
     const before = Date.now();
     const update = (buttons[0].props.onPress as () => Partial<IosWidgetProps>)();
     const after = { ...props, ...update }; // the App Intent merges the returned props
     const taps = pendingGot([{ props: after }]);
-    expect(taps).toMatchObject([{ id: 'item-1', from: 'ordered' }]);
+    expect(taps).toMatchObject([{ id: 'item-1', from: 'ordered', to: 'delivered' }]);
     expect(Date.parse(taps[0].at)).toBeGreaterThanOrEqual(before - 1000);
     expect(after.leftCount).toBe(props.leftCount - 1);
     expect(find(render(after, 'systemLarge'), 'Button').map((b) => b.props.target)).toEqual(['got:item-2']);
 
-    // Needs installing: stays on the list, so the count stays.
+    // Needed to looking: still on the list, so the count stays, and the row shows Looking at once.
     const install = (buttons[1].props.onPress as () => Partial<IosWidgetProps>)();
     expect(install.leftCount).toBe(props.leftCount);
+    expect(pendingGot([{ props: { ...props, ...install } }])).toMatchObject([{ id: 'item-2', from: 'needed', to: 'looking' }]);
+    expect(text(render({ ...props, ...install }, 'systemLarge'))).toContain('Looking');
 
     // After the app takes the tap, the row still shows as got and cannot be tapped again.
     const settled = settleGot(after, taps);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { actorName, clearedDatesWarning, currentStepTone, formatMoney, itemMeta, itemSteps, nextActionLabel, parseLink, parsePrice, roomOptions, skippedStatuses } from './items';
+import { actorName, asksForPrice, statusChoices, currentStepTone, formatMoney, itemMeta, itemSteps, nextActionLabel, parseLink, parsePrice, roomOptions, skippedStatuses } from './items';
 import type { Item } from './types';
 
 const item = (over: Partial<Item> = {}): Item => ({
@@ -36,24 +36,30 @@ describe('item detail helpers', () => {
     expect(currentStepTone(item({ status: 'installed', needsInstall: true }))).toBe('done');
   });
 
-  it('asks for confirmation only when a stepper tap would clear a date', () => {
-    const delivered = item({ status: 'delivered', needsInstall: true, deliveredAt: '2026-11-22T09:00:00Z' });
-    expect(clearedDatesWarning(delivered, 'ordered')).toBe('This clears the delivered date.');
-    expect(clearedDatesWarning(delivered, 'installed')).toBeUndefined();
-    const installed = { ...delivered, status: 'installed' as const, installedAt: '2026-11-23T09:00:00Z' };
-    expect(clearedDatesWarning(installed, 'delivered')).toBe('This clears the installed date.');
-    expect(clearedDatesWarning(installed, 'needed')).toBe('This clears the delivered and installed dates.');
-    expect(clearedDatesWarning(item({ status: 'ordered' }), 'needed')).toBeUndefined();
-    expect(clearedDatesWarning(delivered, 'delivered')).toBeUndefined();
-  });
-
-  it('names the next action and hides it once finished', () => {
-    expect(nextActionLabel(item())).toBe('Start looking');
-    expect(nextActionLabel(item({ status: 'looking' }))).toBe('Mark as ordered');
-    expect(nextActionLabel(item({ status: 'ordered' }))).toBe('Mark as delivered');
-    expect(nextActionLabel(item({ status: 'delivered', needsInstall: true }))).toBe('Mark as installed');
+  it('names the one next stage in plain words and never jumps to the end', () => {
+    expect(nextActionLabel(item())).toBe('Mark looking');
+    expect(nextActionLabel(item({ status: 'looking' }))).toBe('Mark ordered');
+    expect(nextActionLabel(item({ status: 'ordered' }))).toBe('Got it');
+    expect(nextActionLabel(item({ status: 'ordered', needsInstall: true }))).toBe('Got it');
+    expect(nextActionLabel(item({ status: 'delivered', needsInstall: true }))).toBe('Mark installed');
     expect(nextActionLabel(item({ status: 'delivered' }))).toBeUndefined();
     expect(nextActionLabel(item({ status: 'installed', needsInstall: true }))).toBeUndefined();
+  });
+
+  it('offers every stage in the status sheet, without installed when nothing needs installing', () => {
+    expect(statusChoices(item({ status: 'delivered' }))).toEqual(['needed', 'looking', 'ordered', 'delivered']);
+    expect(statusChoices(item({ status: 'needed', needsInstall: true }))).toEqual(['needed', 'looking', 'ordered', 'delivered', 'installed']);
+    // An item already installed keeps that stage so it can be seen and moved back from.
+    expect(statusChoices(item({ status: 'installed' }))).toEqual(['needed', 'looking', 'ordered', 'delivered', 'installed']);
+  });
+
+  it('asks "Paid?" only when an item has just arrived and has no paid price', () => {
+    expect(asksForPrice(item({ status: 'ordered' }), item({ status: 'delivered' }))).toBe(true);
+    expect(asksForPrice(item({ status: 'needed' }), item({ status: 'installed' }))).toBe(true);
+    expect(asksForPrice(item({ status: 'ordered' }), item({ status: 'delivered', actualPrice: 25 }))).toBe(false);
+    expect(asksForPrice(item({ status: 'delivered' }), item({ status: 'installed' }))).toBe(false);
+    expect(asksForPrice(item({ status: 'delivered' }), item({ status: 'ordered' }))).toBe(false);
+    expect(asksForPrice(item({ status: 'needed' }), item({ status: 'looking' }))).toBe(false);
   });
 
   it('formats money and the meta line, leaving out what is missing', () => {

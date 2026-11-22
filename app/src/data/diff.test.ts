@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { diffToOps } from './diff';
 import { setAssignmentStatus, toggleStep } from '../domain/tasks';
-import { markGot, setStatus } from '../domain/items';
+import { setStatus } from '../domain/items';
 import type { Item, Task } from '../domain/types';
 
 const rooms = new Map([['Kitchen', 'room-1']]);
@@ -20,7 +20,7 @@ describe('diffToOps', () => {
   });
 
   it('marking an item got is one patch of status and deliveredAt', () => {
-    const out = diffToOps({ items: [item], tasks: [] }, { items: [markGot(item, '2026-11-22T00:00:00Z', 'nikita')], tasks: [] }, rooms);
+    const out = diffToOps({ items: [item], tasks: [] }, { items: [setStatus(item, 'delivered', '2026-11-22T00:00:00Z', 'nikita')], tasks: [] }, rooms);
     expect(out).toEqual([{ id: expect.any(String), kind: 'patch', table: 'items', match: { id: 'i1' }, row: { status: 'delivered', delivered_at: '2026-11-22T00:00:00Z' } }]);
   });
 

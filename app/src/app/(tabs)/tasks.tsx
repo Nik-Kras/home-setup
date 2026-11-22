@@ -11,7 +11,7 @@ import { Icon, SectionHeading, Segmented, Sub, Title } from '../../components/ui
 import { useStore } from '../../data/store';
 import { focusTask } from '../../domain/focus';
 import { addedSince, groupsFor, localDate } from '../../domain/taskOptions';
-import { openTasksSorted, sharedTasks, tasksFor } from '../../domain/tasks';
+import { doneTasksFor, openTasksSorted, sharedTasks, tasksFor } from '../../domain/tasks';
 import type { Person, Task } from '../../domain/types';
 import { colors, fonts, TARGET, personColor } from '../../theme/tokens';
 
@@ -21,6 +21,7 @@ type View_ = 'mine' | 'other' | 'both';
 type Segment = Person | 'both';
 type TaskSection = { key: string; title: string; meta?: string; data: Task[] };
 
+const DONE = 'done';
 const TaskGap = () => <View style={{ height: 8 }} />;
 
 /** Memoised row: `onToggle` is stable and takes the task id, so unchanged rows are not redrawn. */
@@ -54,6 +55,7 @@ export default function Tasks() {
   const other: Person = me === 'nikita' ? 'daryna' : 'nikita';
   const viewer = view === 'both' ? null : view === 'mine' ? me : other;
   const ready = useListState(tasks.length) === 'ready';
+  const [showDone, setShowDone] = useState(false);
 
   const { list, focus, sections } = useMemo(() => {
     const list = viewer ? openTasksSorted(tasks, viewer) : sharedTasks(tasks);
@@ -64,8 +66,12 @@ export default function Tasks() {
     const sections: TaskSection[] = [];
     if (urgent.length > 0) sections.push({ key: 'urgent', title: 'Most urgent', meta: urgent.length > 1 ? `${urgent.length} tasks` : undefined, data: urgent });
     if (rest.length > 0) sections.push({ key: 'rest', title: viewer ? 'Next up' : 'Each of you ticks it', data: rest });
+    // Finished parts, collapsed, where they can be opened and unticked. The Both view already lists
+    // finished shared tasks in place, so it has no Done list.
+    const done = viewer ? doneTasksFor(tasks, viewer) : [];
+    if (done.length > 0) sections.push({ key: DONE, title: `Done (${done.length})`, meta: String(done.length), data: showDone ? done : [] });
     return { list, focus, sections };
-  }, [tasks, viewer]);
+  }, [tasks, viewer, showDone]);
   const counts = useMemo(() => ({
     mine: openTasksSorted(tasks, me).length,
     other: openTasksSorted(tasks, other).length,
@@ -120,9 +126,18 @@ export default function Tasks() {
         <View style={s.listHeader}>
           {focus ? <DeadlineCard task={focus} person={viewer ?? me} today={localDate()} /> : null}
           <AddTaskBar text={text} setText={setText} placeholder={view === 'both' ? 'Add a shared task...' : 'Add a task...'} onAdd={quickAdd} onMore={openOptions} />
+          {/* With only the Done list below, ListEmptyComponent does not show, so say it here. */}
+          {ready && list.length === 0 && sections.length > 0 ? <Text style={s.empty}>Nothing open here.</Text> : null}
         </View>
       }
-      renderSectionHeader={({ section }) => <View style={s.section}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>}
+      renderSectionHeader={({ section }) => section.key === DONE ? (
+        <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Done tasks, ${section.meta}`} style={[s.doneToggle, showDone && { marginBottom: 8 }]}>
+          <Text style={s.doneText}>{section.title}</Text>
+          <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
+            <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
+          </View>
+        </Pressable>
+      ) : <View style={s.section}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>}
       renderItem={({ item }) => <Row task={item} viewer={viewer} me={me} onToggle={toggle} />}
       ListEmptyComponent={<View style={s.gap}><ListGate count={tasks.length}>{focus ? null : <Text style={s.empty}>Nothing open here.</Text>}</ListGate></View>}
       ListFooterComponent={ready ? (
@@ -144,5 +159,7 @@ const s = StyleSheet.create({
   addInput: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 16, color: colors.text },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   moreBtn: { width: TARGET, height: TARGET, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4, marginTop: 8 },
+  doneText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },
   empty: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
 });

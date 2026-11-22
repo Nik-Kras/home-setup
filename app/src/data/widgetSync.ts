@@ -2,7 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { useEffect, type RefObject } from 'react';
 import { Platform } from 'react-native';
 import { requestWidgetUpdate, type WidgetTaskHandler } from 'react-native-android-widget';
-import { MARK_GOT, renderOurFlatWidget, WIDGET_NAMES } from '../components/widgets/OurFlatWidget';
+import { ADVANCE_STAGE, renderOurFlatWidget, WIDGET_NAMES } from '../components/widgets/OurFlatWidget';
+import type { StageStep } from '../domain/items';
 import type { WidgetItem, WidgetView } from '../domain/widgetData';
 import type { OpQueue } from './queue';
 import type { State } from './reducer';
@@ -30,7 +31,7 @@ const source = db && syncQueue ? supabaseSource(db, syncQueue) : null;
 
 let foreground: {
   getSnapshot?: () => WidgetSnapshot | null;
-  onChange: (before: WidgetItem, deliveredAt: string) => void;
+  onChange: (before: WidgetItem, step: StageStep) => void;
 } | undefined;
 
 const redraw = (data: WidgetView | null) => Promise.all(WIDGET_NAMES.map((widgetName) =>
@@ -61,12 +62,12 @@ export function useWidgetSync(
         : undefined; // Keep the previous snapshot while signing in or loading offline.
     foreground = {
       getSnapshot,
-      onChange(before, deliveredAt) {
+      onChange(before, step) {
         if (auth !== 'signedIn' || !ready) return;
         const live = current.current;
         const items = live.items.map((item) => {
           if (item.id !== before.id || item.status !== before.status) return item;
-          return { ...item, status: 'delivered' as const, deliveredAt, updatedBy: live.me };
+          return { ...item, ...step, updatedBy: live.me };
         });
         if (items.some((item, index) => item !== live.items[index])) set({ ...live, items });
       },
@@ -93,11 +94,11 @@ export const widgetTaskHandler: WidgetTaskHandler = async (task) => {
   if (task.widgetAction === 'WIDGET_DELETED' || !WIDGET_NAMES.some((name) => name === task.widgetInfo.widgetName)) return;
   const id = task.clickActionData?.id;
 
-  if (syncQueue && task.widgetAction === 'WIDGET_CLICK' && task.clickAction === MARK_GOT && typeof id === 'string') {
-    const updated = await storage.markGot(
+  if (syncQueue && task.widgetAction === 'WIDGET_CLICK' && task.clickAction === ADVANCE_STAGE && typeof id === 'string') {
+    const updated = await storage.advance(
       id, new Date(), syncQueue,
       () => foreground?.getSnapshot?.(),
-      (before, deliveredAt) => foreground?.onChange(before, deliveredAt),
+      (before, step) => foreground?.onChange(before, step),
     );
     if (updated) {
       await Promise.all([redraw(updated), syncQueue.flush()]);

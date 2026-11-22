@@ -12,9 +12,9 @@ name: 04 offline queue
     env: { NAME: ZZ-e2e-offline }
 - tapOn: "ZZ-e2e-offline, .*"
 - extendedWaitUntil:
-    visible: "Start looking"
+    visible: "Mark looking"
     timeout: 5000
-- tapOn: "Start looking"
+- tapOn: "Mark looking"
 - assertVisible: "Looking, step 2 of 4"
 - scrollUntilVisible:
     element: "Needs installing"

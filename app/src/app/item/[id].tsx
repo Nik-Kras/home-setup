@@ -6,17 +6,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
 import { ItemPhotos } from '../../components/ItemPhotos';
+import { QuantityRow } from '../../components/QuantityRow';
 import { LoadingState, NotFoundState, OfflineState, useDetailState } from '../../components/LoadState';
 import { ScreenHeader } from '../../components/ScreenHeader';
-import { Sheet, SheetButton, SheetOption, TextSheet } from '../../components/Sheet';
+import { Sheet, SheetButton, SheetOption, TextSheet, TextSheetBody } from '../../components/Sheet';
 import { Icon, itemGlyph } from '../../components/ui';
 import { TintWash } from '../../components/TintWash';
 import { useStore } from '../../data/store';
-import { actorName, clearedDatesWarning, formatMoney, ITEM_STATUS_LABEL, itemMeta, nextStatus, parseLink, parsePrice, roomOptions } from '../../domain/items';
-import type { ItemStatus, Person } from '../../domain/types';
+import { actorName, formatMoney, itemMeta, parseLink, parsePrice, roomOptions } from '../../domain/items';
+import type { Person } from '../../domain/types';
 import { colors, fonts, personColor, TARGET, tileTone } from '../../theme/tokens';
 
-type SheetName = 'name' | 'assignedTo' | 'price' | 'boughtBy' | 'link' | 'room';
+type SheetName = 'name' | 'assignedTo' | 'estPrice' | 'actualPrice' | 'boughtBy' | 'link' | 'room' | 'notes';
 
 const PEOPLE: { value: Person | undefined; label: string }[] = [
   { value: undefined, label: 'Nobody' },
@@ -29,17 +30,18 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, rooms, retry, updateItem, setItemStatus } = useStore();
+  const { items, rooms, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
-  /** A backward stepper tap that would clear a date waits here for confirmation. */
-  const [moveBack, setMoveBack] = useState<{ status: ItemStatus; warning: string } | null>(null);
+  /** Set by Delete, so the screen sliding away shows nothing rather than "Item not found". */
+  const [leaving, setLeaving] = useState(false);
   const item = items.find((i) => i.id === id);
   const close = () => setSheet(null);
   const state = useDetailState(item !== undefined);
 
   const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 
+  if (!item && leaving) return <View style={s.root}>{header}</View>;
   if (!item) {
     // On a cold start items are not loaded yet: show a neutral loading state, not "gone".
     return (
@@ -58,15 +60,15 @@ export default function ItemDetail() {
 
   const link = item.link ? parseLink(item.link) : undefined;
   const person = (p: Person | undefined) => (p ? actorName(p) : 'Nobody');
-  const priceValue = item.actualPrice !== undefined ? formatMoney(item.actualPrice) : item.estPrice !== undefined ? `${formatMoney(item.estPrice)} est.` : 'Add';
   const pick = (patch: Parameters<typeof updateItem>[1]) => {
     updateItem(item.id, patch);
     close();
   };
-  const setStatus = (status: ItemStatus) => {
-    const warning = clearedDatesWarning(item, status);
-    if (warning) setMoveBack({ status, warning });
-    else setItemStatus(item.id, status);
+  // Leave first, then delete: the snackbar on the list offers Undo.
+  const remove = () => {
+    setLeaving(true);
+    back();
+    deleteItem(item.id);
   };
 
   const glyph = itemGlyph(item);
@@ -88,11 +90,13 @@ export default function ItemDetail() {
           </View>
         </View>
 
-        <StatusCard item={item} onSet={setStatus} onNext={() => setItemStatus(item.id, nextStatus(item))} />
+        {/* Any stage, forwards or backwards; every change offers Undo, which also restores the dates. */}
+        <StatusCard item={item} onSet={(status) => setItemStatus(item.id, status)} onNext={() => advanceItem(item.id)} />
 
         <FieldGroup>
           <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone={item.assignedTo ? 'value' : 'empty'} dot={item.assignedTo && personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
-          <FieldRow label="Price" value={priceValue} tone={item.actualPrice !== undefined ? 'value' : item.estPrice !== undefined ? 'empty' : 'action'} a11yValue={item.actualPrice === undefined ? (item.estPrice !== undefined ? `not paid yet, estimate ${formatMoney(item.estPrice)}` : 'not set') : undefined} onPress={() => setSheet('price')} />
+          <FieldRow label="Estimated price" value={item.estPrice !== undefined ? formatMoney(item.estPrice) : 'Add'} tone={item.estPrice !== undefined ? 'value' : 'action'} a11yValue={item.estPrice === undefined ? 'not set' : undefined} onPress={() => setSheet('estPrice')} />
+          <FieldRow label="Price paid" value={item.actualPrice !== undefined ? formatMoney(item.actualPrice) : 'Add'} tone={item.actualPrice !== undefined ? 'value' : 'action'} a11yValue={item.actualPrice === undefined ? 'not paid yet' : undefined} onPress={() => setSheet('actualPrice')} />
           <FieldRow label="Bought by" value={person(item.boughtBy)} tone={item.boughtBy ? 'value' : 'empty'} dot={item.boughtBy && personColor[item.boughtBy]} onPress={() => setSheet('boughtBy')} />
           {link ? (
             <LinkRow onEdit={() => setSheet('link')} onOpen={() => void Linking.openURL(link).catch(() => undefined)} />
@@ -100,6 +104,8 @@ export default function ItemDetail() {
             <FieldRow label="Product page" value={item.link ? 'Fix link' : 'Add'} tone="action" onPress={() => setSheet('link')} />
           )}
           <FieldRow label="Room" value={item.room ?? 'None'} tone={item.room ? 'value' : 'empty'} onPress={() => setSheet('room')} />
+          <QuantityRow value={item.quantity} onChange={(quantity) => quantity >= 1 && updateItem(item.id, { quantity })} />
+          <FieldRow label="Notes" value={item.notes ?? 'Add'} tone={item.notes ? 'value' : 'action'} onPress={() => setSheet('notes')} />
           <ItemPhotos itemId={item.id} itemName={item.name} />
         </FieldGroup>
 
@@ -112,6 +118,8 @@ export default function ItemDetail() {
           <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
           <ActivityLine actor={item.updatedBy} text="made the last change" />
         </View>
+
+        <SheetButton label="Delete item" onPress={remove} />
       </ScrollView>
 
       <TextSheet
@@ -123,16 +131,28 @@ export default function ItemDetail() {
         onSave={(name) => updateItem(item.id, { name })}
         onClose={close}
       />
+      {/* One sheet per price, so the title never changes while a sheet fades out. */}
+      {(['estPrice', 'actualPrice'] as const).map((field) => (
+        <Sheet key={field} visible={sheet === field} title={field === 'estPrice' ? 'Estimated price' : 'Price paid'} onClose={close} closeLabel="Cancel">
+          {sheet === field ? (
+            <PriceForm
+              title={field === 'estPrice' ? 'Estimated price' : 'Price paid'}
+              value={item[field]}
+              helper={field === 'estPrice' ? 'What you expect to pay, in pounds.' : item.estPrice !== undefined ? `Estimate ${formatMoney(item.estPrice)}. Leave empty if not paid yet.` : 'Leave empty if not paid yet.'}
+              onSave={(n) => updateItem(item.id, { [field]: n })}
+              onClose={close}
+            />
+          ) : null}
+        </Sheet>
+      ))}
       <TextSheet
-        visible={sheet === 'price'}
-        title="Price paid"
-        initial={item.actualPrice !== undefined ? String(item.actualPrice) : ''}
-        placeholder="0.00"
-        helper={item.estPrice !== undefined ? `Estimate ${formatMoney(item.estPrice)}. Leave empty if not paid yet.` : 'Leave empty if not paid yet.'}
-        keyboardType="decimal-pad"
-        autoCapitalize="none"
-        validate={(t) => (parsePrice(t) === null ? 'Enter an amount like 84.99' : undefined)}
-        onSave={(t) => updateItem(item.id, { actualPrice: parsePrice(t) ?? undefined })}
+        visible={sheet === 'notes'}
+        title="Notes"
+        initial={item.notes ?? ''}
+        placeholder="Size, colour, where to buy..."
+        helper="Leave empty to remove the notes."
+        validate={() => undefined}
+        onSave={(t) => updateItem(item.id, { notes: t.trim() || undefined })}
         onClose={close}
       />
       <TextSheet
@@ -164,18 +184,29 @@ export default function ItemDetail() {
           ))}
         </ScrollView>
       </Sheet>
-      <Sheet visible={moveBack !== null} title={moveBack ? `Move back to ${ITEM_STATUS_LABEL[moveBack.status]}?` : ''} onClose={() => setMoveBack(null)} closeLabel="Cancel">
-        <Text style={s.confirmText}>{moveBack?.warning}</Text>
-        <SheetButton
-          label="Move back"
-          primary
-          onPress={() => {
-            if (moveBack) setItemStatus(item.id, moveBack.status);
-            setMoveBack(null);
-          }}
-        />
-      </Sheet>
     </View>
+  );
+}
+
+/** A price in pounds: Save checks it, Clear removes it (shown only when there is one). */
+function PriceForm({ title, value, helper, onSave, onClose }: { title: string; value?: number; helper: string; onSave: (n: number | undefined) => void; onClose: () => void }) {
+  return (
+    <>
+      <TextSheetBody
+        title={title}
+        initial={value !== undefined ? String(value) : ''}
+        placeholder="0.00"
+        helper={helper}
+        keyboardType="decimal-pad"
+        autoCapitalize="none"
+        validate={(t) => (parsePrice(t) === null ? 'Enter an amount like 84.99' : undefined)}
+        onSave={(t) => onSave(parsePrice(t) ?? undefined)}
+        onClose={onClose}
+      />
+      {value !== undefined ? (
+        <SheetButton label="Clear price" onPress={() => { onSave(undefined); onClose(); }} />
+      ) : null}
+    </>
   );
 }
 
@@ -191,5 +222,4 @@ const s = StyleSheet.create({
   meta: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 20, color: colors.textSecondary },
   activity: { gap: 8, paddingHorizontal: 16, paddingTop: 4 },
   roomList: { maxHeight: 360 },
-  confirmText: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.textSecondary, paddingHorizontal: 4, paddingBottom: 8 },
 });

@@ -9,7 +9,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.homesetup.household",
-      "deploymentTarget": "17.0"
+      "deploymentTarget": "17.0",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +22,9 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "package": "app.homesetup.household"
     },
     "web": {
@@ -41,7 +46,7 @@
           "widgets": [
             {
               "name": "OurFlatSmall",
-              "label": "Our flat · small",
+              "label": "Our flat \u00b7 small",
               "minWidth": "110dp",
               "minHeight": "110dp",
               "targetCellWidth": 2,
@@ -51,7 +56,7 @@
             },
             {
               "name": "OurFlatMedium",
-              "label": "Our flat · medium",
+              "label": "Our flat \u00b7 medium",
               "minWidth": "260dp",
               "minHeight": "164dp",
               "targetCellWidth": 4,
@@ -61,7 +66,7 @@
             },
             {
               "name": "OurFlatLarge",
-              "label": "Our flat · large",
+              "label": "Our flat \u00b7 large",
               "minWidth": "260dp",
               "minHeight": "304dp",
               "targetCellWidth": 4,
@@ -83,7 +88,11 @@
               "displayName": "Our flat",
               "description": "What is left to get for the flat",
               "ios": {
-                "supportedFamilies": ["systemSmall", "systemMedium", "systemLarge"],
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
                 "contentMarginsDisabled": true,
                 "initialLayout": "./src/components/widgets/OurFlatIosWidget.tsx"
               },
@@ -103,6 +112,34 @@
       "./plugins/with-release-signing"
     ],
     "scheme": "homesetup",
-    "backgroundColor": "#0E1110"
+    "backgroundColor": "#0E1110",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "targetName": "ExpoWidgetsTarget",
+                  "bundleIdentifier": "app.homesetup.household.ExpoWidgetsTarget",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.app.homesetup.household"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "6f58cb80-e4e4-4144-9af0-c97c60bdd8eb"
+      }
+    },
+    "owner": "nikitakras"
   }
 }

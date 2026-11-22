@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { StageStep } from '../domain/items';
 import type { ItemPhoto } from '../domain/photos';
 import type { FlatNote, Item, ItemStatus, Person, Task, TaskStatus, TaskStep } from '../domain/types';
 import { itemFromRow, itemToRow, newId, noteFromRow, noteToRow, taskFromRow, taskToRow, type FlatNoteRow, type ItemRow, type TaskRow } from './mappers';
@@ -50,11 +51,14 @@ export const ops = {
     return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId }, row };
   },
   /**
-   * Widget "got it". Matches only while the row still has the status the widget showed, so a stale tap
-   * changes nothing if the other person has moved the item on (for example to installed) since.
+   * Widget tap: one stage on (see nextStage), with the date that stage stamps. Matches only while the
+   * row still has the status the widget showed, so a stale tap changes nothing if the item moved since.
    */
-  markGotIf(itemId: string, seen: ItemStatus, deliveredAt: string): Op {
-    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId, status: seen }, row: { status: 'delivered', delivered_at: deliveredAt } };
+  advanceIf(itemId: string, seen: ItemStatus, step: StageStep): Op {
+    const row: Record<string, unknown> = { status: step.status };
+    if (step.deliveredAt) row.delivered_at = step.deliveredAt;
+    if (step.installedAt) row.installed_at = step.installedAt;
+    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId, status: seen }, row };
   },
   /**
    * A new task. Insert-only (ignoreDuplicates): if the first send succeeded but its reply was lost, the retry
@@ -86,6 +90,17 @@ export const ops = {
   patchNote(noteId: string, row: Record<string, unknown>): Op {
     return { id: newId(), kind: 'patch', table: 'flat_notes', match: { id: noteId }, row };
   },
+  /**
+   * Conditional patch, for Undo: changes the row only while every `match` column still has the value
+   * this device set. If the other person has changed it since, their newer value stays.
+   */
+  patchIf(table: 'items' | 'task_assignments' | 'task_steps', match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
+    return { id: newId(), kind: 'patch', table, match, row, reportMiss: true };
+  },
+  /** Undo of a soft delete. */
+  restore(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
+    return { id: newId(), kind: 'patch', table, match: { id }, row: { deleted_at: null } };
+  },
   softDelete(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
     return { id: newId(), kind: 'patch', table: table, match: { id }, row: { deleted_at: new Date().toISOString() } };
   },
@@ -103,9 +118,12 @@ export function makeExecutor(db: SupabaseClient) {
       const opts = { ...(op.onConflict ? { onConflict: op.onConflict } : {}), ...(op.ignoreDuplicates ? { ignoreDuplicates: true } : {}) };
       ({ error } = await db.from(op.table).upsert(op.row, Object.keys(opts).length ? opts : undefined));
     } else {
-      let q = db.from(op.table).update(op.row);
-      for (const [k, v] of Object.entries(op.match)) q = q.eq(k, v);
-      ({ error } = await q);
+      // A conditional patch asks for the row count, to tell "kept the other person's value" apart.
+      let q = op.reportMiss ? db.from(op.table).update(op.row, { count: 'exact' }) : db.from(op.table).update(op.row);
+      for (const [k, v] of Object.entries(op.match)) q = v === null ? q.is(k, null) : q.eq(k, v);
+      let count: number | null | undefined;
+      ({ error, count } = await q);
+      if (!error && op.reportMiss && count === 0) return 'missed';
     }
     if (!error) return 'ok';
     // Network trouble has no Postgres code; 5xx and auth expiry are worth retrying. Anything else is a refusal.

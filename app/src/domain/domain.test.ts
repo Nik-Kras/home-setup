@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advance, budget, guessRoom, markGot, counts, isItemDone, leftByRoom, nextStatus, nextUp } from './items';
+import { advance, budget, guessRoom, counts, isItemDone, leftByRoom, nextStatus, nextUp } from './items';
 import {
   daysLeft,
   isShared,
@@ -58,12 +58,6 @@ describe('items', () => {
     expect(out.status).toBe('delivered');
     expect(out.deliveredAt).toBe('2026-11-22T09:00:00Z');
     expect(out.updatedBy).toBe('claude');
-  });
-
-  it('got it jumps straight to delivered and never moves backwards', () => {
-    expect(markGot(item({ status: 'looking' }), '2026-11-22T09:00:00Z', 'nikita').status).toBe('delivered');
-    const installed = item({ status: 'installed', needsInstall: true });
-    expect(markGot(installed, '2026-11-22T09:00:00Z', 'nikita')).toBe(installed);
   });
 
   it('guesses the room from the name, and stays quiet when unsure', () => {
@@ -186,5 +180,16 @@ describe('tasks', () => {
     const done = setAssignmentStatus(mk('done', {}), 'nikita', 'done', 'nikita');
     const list = [mk('undated', {}), mk('later', { due: '2026-12-17' }), mk('soon', { due: '2026-11-27' }), mk('urgent', { urgent: true }), done];
     expect(openTasksSorted(list, 'nikita').map((t) => t.id)).toEqual(['urgent', 'soon', 'later', 'undated']);
+  });
+});
+
+describe('done tasks', () => {
+  it('lists the tasks where this person\'s part is done, by title, so a mistaken tick can be found and undone', async () => {
+    const { doneTasksFor } = await import('./tasks');
+    const a = shared({ id: 'a', title: 'Zebra', assignments: [{ person: 'nikita', status: 'done', steps: [] }] });
+    const b = shared({ id: 'b', title: 'Alpha', assignments: [{ person: 'nikita', status: 'done', steps: [] }, { person: 'daryna', status: 'todo', steps: [] }] });
+    const c = shared({ id: 'c', title: 'Open', assignments: [{ person: 'nikita', status: 'in_progress', steps: [] }] });
+    expect(doneTasksFor([a, b, c], 'nikita').map((t) => t.id)).toEqual(['b', 'a']);
+    expect(doneTasksFor([a, b, c], 'daryna')).toEqual([]);
   });
 });
