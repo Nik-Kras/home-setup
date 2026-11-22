@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useRef, useState, type ComponentRef } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useRef, useState, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { Screen } from '../../components/Screen';
@@ -31,6 +31,15 @@ function Ring({ done, total }: { done: number; total: number }) {
 function AddBar({ onAdd }: { onAdd: (name: string) => void }) {
   const [text, setText] = useState('');
   const ref = useRef<ComponentRef<typeof TextInput>>(null);
+  const { focusAdd } = useLocalSearchParams<{ focusAdd?: string }>();
+  useFocusEffect(useCallback(() => {
+    if (focusAdd !== '1') return;
+    const frame = requestAnimationFrame(() => {
+      ref.current?.focus();
+      router.setParams({ focusAdd: undefined });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusAdd]));
   const submit = () => {
     if (!text.trim()) return;
     onAdd(text);

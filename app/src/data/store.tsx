@@ -2,11 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 import type { ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { diffToOps } from './diff';
-import { OpQueue } from './queue';
 import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
-import { loadAll, makeExecutor, subscribe } from './repo';
+import { loadAll, subscribe } from './repo';
 import { seedItems, seedNotes, seedRooms, seedTasks } from './seed';
-import { db, kv } from './supabase';
+import { db } from './supabase';
+import { syncQueue } from './syncQueue';
+import { useWidgetSync } from './widgetSync';
 
 export type AuthStatus = 'loading' | 'signedOut' | 'signedIn';
 export type SyncStatus = 'demo' | 'synced' | 'pending' | 'offline';
@@ -48,26 +49,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ref = useRef(state);
   const [rooms, setRooms] = useState<Room[]>(LIVE ? [] : seedRooms);
   const roomIds = useRef(new Map<string, string>());
-  const queue = useRef<OpQueue | null>(null);
+  const [widgetReady, setWidgetReady] = useState(false);
 
   const set = useCallback((next: State) => {
     ref.current = next;
     setState(next);
   }, []);
 
-  if (db && !queue.current) {
-    queue.current = new OpQueue(kv, makeExecutor(db), (op) => console.warn('server refused a change, dropped:', op.table));
-  }
+  useWidgetSync(state, ref, set, auth, widgetReady);
 
   const refresh = useCallback(async () => {
-    if (!db || !queue.current) return;
+    if (!db || !syncQueue) return;
     try {
-      await queue.current.flush();
-      if ((await queue.current.size()) > 0) return setSync('pending'); // never overwrite unsent local edits
+      await syncQueue.flush();
+      const before = ref.current;
+      if ((await syncQueue.size()) > 0) return setSync('pending'); // never overwrite unsent local edits
       const snap = await loadAll(db);
+      if ((await syncQueue.size()) > 0 || ref.current !== before) return;
       roomIds.current = new Map(snap.rooms.map((r) => [r.name, r.id]));
       setRooms(snap.rooms);
       set({ ...ref.current, items: snap.items, tasks: snap.tasks, notes: snap.notes });
+      setWidgetReady(true);
       setSync('synced');
     } catch {
       setSync('offline');
@@ -79,7 +81,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const client = db;
     if (!client) return;
     const resolve = async (userId: string | null) => {
-      if (!userId) return setAuth('signedOut');
+      if (!userId) {
+        setWidgetReady(false);
+        setAuth('signedOut');
+        return;
+      }
       const { data } = await client.from('members').select('key').eq('user_id', userId).maybeSingle();
       const key = data?.key;
       if (key === 'nikita' || key === 'daryna') set({ ...ref.current, me: key });
@@ -111,10 +117,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const next = reducer(prev, action);
       if (next === prev) return;
       set(next);
-      if (!queue.current) return;
-      const q = queue.current;
+      const q = syncQueue;
+      if (!q) return;
       void (async () => {
-        for (const op of diffToOps(prev, next, roomIds.current)) await q.enqueue(op);
+        await q.enqueueAll(diffToOps(prev, next, roomIds.current));
         setSync('pending');
         await q.flush();
         setSync((await q.size()) === 0 ? 'synced' : 'offline');
