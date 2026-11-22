@@ -27,7 +27,49 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-splash-screen"
+      "expo-splash-screen",
+      [
+        "react-native-android-widget",
+        {
+          "fonts": [
+            "./node_modules/@expo-google-fonts/instrument-serif/400Regular/InstrumentSerif_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/geist/400Regular/Geist_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/geist/600SemiBold/Geist_600SemiBold.ttf"
+          ],
+          "widgets": [
+            {
+              "name": "OurFlatSmall",
+              "label": "Our flat · small",
+              "minWidth": "144dp",
+              "minHeight": "132dp",
+              "targetCellWidth": 2,
+              "targetCellHeight": 2,
+              "resizeMode": "none",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "OurFlatMedium",
+              "label": "Our flat · medium",
+              "minWidth": "260dp",
+              "minHeight": "164dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal",
+              "updatePeriodMillis": 1800000
+            },
+            {
+              "name": "OurFlatLarge",
+              "label": "Our flat · large",
+              "minWidth": "260dp",
+              "minHeight": "304dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 4,
+              "resizeMode": "horizontal|vertical",
+              "updatePeriodMillis": 1800000
+            }
+          ]
+        }
+      ]
     ],
     "scheme": "homesetup",
     "backgroundColor": "#0E1110"

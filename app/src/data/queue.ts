@@ -19,8 +19,7 @@ export type Outcome = 'ok' | 'retry' | 'drop';
 const KEY = 'homesetup.queue.v1';
 
 export class OpQueue {
-  private ops: Op[] = [];
-  private loaded = false;
+  private storageTail: Promise<unknown> = Promise.resolve();
   private flushing: Promise<void> | null = null;
 
   constructor(
@@ -29,26 +28,27 @@ export class OpQueue {
     private readonly onDrop: (op: Op) => void = () => undefined,
   ) {}
 
-  private async load() {
-    if (this.loaded) return;
-    const raw = await this.storage.getItem(KEY);
-    this.ops = raw ? (JSON.parse(raw) as Op[]) : [];
-    this.loaded = true;
+  /** The app and headless worker share one queue instance in Android's ReactHost. */
+  private withOps<T>(work: (ops: Op[]) => T | Promise<T>): Promise<T> {
+    const next = this.storageTail.then(async () => {
+      const raw = await this.storage.getItem(KEY);
+      return work(raw ? JSON.parse(raw) as Op[] : []);
+    });
+    this.storageTail = next.catch(() => undefined);
+    return next;
   }
 
-  private async save() {
-    await this.storage.setItem(KEY, JSON.stringify(this.ops));
+  enqueue(op: Op): Promise<void> {
+    return this.enqueueAll([op]);
   }
 
-  async enqueue(op: Op): Promise<void> {
-    await this.load();
-    this.ops.push(op);
-    await this.save();
+  enqueueAll(added: readonly Op[]): Promise<void> {
+    if (added.length === 0) return Promise.resolve();
+    return this.withOps((ops) => this.storage.setItem(KEY, JSON.stringify([...ops, ...added])));
   }
 
-  async size(): Promise<number> {
-    await this.load();
-    return this.ops.length;
+  size(): Promise<number> {
+    return this.withOps((ops) => ops.length);
   }
 
   /** Send queued Ops in order. Safe to call often; overlapping calls share one run. */
@@ -62,9 +62,9 @@ export class OpQueue {
   }
 
   private async run() {
-    await this.load();
-    while (this.ops.length > 0) {
-      const op = this.ops[0]!;
+    while (true) {
+      const op = await this.withOps((ops) => ops[0]);
+      if (!op) return;
       let outcome: Outcome;
       try {
         outcome = await this.exec(op);
@@ -73,8 +73,10 @@ export class OpQueue {
       }
       if (outcome === 'retry') return;
       if (outcome === 'drop') this.onDrop(op);
-      this.ops.shift();
-      await this.save();
+      // Re-read under the same lock: a widget or app edit may have appended during the request.
+      await this.withOps((ops) =>
+        this.storage.setItem(KEY, JSON.stringify(ops.filter((pending) => pending.id !== op.id))),
+      );
     }
   }
 }

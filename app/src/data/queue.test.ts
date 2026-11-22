@@ -71,6 +71,28 @@ describe('OpQueue', () => {
     expect(sent).toEqual(['good']);
   });
 
+  it('preserves simultaneous app and widget appends while an op is being sent', async () => {
+    const sending = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    const sent: string[] = [];
+    const q = new OpQueue(memory(), async (o) => {
+      if (o.id === 'first') {
+        sending.resolve();
+        await finish.promise;
+      }
+      sent.push(o.id);
+      return 'ok';
+    });
+    await q.enqueue(op('first'));
+    const flushing = q.flush();
+    await sending.promise;
+    await Promise.all([q.enqueue(op('app')), q.enqueue(op('widget'))]);
+    finish.resolve();
+    await flushing;
+    expect(sent).toEqual(['first', 'app', 'widget']);
+    expect(await q.size()).toBe(0);
+  });
+
   it('overlapping flushes send each op once', async () => {
     const sent: string[] = [];
     const q = new OpQueue(memory(), async (o) => (await Promise.resolve(), sent.push(o.id), 'ok'));
