@@ -9,11 +9,12 @@ import { ItemPhotos } from '../../components/ItemPhotos';
 import { LoadingState, NotFoundState, OfflineState, useDetailState } from '../../components/LoadState';
 import { ScreenHeader } from '../../components/ScreenHeader';
 import { Sheet, SheetButton, SheetOption, TextSheet } from '../../components/Sheet';
-import { glyphFor, Icon } from '../../components/ui';
+import { Icon, itemGlyph } from '../../components/ui';
+import { TintWash } from '../../components/TintWash';
 import { useStore } from '../../data/store';
 import { actorName, clearedDatesWarning, formatMoney, ITEM_STATUS_LABEL, itemMeta, nextStatus, parseLink, parsePrice, roomOptions } from '../../domain/items';
 import type { ItemStatus, Person } from '../../domain/types';
-import { colors, fonts, personColor, TARGET } from '../../theme/tokens';
+import { colors, fonts, personColor, TARGET, tileTone } from '../../theme/tokens';
 
 type SheetName = 'name' | 'assignedTo' | 'price' | 'boughtBy' | 'link' | 'room';
 
@@ -68,13 +69,16 @@ export default function ItemDetail() {
     else setItemStatus(item.id, status);
   };
 
+  const glyph = itemGlyph(item);
+  const tone = tileTone[glyph.tone];
   return (
     <View style={s.root}>
+      <TintWash color={tone.fg} />
       {header}
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
         <View style={s.titleBlock}>
-          <View style={s.glyph}>
-            <Icon name={glyphFor(item.name)} size={38} color="#D5DBD7" stroke={1.5} />
+          <View style={[s.glyph, { backgroundColor: tone.fill, borderColor: tone.ring }]}>
+            <Icon name={glyph.icon} size={38} color={tone.fg} stroke={1.5} />
           </View>
           <View style={s.titleText}>
             <Pressable onPress={() => setSheet('name')} style={s.nameTarget} accessibilityRole="button" accessibilityLabel={`${item.name}${item.urgent ? ', urgent' : ''}`} accessibilityHint="Edit the name">

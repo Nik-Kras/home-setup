@@ -130,7 +130,7 @@ const s = StyleSheet.create({
   key: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary },
   value: { flexShrink: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  valueText: { flexShrink: 1, fontFamily: fonts.semibold, fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
+  valueText: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 15, color: colors.text, fontVariant: ['tabular-nums'] },
   valueEmpty: { fontFamily: fonts.regular, color: colors.textSecondary },
   valueAction: { fontFamily: fonts.medium, color: colors.mint },
   linkRow: { paddingLeft: 0, paddingRight: 0, gap: 0 },

@@ -7,7 +7,7 @@ import { ListGate, useListState } from '../../components/LoadState';
 import { PersonFilterDiscs } from '../../components/PersonFilterDiscs';
 import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
 import { NAME } from '../../components/TaskRow';
-import { Card, Icon, IconTile, SectionHeading, StatusChip, Sub, Title, UrgentBadge, glyphFor, PersonDisc } from '../../components/ui';
+import { Card, Icon, IconTile, itemGlyph, PersonDot, SectionHeading, StatusChip, Sub, Title, UrgentBadge } from '../../components/ui';
 import { useStore } from '../../data/store';
 import { counts, guessRoom, isItemDone, leftByRoom, nextUp } from '../../domain/items';
 import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
@@ -78,12 +78,12 @@ const ItemRow = memo(function ItemRow({ item, onGot }: { item: Item; onGot: (id:
   return (
     <View style={s.row}>
       <Pressable onPress={() => onGot(item.id)} accessibilityRole="button" accessibilityLabel={`Mark ${item.name} as got`} hitSlop={2}>
-        <IconTile icon={glyphFor(item.name)} />
+        <IconTile {...itemGlyph(item)} />
       </Pressable>
       <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details" style={s.rowMid}>
         <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
-          {item.assignedTo ? <PersonDisc person={item.assignedTo} size={16} /> : null}
+          {item.assignedTo ? <PersonDot person={item.assignedTo} /> : null}
           {item.urgent ? <UrgentMeta key={meta} meta={meta} /> : <Text style={s.metaOne} numberOfLines={1}>{meta}</Text>}
         </View>
       </Pressable>
@@ -108,7 +108,7 @@ function UrgentMeta({ meta }: { meta: string }) {
       numberOfLines={fits ? undefined : 1}
       onTextLayout={fits ? (e) => { if (e.nativeEvent.lines.length > 1) setFits(false); } : undefined}
     >
-      {meta}{fits ? <Text style={s.urgentWord}> · Urgent</Text> : null}
+      {meta}{fits ? <Text> · <Text style={s.urgentWord}>Urgent</Text></Text> : null}
     </Text>
   );
 }
@@ -169,8 +169,8 @@ export default function Buy() {
       renderSectionHeader={({ section }) => section.key === DONE ? (
         <Pressable onPress={() => setShowDone((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showDone }} accessibilityLabel={`Got it, ${section.meta}`} style={[s.doneToggle, showDone && { marginBottom: ROW_GAP }]}>
           <Text style={s.doneText}>{section.title}</Text>
-          <View style={{ transform: [{ rotate: showDone ? '90deg' : '-90deg' }] }}>
-            <Icon name="back" size={18} color={colors.textSecondary} stroke={2} />
+          <View style={{ transform: [{ rotate: showDone ? '180deg' : '0deg' }] }}>
+            <Icon name="chevronDown" size={20} color={colors.textSecondary} stroke={2} />
           </View>
         </Pressable>
       ) : (
@@ -186,21 +186,21 @@ const s = StyleSheet.create({
   listHeader: { gap: 8 },
   gap: { paddingTop: 8 },
   // The Screen layout's 8 between blocks, then the 6 between a heading and its first row.
-  sectionBelow: { paddingTop: 8, marginBottom: ROW_GAP },
+  sectionBelow: { paddingTop: ROW_GAP, marginBottom: ROW_GAP },
   headerText: { flex: 1 },
-  next: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, ...glow },
-  nextEyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.textSecondary },
+  next: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 84, paddingVertical: 12, paddingLeft: 14, paddingRight: 12, ...glow },
+  nextEyebrow: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, color: colors.textSecondary },
   nextName: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 30, color: colors.text },
   nextNameLong: { fontSize: 24, lineHeight: 26 },
   gotBtn: { flexShrink: 0, minHeight: TARGET, paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   gotText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
   ringLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ringNum: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },
-  ringTotal: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
-  addBar: { flexDirection: 'row', alignItems: 'center', minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5, marginVertical: 4 },
+  ringTotal: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary },
+  addBar: { flexDirection: 'row', alignItems: 'center', minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5 },
   addInput: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 16, color: colors.text },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingVertical: 8, paddingLeft: 8, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, paddingVertical: 6, paddingLeft: 8, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
   rowMid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },

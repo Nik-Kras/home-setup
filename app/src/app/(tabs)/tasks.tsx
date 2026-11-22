@@ -13,7 +13,7 @@ import { focusTask } from '../../domain/focus';
 import { addedSince, groupsFor, localDate } from '../../domain/taskOptions';
 import { openTasksSorted, sharedTasks, tasksFor } from '../../domain/tasks';
 import type { Person, Task } from '../../domain/types';
-import { colors, fonts, TARGET } from '../../theme/tokens';
+import { colors, fonts, TARGET, personColor } from '../../theme/tokens';
 
 /** Kept relative to the signed-in person, so "Mine" is always theirs whatever `me` is. */
 type View_ = 'mine' | 'other' | 'both';
@@ -106,8 +106,8 @@ export default function Tasks() {
             value={viewer ?? 'both'}
             onChange={(v) => setView(v === 'both' ? 'both' : v === me ? 'mine' : 'other')}
             options={[
-              { value: me, label: 'Mine', count: counts.mine },
-              { value: other, label: NAME[other], count: counts.other },
+              { value: me, label: 'Mine', count: counts.mine, dot: personColor[me] },
+              { value: other, label: NAME[other], count: counts.other, dot: personColor[other], tint: { fill: other === 'daryna' ? 'rgba(185,164,255,0.16)' : colors.mintFill, fg: personColor[other] } },
               { value: 'both', label: 'Both', count: counts.both },
             ]}
           />
@@ -140,8 +140,7 @@ const s = StyleSheet.create({
   listHeader: { gap: 8 },
   section: { paddingTop: 8, marginBottom: 8 },
   gap: { paddingTop: 8 },
-  // Bottom margin -2: with the list gap (8) and the heading's top padding (10) the next heading sits 16 below.
-  addBar: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 54, marginTop: 4, marginBottom: -2, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 },
+  addBar: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 54, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 },
   addInput: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 16, color: colors.text },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   moreBtn: { width: TARGET, height: TARGET, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },

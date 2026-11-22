@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle, type ViewStyle } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { ICON_PATHS, type IconName } from '../domain/glyphs';
+import { glyphFor, ICON_PATHS, roomTone, type IconName, type Tone } from '../domain/glyphs';
+import { guessRoom } from '../domain/items';
 import type { ItemStatus, Person, TaskStatus } from '../domain/types';
-import { colors, fonts, personColor, radius, TARGET } from '../theme/tokens';
+import { colors, fonts, personColor, radius, TARGET, tileTone } from '../theme/tokens';
 
 export { glyphFor, type IconName } from '../domain/glyphs';
 
@@ -40,7 +41,8 @@ const TASK_LABEL: Record<TaskStatus, string> = { todo: 'To do', in_progress: 'In
 export function StatusChip({ status }: { status: ItemStatus | TaskStatus }) {
   const label = (STATUS_LABEL as Record<string, string>)[status] ?? TASK_LABEL[status as TaskStatus];
   const tone = status === 'ordered' || status === 'in_progress' ? 'amber' : status === 'delivered' || status === 'installed' || status === 'done' ? 'mint' : 'neutral';
-  const bg = tone === 'amber' ? colors.amberFill : tone === 'mint' ? colors.mintFill : colors.neutralFill;
+  // As in the design: Needed is a solid neutral, Looking a lighter 9% white.
+  const bg = tone === 'amber' ? colors.amberFill : tone === 'mint' ? colors.mintFill : status === 'looking' ? 'rgba(255,255,255,0.09)' : colors.neutralFill;
   const fg = tone === 'amber' ? colors.amber : tone === 'mint' ? colors.mint : '#D5DBD7';
   return (
     <View style={[s.chip, { backgroundColor: bg }]}>
@@ -69,12 +71,25 @@ export function PersonDisc({ person, done = true, size = 24 }: { person: Person;
 }
 
 /* ---------- Controls ---------- */
-export function IconTile({ icon }: { icon: IconName }) {
+/** An item's glyph and its room's category colour. The room is guessed from the name when it has none. */
+export function itemGlyph(item: { name: string; room?: string }): { icon: IconName; tone: Tone } {
+  const room = item.room ?? guessRoom(item.name);
+  return { icon: glyphFor(item.name, room), tone: roomTone(room) };
+}
+
+/** 44dp glyph tile tinted with the room's colour, as in the design's list rows. */
+export function IconTile({ icon, tone = 'neutral' }: { icon: IconName; tone?: Tone }) {
+  const t = tileTone[tone];
   return (
-    <View style={s.tile}>
-      <Icon name={icon} size={26} color={colors.textSecondary} stroke={1.6} />
+    <View style={[s.tile, { backgroundColor: t.fill }]}>
+      <Icon name={icon} size={26} color={t.fg} stroke={1.6} />
     </View>
   );
+}
+
+/** Owner as a small coloured dot, as in the design's meta lines. */
+export function PersonDot({ person }: { person: Person }) {
+  return <View style={[s.dot, { backgroundColor: personColor[person] }]} />;
 }
 
 export function CheckCircle({ done, onPress, label }: { done: boolean; onPress?: () => void; label: string }) {
@@ -85,14 +100,15 @@ export function CheckCircle({ done, onPress, label }: { done: boolean; onPress?:
   );
 }
 
-export function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string; count?: number }[]; onChange: (v: T) => void }) {
+export function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string; count?: number; dot?: string; tint?: { fill: string; fg: string } }[]; onChange: (v: T) => void }) {
   return (
     <View style={s.seg} accessibilityRole="tablist">
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <Pressable key={o.value} testID={`segment-${o.value}`} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={[s.segItem, on && s.segOn]}>
-            <Text style={[s.segText, on && s.segTextOn]}>
+          <Pressable key={o.value} testID={`segment-${o.value}`} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }} style={[s.segItem, on && s.segOn, on && o.tint && { backgroundColor: o.tint.fill }]}>
+            {o.dot ? <View style={[s.dot, { backgroundColor: o.dot }]} /> : null}
+            <Text style={[s.segText, on && s.segTextOn, on && o.tint && { color: o.tint.fg }]}>
               {o.label}{o.count !== undefined ? <Text style={s.segCount}>  {o.count}</Text> : null}
             </Text>
           </Pressable>
@@ -112,7 +128,7 @@ export { Circle, Rect };
 const s = StyleSheet.create({
   title: { fontFamily: fonts.serif, fontSize: 36, lineHeight: 40, letterSpacing: -0.5, color: colors.text },
   sub: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 18, color: colors.textSecondary },
-  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 10, paddingHorizontal: 4 },
+  sectionRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', paddingTop: 2, paddingHorizontal: 4 },
   section: { fontFamily: fonts.serif, fontSize: 21, lineHeight: 24, color: colors.text },
   sectionMeta: { fontFamily: fonts.regular, fontSize: 13, color: colors.textMuted },
   chip: { height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: 'center' },
@@ -121,12 +137,13 @@ const s = StyleSheet.create({
   urgentText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.coral, lineHeight: 14 },
   disc: { borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   discText: { fontFamily: fonts.semibold },
+  dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   tile: { width: 44, height: 44, borderRadius: radius.tile, backgroundColor: colors.neutralFill, alignItems: 'center', justifyContent: 'center' },
   checkHit: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center' },
   check: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
   checkDone: { backgroundColor: colors.mint, borderColor: colors.mint },
-  seg: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.surface, borderRadius: 26, borderWidth: 1, borderColor: colors.hairline },
-  segItem: { flex: 1, height: TARGET, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  seg: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: colors.surface, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  segItem: { flex: 1, height: TARGET, borderRadius: 22, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center' },
   segOn: { backgroundColor: colors.mintFill },
   segText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textSecondary },
   segTextOn: { color: colors.mint, fontFamily: fonts.semibold },

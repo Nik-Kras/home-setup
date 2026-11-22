@@ -98,4 +98,6 @@ Same look and tokens as the rest. The tab bar has four tabs: Buy, Tasks, Home, B
 15. **Shared task**: one card per person with status, progress and their own steps; a note that the task closes when both are done; activity; actions: mark mine done, nudge.
 
 ## Colour meaning, as built (2026-11-21)
-Following the decision to use cleaner colour meaning: coral is only for urgent (the "!" badge and the word Urgent); mint is done, primary actions and Nikita; **Daryna is lilac**; amber is only in transit (Ordered, In progress) and to confirm; item tiles are neutral. People appear as initial discs (filled = done, outline = waiting). The mockups on the canvas still show the earlier colours.
+Following the decision to use cleaner colour meaning: coral is only for urgent (the "!" badge and the word Urgent); mint is done, primary actions and Nikita; **Daryna is lilac**; amber is only in transit (Ordered, In progress) and to confirm; item tiles are neutral.
+
+**Update 2026-11-22 (T12, user feedback):** item glyph tiles use the design's room colours again (kitchen and hallway amber, living room mint, bedroom lilac; bathroom sky blue, not drawn in the design; other rooms neutral), with the design's glyph set picked by item name and falling back to the room (`app/src/domain/glyphs.ts`). Owners show as small coloured dots in meta lines, as in the design. The task note banner is amber with an info mark, as in the design. People appear as initial discs (filled = done, outline = waiting). The mockups on the canvas still show the earlier colours.

@@ -2,16 +2,20 @@ import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ListGate } from '../../components/LoadState';
 import { Screen } from '../../components/Screen';
-import { Card, PersonDisc, Sub, Title } from '../../components/ui';
+import { Card, PersonDot, Sub, Title } from '../../components/ui';
+import { roomTone } from '../../domain/glyphs';
 import { useStore } from '../../data/store';
 import { budgetView, gbp, type BudgetRoomRow } from '../../domain/budgetView';
-import { colors, fonts, glow, personColor } from '../../theme/tokens';
+import { colors, fonts, glow, personColor, tileTone } from '../../theme/tokens';
 
+/** Each room's bar in its category colour, as in the design; rooms without one ("Other") stay grey. */
 function RoomBar({ row }: { row: BudgetRoomRow }) {
+  const tone = roomTone(row.room);
+  const fill = tone === 'neutral' ? colors.textMuted : tileTone[tone].fg;
   return (
     <View style={{ gap: 6 }} accessible accessibilityLabel={`${row.room}, ${row.label}`}>
       <View style={s.barRow}><Text style={s.barLabel}>{row.room}</Text><Text style={s.barValue}>{row.label}</Text></View>
-      <View style={s.track}><View style={[s.fill, { width: `${row.fill * 100}%`, backgroundColor: colors.textSecondary }]} /></View>
+      <View style={s.track}><View style={[s.fill, { width: `${row.fill * 100}%`, backgroundColor: fill }]} /></View>
     </View>
   );
 }
@@ -45,7 +49,7 @@ export default function Budget() {
             <View style={s.barRow}>
               {(['nikita', 'daryna'] as const).map((p) => (
                 <View key={p} style={s.legend}>
-                  <PersonDisc person={p} size={18} />
+                  <PersonDot person={p} />
                   <Text style={s.barLabel}>{p === 'nikita' ? 'Nikita' : 'Daryna'} {gbp(b.byPerson[p])}</Text>
                 </View>
               ))}
@@ -65,17 +69,17 @@ export default function Budget() {
 
 const s = StyleSheet.create({
   hero: { gap: 8, ...glow },
-  label: { fontFamily: fonts.medium, fontSize: 13, color: colors.textSecondary },
-  big: { fontFamily: fonts.serif, fontSize: 48, lineHeight: 52, color: colors.text },
+  label: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
+  big: { fontFamily: fonts.serif, fontSize: 48, lineHeight: 50, color: colors.text, fontVariant: ['tabular-nums'] },
   of: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary },
-  mid: { fontFamily: fonts.serif, fontSize: 34, lineHeight: 36, color: colors.text },
+  mid: { fontFamily: fonts.serif, fontSize: 34, lineHeight: 36, color: colors.text, fontVariant: ['tabular-nums'] },
   track: { height: 8, borderRadius: 4, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: 8 },
   split: { flexDirection: 'row', height: 14, gap: 3 },
   splitEmpty: { borderRadius: 7, backgroundColor: colors.track },
   barRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  barLabel: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 15, color: colors.text },
-  barValue: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+  barLabel: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 18, color: colors.text, fontVariant: ['tabular-nums'] },
+  barValue: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   note: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary },
 });

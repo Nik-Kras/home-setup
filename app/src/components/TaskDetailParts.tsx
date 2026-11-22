@@ -199,7 +199,8 @@ export function AssignmentCard({ assignment, actions, onStatusPress }: {
 export function TaskCallout({ kind, children }: { kind: 'note' | 'shared'; children: ReactNode }) {
   return (
     <View style={[s.card, s.callout, kind === 'note' && s.note]}>
-      <Icon name={kind === 'note' ? 'tasks' : 'check'} size={20} color={colors.textSecondary} />
+      {/* As in the design: a note is an amber "why it matters" banner with an info mark; the shared rule has a bell. */}
+      <Icon name={kind === 'note' ? 'info' : 'bell'} size={20} color={kind === 'note' ? colors.amber : colors.textSecondary} stroke={2} />
       <View style={s.calloutBody}>{children}</View>
     </View>
   );
@@ -245,7 +246,7 @@ const s = StyleSheet.create({
   statusChip: { minHeight: TARGET, alignItems: 'flex-start', justifyContent: 'center', marginTop: 2 },
   track: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: colors.track, marginBottom: 8 },
   progress: { height: '100%', backgroundColor: colors.mint },
-  callout: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', padding: 14, borderRadius: radius.row },
-  note: { backgroundColor: colors.surfaceRaised },
+  callout: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingVertical: 12, paddingHorizontal: 14, borderRadius: radius.row },
+  note: { backgroundColor: 'rgba(255,196,87,0.10)', borderColor: 'rgba(255,196,87,0.30)' },
   calloutBody: { flex: 1, gap: 4 },
 });

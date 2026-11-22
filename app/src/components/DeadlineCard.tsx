@@ -31,14 +31,14 @@ export function DeadlineCard({ task, person, today }: { task: Task; person: Pers
 }
 
 const s = StyleSheet.create({
-  card: { gap: 6, padding: 16, paddingTop: 14, borderRadius: radius.card, borderWidth: 1, ...glow },
-  eyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
-  title: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 32, color: colors.text },
-  foot: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 4 },
-  progress: { flex: 1, gap: 8 },
-  progressText: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 18, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+  card: { gap: 8, paddingHorizontal: 16, paddingVertical: 12, borderRadius: radius.card, borderWidth: 1, ...glow },
+  eyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
+  title: { fontFamily: fonts.serif, fontSize: 26, lineHeight: 28, color: colors.text },
+  foot: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  progress: { flex: 1, gap: 6 },
+  progressText: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 16, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   track: { height: 6, borderRadius: 3, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: 6, backgroundColor: colors.mint },
-  btn: { minHeight: TARGET, paddingHorizontal: 20, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  btnText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
+  btn: { minHeight: TARGET, paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  btnText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.onMint },
 });

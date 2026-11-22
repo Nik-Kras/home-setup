@@ -2,9 +2,9 @@
 
 import type { ReactNode } from 'react';
 import { FlexWidget, SvgWidget, TextWidget, type FlexWidgetStyle, type TextWidgetProps, type WidgetInfo } from 'react-native-android-widget';
-import { ICON_PATHS, type IconName } from '../../domain/glyphs';
+import { ICON_PATHS, type IconName, type Tone } from '../../domain/glyphs';
 import { fitRooms, type WidgetView } from '../../domain/widgetData';
-import { colors, fonts, radius, TARGET } from '../../theme/tokens';
+import { colors, fonts, radius, TARGET, tileTone } from '../../theme/tokens';
 
 export const WIDGET_NAMES = ['OurFlatSmall', 'OurFlatMedium', 'OurFlatLarge'] as const;
 export const MARK_GOT = 'MARK_GOT';
@@ -81,7 +81,8 @@ function GotButton({ row, height }: { row: Row; height: number }) {
   );
 }
 
-function ItemRow({ row, icon, height }: { row: Row; icon?: IconName; height: number }) {
+function ItemRow({ row, icon, tone = 'neutral', height }: { row: Row; icon?: IconName; tone?: Tone; height: number }) {
+  const t = tileTone[tone];
   const tile = Math.min(height - 4, 36);
   return (
     <FlexWidget style={{ ...horizontal, width: 'match_parent', height }}>
@@ -90,8 +91,8 @@ function ItemRow({ row, icon, height }: { row: Row; icon?: IconName; height: num
         accessibilityLabel={`${row.name}, ${row.status}${row.urgent ? ', urgent' : ''}. Open item details`}
         style={{ ...horizontal, flex: 1, width: 0, height: 'match_parent', flexGap: 7 }}>
         {icon && (
-          <FlexWidget style={{ ...center, width: tile, height: tile, borderRadius: radius.tile, backgroundColor: colors.neutralFill }}>
-            <Glyph name={icon} color={colors.textSecondary} />
+          <FlexWidget style={{ ...center, width: tile, height: tile, borderRadius: radius.tile, backgroundColor: t.fill }}>
+            <Glyph name={icon} color={t.fg} />
           </FlexWidget>
         )}
         <FlexWidget style={{ ...horizontal, flex: 1, width: 0, flexGap: 4 }}>
@@ -157,7 +158,7 @@ export function renderOurFlatWidget(info: WidgetInfo, data: WidgetView | null) {
     return (
       <Frame label={label}>
         <Header left={data.leftCount} />
-        {data.top.slice(0, fit).map((row) => <ItemRow key={row.id} row={row} icon={row.icon} height={TARGET} />)}
+        {data.top.slice(0, fit).map((row) => <ItemRow key={row.id} row={row} icon={row.icon} tone={row.tone} height={TARGET} />)}
         {data.top.length === 0 && <Label text="Everything is got" style={{ color: colors.textSecondary }} />}
       </Frame>
     );

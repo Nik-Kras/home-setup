@@ -47,7 +47,7 @@ const s = StyleSheet.create({
   row: { height: TARGET, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 8, paddingRight: 12 },
   back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', borderRadius: TARGET / 2 },
   action: { minWidth: TARGET, height: TARGET, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderRadius: TARGET / 2 },
-  actionText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text },
+  actionText: { fontFamily: fonts.medium, fontSize: 15, color: '#D5DBD7' },
   // The row pads 12 on the right; 8 more puts the disc's edge 20 from the screen, like the title's left edge.
   iconAction: { width: TARGET, height: TARGET, marginRight: 8, borderRadius: TARGET / 2, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   title: { flex: 1, marginLeft: 4, fontFamily: fonts.semibold, fontSize: 16, color: colors.text },

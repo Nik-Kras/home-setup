@@ -1,5 +1,5 @@
-import { glyphFor } from './glyphs';
-import { isItemDone, ITEM_STATUS_LABEL, leftByRoom } from './items';
+import { glyphFor, roomTone } from './glyphs';
+import { guessRoom, isItemDone, ITEM_STATUS_LABEL, leftByRoom } from './items';
 import { localDate } from './taskOptions';
 import { daysLeft, openTasksSorted } from './tasks';
 import type { Item, Person, Task } from './types';
@@ -50,7 +50,11 @@ export function buildWidgetItemData(items: readonly WidgetItem[]) {
   return {
     left,
     leftCount: left.length,
-    top: left.slice(0, 3).map((item) => ({ ...row(item), icon: glyphFor(item.name) })),
+    // Glyph and its room colour, as on the list rows (the room is guessed from the name when unset).
+    top: left.slice(0, 3).map((item) => {
+      const room = item.room ?? guessRoom(item.name);
+      return { ...row(item), icon: glyphFor(item.name, room), tone: roomTone(room) };
+    }),
     rooms: capRows(grouped, WIDGET_MAX_ROWS),
   };
 }
