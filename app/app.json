@@ -109,7 +109,8 @@
           "microphonePermission": false
         }
       ],
-      "./plugins/with-release-signing"
+      "./plugins/with-release-signing",
+      "./plugins/with-early-intent"
     ],
     "runtimeVersion": {
       "policy": "fingerprint"

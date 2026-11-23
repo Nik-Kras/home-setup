@@ -1,4 +1,4 @@
-# Used by place-widget.sh: opens the Pixel launcher's widget picker at "Our flat · large".
+# Used by place-widget.sh: opens the Pixel launcher's widget picker at "Moved In · large".
 # Maestro has no long-press-and-drag, so the script does the drop itself with adb.
 appId: com.google.android.apps.nexuslauncher
 ---
@@ -7,8 +7,8 @@ appId: com.google.android.apps.nexuslauncher
     point: 50%, 73%
 - tapOn: "Widgets"
 - scrollUntilVisible:
-    element: "Home Setup"
-- tapOn: "Home Setup"
+    element: "Moved In"
+- tapOn: "Moved In"
 - scrollUntilVisible:
-    element: "Our flat · large widget.*"
+    element: "Moved In · large widget.*"
     centerElement: true

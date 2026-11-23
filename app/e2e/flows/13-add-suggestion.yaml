@@ -51,6 +51,11 @@ name: 13 add with a suggestion
     text: "Bedroom"
     selected: true
 - tapOn: "Add item"
+# The name was bought before, so the screen asks first (a name is never added again silently).
+- extendedWaitUntil:
+    visible: "You already got ZZ-e2e-suggest-src."
+    timeout: 10000
+- tapOn: "Add another ZZ-e2e-suggest-src anyway"
 - extendedWaitUntil:
     visible: "Added to Bedroom"
     timeout: 5000

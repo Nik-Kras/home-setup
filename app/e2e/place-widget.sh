@@ -1,5 +1,5 @@
 #!/bin/bash
-# Places the "Our flat · large" widget on the emulator home screen (Pixel launcher), unless an Our flat
+# Places the "Moved In · large" widget on the emulator home screen (Pixel launcher), unless a Moved In
 # widget is already there. Use --force to add another one. Best effort: it long-presses an empty spot
 # just above the dock, opens the widget picker with Maestro, then drags the widget with adb.
 set -euo pipefail
@@ -10,14 +10,14 @@ bound() { adb -s "$DEVICE" shell dumpsys appwidget | sed -n '/^Widgets:/,$p' | g
 
 before=$(bound)
 if [ "$before" -gt 0 ] && [ "${1:-}" != "--force" ]; then
-  echo "place-widget: an Our flat widget is already on the home screen ($before bound)"
+  echo "place-widget: a Moved In widget is already on the home screen ($before bound)"
   exit 0
 fi
 
 maestro --device "$DEVICE" test widget/open-picker.yaml >/dev/null
-# Centre of the "Our flat · large" preview cell, read from the screen.
+# Centre of the "Moved In · large" preview cell, read from the screen.
 read -r x y < <(maestro --device "$DEVICE" hierarchy --compact 2>/dev/null \
-  | grep 'accessibilityText=Our flat · large widget' | head -1 \
+  | grep 'accessibilityText=Moved In · large widget' | head -1 \
   | sed -E 's/.*bounds=\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\].*/\1 \2 \3 \4/' \
   | awk '{ print int(($1+$3)/2), int(($2+$4)/2) }')
 [ -n "${x:-}" ] || { echo "place-widget: widget preview not found"; exit 1; }

@@ -36,7 +36,7 @@ Needs:
 | 10 live sync | another device (REST API as Claude) adds, marks urgent, renames and delivers an item; the open app follows without a tap |
 | 11 claim and price | "I'll buy it" on an unclaimed item (Undo offered), then one stage at a time to Ordered, where the "Paid?" prompt saves the price and who paid |
 | 12 task edit and done | the edit sheet renames a task and sets it due tomorrow; Done on its screen; the collapsed Done section unticks it |
-| 13 add with a suggestion | a past item's name is suggested with its room; picking it adds to that room, not the last one used; the snackbar's Change opens the new item |
+| 13 add with a suggestion | a past item's name is suggested with its room; picking it asks first ("You already got ...", Add anyway), then adds to that room, not the last one used; the snackbar's Change opens the new item |
 
 Signed in as the Claude account the app acts as Nikita (`me` defaults to Nikita for a non-person account), so "Mine" is Nikita's list and Daryna's part of a shared task is ticked through the database.
 
@@ -45,7 +45,7 @@ Signed in as the Claude account the app acts as Nikita (`me` defaults to Nikita 
 - `flows/*.yaml`: the flows; `flows/common/`: shared steps (open the build, sign in, add an item or task, open an item by its name, find a row on the Buy list from the top, database check).
 - `scripts/db.js`: database checks inside a flow (Maestro's JavaScript: `http`, polling, throws on failure). Ops: `expect-item`, `expect-count`, `expect-task`, `expect-task-row`, `expect-note`, `expect-photo-row`, `get-id`, `add-item`, `set-item`, `set-assignment`.
 - `db.mts`: the same from the shell (`npx -y tsx e2e/db.mts list|cleanup|item|expect-...|set-...`). `run.sh` uses it to clean up.
-- `place-widget.sh`: puts a large Our flat widget on the home screen if none is there (Pixel launcher: opens the widget picker with `widget/open-picker.yaml`, then drags with `adb shell input draganddrop`; `--force` adds another).
+- `place-widget.sh`: puts a large Moved In widget on the home screen if none is there (Pixel launcher: opens the widget picker with `widget/open-picker.yaml`, then drags with `adb shell input draganddrop`; `--force` adds another).
 - `assets/zz-e2e-photo.jpg`: the image `run.sh` pushes to the emulator gallery for flow 06.
 
 ## Data rules
@@ -57,6 +57,7 @@ Signed in as the Claude account the app acts as Nikita (`me` defaults to Nikita 
 ## Known failures (2026-11-22, release build)
 
 - Fixed: **a deep link was ignored when the widget's background task started the app** (flow 08 failed at the `+` step). Android kept the app's task, recreated the Activity with its old launcher intent and delivered the widget link as a new intent before the router listened. `src/app/+native-intent.tsx` now opens the link expo-linking recorded when the router falls back to the root. To repro by hand without `am kill`: `adb shell su 0 kill -9 <pid>` (userdebug emulator), then tap a circle and `+`.
+- Fixed (2026-11-23): **the same symptom came back with expo-updates** (flow 08 failed at the `+` step on every release run). expo-updates delays loading the app until it has picked a bundle, and until then expo's `ReactActivityDelegateWrapper.onNewIntent` drops new intents, so neither React Native nor expo-linking saw the widget link. `plugins/with-early-intent.js` makes such a dropped intent the Activity's intent, which `Linking.getInitialURL()` then returns. A native change: it needs a new APK.
 - **`stopApp` kills widget taps.** Maestro's `stopApp` is `am force-stop`, which (like "Force stop" in Settings) cancels the widget's tap intents: taps do nothing until the app runs again and redraws the widget. This was the "got tap is sometimes lost" failure first seen on the dev build (08 with `stopApp` passed 1 of 6 release runs). Flow 08 now uses Home plus `killApp` (`am kill`). The process often survives `am kill` (it stays at "bound top" priority, probably because the launcher reads the widget image from the app); when it does not, 08 tests the background case like 08b.
 - On a freshly placed widget, and after `clearState` (flows 01 and 09 clear the app's stored widget size), the first tap is used by react-native-android-widget (`RNWidgetSizing.correct`) to measure the widget size and is then dropped. Flow 08 therefore first taps a spare row (`ZZ-e2e-widget-prime`); in a full run 08 used to fail at the got step for this reason.
 - Fixed: flow 05's shared row order ("You" is now always listed first in `TaskRow`).
