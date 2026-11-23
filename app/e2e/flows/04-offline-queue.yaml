@@ -10,7 +10,9 @@ name: 04 offline queue
 - runFlow:
     file: common/add-item.yaml
     env: { NAME: ZZ-e2e-offline }
-- tapOn: "ZZ-e2e-offline, .*"
+- runFlow:
+    file: common/open-item.yaml
+    env: { NAME: ZZ-e2e-offline }
 - extendedWaitUntil:
     visible: "Mark looking"
     timeout: 5000
@@ -20,6 +22,7 @@ name: 04 offline queue
 - scrollUntilVisible:
     element: "Needs installing"
     centerElement: true
+    waitToSettleTimeoutMs: 500
 - tapOn: "Urgent"
 - assertVisible:
     text: "Urgent"
@@ -29,7 +32,9 @@ name: 04 offline queue
     file: common/db.yaml
     env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-offline, COUNT: "0" }
 - tapOn: "Back to list"
-- assertVisible: "ZZ-e2e-offline, .*"
+- runFlow:
+    file: common/find-on-buy.yaml
+    env: { TARGET: "ZZ-e2e-offline, .*" }
 
 - setAirplaneMode: disabled
 # The queue retries on a 20 s timer, so allow up to 60 s.
@@ -40,15 +45,20 @@ name: 04 offline queue
     file: common/db.yaml
     env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-offline, COUNT: "1" }
 # One row on screen, not two.
-- assertVisible: "ZZ-e2e-offline, .*"
+- runFlow:
+    file: common/find-on-buy.yaml
+    env: { TARGET: "ZZ-e2e-offline, .*" }
 - assertNotVisible:
     text: "ZZ-e2e-offline, .*"
     index: 1
 # Still exactly one after a later retry cycle and a cold restart.
 - runFlow: common/open.yaml
 - extendedWaitUntil:
-    visible: "ZZ-e2e-offline, .*"
+    visible: "Add an item"
     timeout: 30000
+- runFlow:
+    file: common/find-on-buy.yaml
+    env: { TARGET: "ZZ-e2e-offline, .*" }
 - assertNotVisible:
     text: "ZZ-e2e-offline, .*"
     index: 1

@@ -1,0 +1,70 @@
+# 13. Add screen with a suggestion: a name the household used before is suggested with its room, and
+# picking it adds the item to that room (not the last room used). The "Added to <room>" snackbar's
+# Change opens the new item.
+appId: app.homesetup.household
+name: 13 add with a suggestion
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+
+# A past item in Bedroom, then another add in Living room, so the last room used is not Bedroom.
+- tapOn: "Buy"
+- scrollUntilVisible:
+    element: "Add an item"
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- tapOn: "Add an item"
+- inputText: "ZZ-e2e-suggest-src"
+- tapOn: "Bedroom"
+- tapOn: "Add item"
+- extendedWaitUntil:
+    visible: "Added to Bedroom"
+    timeout: 5000
+- scrollUntilVisible:
+    element: "Add an item"
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- tapOn: "Add an item"
+- inputText: "ZZ-e2e-suggest-other"
+- tapOn: "Living room"
+- tapOn: "Add item"
+- extendedWaitUntil:
+    visible: "Added to Living room"
+    timeout: 5000
+# The first one is got (as the other phone), so it is a past purchase, not on the list.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-suggest-src, FIELDS: "status=delivered" }
+
+# Type part of the name: the suggestion shows with its room; picking it fills the name and the room.
+- scrollUntilVisible:
+    element: "Add an item"
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- tapOn: "Add an item"
+- inputText: "ZZ-e2e-suggest-s"
+- extendedWaitUntil:
+    visible: "ZZ-e2e-suggest-src, Goes in Bedroom"
+    timeout: 10000
+- tapOn: "ZZ-e2e-suggest-src, Goes in Bedroom"
+- assertVisible:
+    text: "Bedroom"
+    selected: true
+- tapOn: "Add item"
+- extendedWaitUntil:
+    visible: "Added to Bedroom"
+    timeout: 5000
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: items, NAME: ZZ-e2e-suggest-src, COUNT: "2" }
+
+# Change, in the snackbar, opens the new item: needed, in Bedroom.
+- tapOn: "Change the new item"
+- extendedWaitUntil:
+    visible: "Mark looking"
+    timeout: 5000
+- assertVisible: "ZZ-e2e-suggest-src"
+- scrollUntilVisible:
+    element: "Room, Bedroom"
+    centerElement: true
+    waitToSettleTimeoutMs: 500

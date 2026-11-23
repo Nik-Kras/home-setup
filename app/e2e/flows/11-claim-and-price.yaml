@@ -1,0 +1,60 @@
+# 11. Claim and price: an unclaimed item is claimed with "I'll buy it" (Undo offered), then moved one
+# stage at a time to Ordered, where the optional "Paid?" prompt takes the price and who paid.
+appId: app.homesetup.household
+name: 11 claim and price
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+# Added as the other phone: nobody is assigned.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: add-item, NAME: ZZ-e2e-claim }
+- tapOn: "Buy"
+- runFlow:   # the row of an unclaimed item reads "<name>, Not claimed yet"
+    file: common/find-on-buy.yaml
+    env: { TARGET: "ZZ-e2e-claim, Not claimed yet.*" }
+- runFlow:
+    file: common/open-item.yaml
+    env: { NAME: ZZ-e2e-claim }
+- assertVisible: "Mark looking"
+
+# Claim from the item screen: one tap, assigned to me (the Claude account acts as Nikita).
+- scrollUntilVisible:
+    element: "I'll buy it"
+    centerElement: true
+    waitToSettleTimeoutMs: 500
+- tapOn: "I'll buy it"
+- assertVisible: "Assigned to, Nikita"
+- assertVisible: "Undo: .*"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-claim, FIELDS: "assigned_to=nikita,status=needed" }
+
+# One stage at a time to Ordered; the "Paid?" prompt appears there.
+- scrollUntilVisible:
+    element: "Mark looking"
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- tapOn: "Mark looking"
+- assertVisible: "Looking, step 2 of 5"
+- tapOn: "Mark ordered"
+- assertVisible: "Ordered, step 3 of 5"
+- extendedWaitUntil:
+    visible: "Paid for ZZ-e2e-claim.*"
+    timeout: 5000
+# Who paid starts as me; pick Daryna, type the price, save.
+- tapOn: "Paid by Daryna"
+- tapOn: "Price paid for ZZ-e2e-claim, in pounds"
+- inputText: "12.5"
+- tapOn: "Save price"
+- extendedWaitUntil:
+    notVisible: "Paid for ZZ-e2e-claim.*"
+    timeout: 5000
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-item, NAME: ZZ-e2e-claim, FIELDS: "status=ordered,actual_price=12.5,bought_by=daryna" }
+- scrollUntilVisible:
+    element: "Price paid, £12.50"
+    centerElement: true
+    waitToSettleTimeoutMs: 500
+- assertVisible: "Bought by, Daryna"

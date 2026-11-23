@@ -8,10 +8,13 @@ name: 06 photos
 - runFlow:
     file: common/add-item.yaml
     env: { NAME: ZZ-e2e-photo }
-- tapOn: "ZZ-e2e-photo, .*"
+- runFlow:
+    file: common/open-item.yaml
+    env: { NAME: ZZ-e2e-photo }
 - scrollUntilVisible:
     element: "Add photo"
     centerElement: true
+    waitToSettleTimeoutMs: 500
 - tapOn: "Add photo"
 - tapOn: "Library"
 # Android's photo picker (not part of the app): the newest photo is first.
@@ -37,6 +40,7 @@ name: 06 photos
 - scrollUntilVisible:
     element: "Delivered, step 4 of 5"
     direction: UP
+    waitToSettleTimeoutMs: 500
 - tapOn: "Delivered, step 4 of 5"
 - assertVisible: "Delivered, step 4 of 5, done"
 # Arriving offers the optional "Paid?" prompt; skip it.
@@ -50,4 +54,5 @@ name: 06 photos
     element:
       id: "home-photo-${output.id}"
     timeout: 30000
+    waitToSettleTimeoutMs: 500
 - assertVisible: "ZZ-e2e-photo, .*"

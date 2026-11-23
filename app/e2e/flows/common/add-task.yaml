@@ -1,9 +1,24 @@
 # Adds a task from the Tasks add bar in the current view. env: NAME
+# The bar is in the list header, so scroll back up to it first; the new row is usually further down
+# (below the deadline card and the urgent tasks), so scroll to it after adding.
 appId: app.homesetup.household
 ---
+- scrollUntilVisible:
+    element: "Add a task"
+    direction: UP
+    waitToSettleTimeoutMs: 500
 - tapOn: "Add a task"
 - inputText: ${NAME}
 - pressKey: Enter
-- extendedWaitUntil:
-    visible: "${NAME}"
-    timeout: 5000
+- scrollUntilVisible:
+    element: "${NAME}"
+    timeout: 20000
+    waitToSettleTimeoutMs: 500
+# Then to the middle, clear of the floating tab bar. Optional: the last row of a list cannot be centred
+# (the list's bottom padding already keeps it above the tab bar).
+- scrollUntilVisible:
+    element: "${NAME}"
+    centerElement: true
+    timeout: 3000
+    waitToSettleTimeoutMs: 500
+    optional: true

@@ -1,0 +1,29 @@
+# Opens the item NAME from the Buy list by tapping its name inside its row. Not the row's centre: the
+# row's "Got it" / "Add price" / "I'll buy it" pills sit inside the same target, under the name. The bare
+# name can also be in the Next up card, hence childOf the row (labelled "<name>, <who>...").
+appId: app.homesetup.household
+---
+- scrollUntilVisible:
+    element:
+      text: "${NAME}"
+      childOf:
+        text: "${NAME}, .*"
+    timeout: 30000
+    waitToSettleTimeoutMs: 500
+# Then to the middle, clear of the floating tab bar (optional: the last row cannot be centred).
+- scrollUntilVisible:
+    element:
+      text: "${NAME}"
+      childOf:
+        text: "${NAME}, .*"
+    centerElement: true
+    timeout: 3000
+    waitToSettleTimeoutMs: 500
+    optional: true
+- tapOn:
+    text: "${NAME}"
+    childOf:
+      text: "${NAME}, .*"
+- extendedWaitUntil:
+    visible: "Back to list"
+    timeout: 5000

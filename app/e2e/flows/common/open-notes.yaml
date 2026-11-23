@@ -5,6 +5,7 @@ appId: app.homesetup.household
 - scrollUntilVisible:
     element: "Flat notes.*"
     centerElement: true
+    waitToSettleTimeoutMs: 500
 - tapOn: "Flat notes.*"
 - extendedWaitUntil:
     visible: "Facts about the flat.*"

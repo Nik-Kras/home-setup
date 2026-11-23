@@ -12,9 +12,11 @@ name: 03 item lifecycle
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=needed" }
 
-# The row button; its label is "name, who, price". The bare name also appears in the Next up card.
+# Opened by its name (see common/open-item.yaml: the row's pills share the row's target).
 # The stepper always has five steps (Installed is optional for things that need no installing).
-- tapOn: "ZZ-e2e-lifecycle, .*"
+- runFlow:
+    file: common/open-item.yaml
+    env: { NAME: ZZ-e2e-lifecycle }
 - extendedWaitUntil:
     visible: "Mark looking"
     timeout: 5000
@@ -64,10 +66,12 @@ name: 03 item lifecycle
 - scrollUntilVisible:
     element: "Got it, .*"
     centerElement: true
+    waitToSettleTimeoutMs: 500
 - tapOn: "Got it, .*"
 - scrollUntilVisible:
     element: "Status Delivered: ZZ-e2e-lifecycle"
     centerElement: true
+    waitToSettleTimeoutMs: 500
 - tapOn: "Status Delivered: ZZ-e2e-lifecycle"
 - assertVisible: "ZZ-e2e-lifecycle: status"
 - tapOn: "Ordered"

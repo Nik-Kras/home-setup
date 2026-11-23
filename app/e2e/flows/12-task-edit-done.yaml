@@ -1,0 +1,58 @@
+# 12. Task edit and the Done section: rename a task and give it a due date in the edit sheet, mark it
+# done on its screen, then open "Done" on the list and untick it there.
+appId: app.homesetup.household
+name: 12 task edit and done
+---
+- runFlow: common/open.yaml
+- runFlow: common/signin.yaml
+- tapOn: "Tasks"
+- tapOn:
+    id: "segment-nikita"
+- runFlow:
+    file: common/add-task.yaml
+    env: { NAME: ZZ-e2e-edit }
+
+# Edit: new title and a due date (Tomorrow).
+- tapOn: "ZZ-e2e-edit"
+- tapOn: "Edit task: .*"
+- assertVisible: "Edit task"
+- tapOn: "Title"
+- eraseText: 20
+- inputText: "ZZ-e2e-edited"
+- tapOn: "Tomorrow"
+- tapOn: "Save task"
+- extendedWaitUntil:
+    visible: "Change due date, Due tomorrow"
+    timeout: 5000
+- assertVisible: "ZZ-e2e-edited"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task-row, NAME: ZZ-e2e-edited, FIELDS: "due=notnull" }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-count, TABLE: tasks, NAME: ZZ-e2e-edit, COUNT: "0" }
+
+# Done on its screen (a task of mine alone has the To do / In progress / Done control).
+- tapOn: "Done"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-edited, FIELDS: "nikita=done" }
+- tapOn: "Back to tasks"
+
+# The Done section is collapsed at the end of the list; open it and untick the task: it is open again.
+# No centring: the end of a list cannot be centred. The extra swipes reach the end, where the list's bottom
+# padding keeps the last rows above the floating tab bar.
+- scrollUntilVisible:
+    element: "Done tasks, .*"
+    timeout: 30000
+    waitToSettleTimeoutMs: 500
+- swipe: { start: "50%, 70%", end: "50%, 35%", duration: 400 }
+- tapOn: "Done tasks, .*"
+- scrollUntilVisible:
+    element: "Mark not done: ZZ-e2e-edited"
+    waitToSettleTimeoutMs: 500
+- swipe: { start: "50%, 70%", end: "50%, 35%", duration: 400 }
+- tapOn: "Mark not done: ZZ-e2e-edited"
+- runFlow:
+    file: common/db.yaml
+    env: { OP: expect-task, NAME: ZZ-e2e-edited, FIELDS: "nikita=todo" }

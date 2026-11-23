@@ -1,11 +1,17 @@
-# Adds an item from the Buy add bar. env: NAME
+# Adds an item through the add screen (the Buy list's "Add something..." bar opens it with the field
+# focused), then finds its row on the list. env: NAME
 appId: app.homesetup.household
 ---
 - tapOn: "Buy"
+- scrollUntilVisible:
+    element: "Add an item"
+    direction: UP
+    waitToSettleTimeoutMs: 500
 - tapOn: "Add an item"
 - inputText: ${NAME}
 - pressKey: Enter
-- extendedWaitUntil:
-    visible: "${NAME}"
-    timeout: 5000
 # Not hideKeyboard: on Android it presses Back, which can leave the app.
+- scrollUntilVisible:
+    element: "${NAME}, .*"
+    timeout: 15000
+    waitToSettleTimeoutMs: 500

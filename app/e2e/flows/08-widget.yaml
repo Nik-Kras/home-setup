@@ -19,6 +19,17 @@ name: 08 widget
 - runFlow:   # added in the app, so the widget has it before Home (a row added through the database did not show in time)
     file: common/add-item.yaml
     env: { NAME: ZZ-e2e-widget-prime }
+# The large widget shows four rows, urgent first; marked urgent (as the other phone) so the test rows are
+# among them whatever else is on the list. The open app redraws the widget when the change arrives.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-widget, FIELDS: "urgent=true" }
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-widget-prime, FIELDS: "urgent=true" }
+- runFlow:   # the app has the change (urgent rows move up their room)
+    file: common/find-on-buy.yaml
+    env: { TARGET: "ZZ-e2e-widget-prime, Urgent.*" }
 - runFlow:
     file: common/goto-widget.yaml
     env: { TARGET: "Mark looking: ZZ-e2e-widget-prime" }
@@ -54,9 +65,10 @@ name: 08 widget
     timeout: 90000
 - inputText: "ZZ-e2e-widget-add"
 - pressKey: Enter
-- extendedWaitUntil:
-    visible: "ZZ-e2e-widget-add, .*"
-    timeout: 5000
+- scrollUntilVisible:
+    element: "ZZ-e2e-widget-add, .*"
+    timeout: 15000
+    waitToSettleTimeoutMs: 500
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget-add, FIELDS: "status=needed" }

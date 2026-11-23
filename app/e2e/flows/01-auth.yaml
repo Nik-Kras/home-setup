@@ -49,6 +49,7 @@ name: 01 auth
     element:
       id: "sign-out"
     centerElement: true
+    waitToSettleTimeoutMs: 500
 - assertVisible:
     id: "sync-status"
 - tapOn:

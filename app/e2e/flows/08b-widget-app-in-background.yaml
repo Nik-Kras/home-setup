@@ -14,6 +14,13 @@ name: 08b widget, app in background
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-widget-warm, FIELDS: "status=needed" }
+# Urgent, so it is among the large widget's four rows (urgent first) whatever else is on the list.
+- runFlow:
+    file: common/db.yaml
+    env: { OP: set-item, NAME: ZZ-e2e-widget-warm, FIELDS: "urgent=true" }
+- runFlow:   # the app has the change (urgent rows move up their room)
+    file: common/find-on-buy.yaml
+    env: { TARGET: "ZZ-e2e-widget-warm, Urgent.*" }
 - runFlow:
     file: common/goto-widget.yaml
     env: { TARGET: "Mark looking: ZZ-e2e-widget-warm" }

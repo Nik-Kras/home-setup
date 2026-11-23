@@ -8,6 +8,7 @@
 //   OP=expect-count TABLE=items|tasks|flat_notes NAME=<name or title> COUNT=<n>
 //   OP=expect-task  NAME=<title>       FIELDS="nikita=done,daryna=todo"
 //   OP=expect-note  NAME=<title>       FIELDS="body=..."
+//   OP=expect-task-row NAME=<title>    FIELDS="due=notnull"   the task row itself (not its assignments)
 //   OP=expect-photo-row NAME=<item name> COUNT=<n>   item_photos rows for the item
 //   OP=get-id       NAME=<name> [TABLE=items|tasks]  -> output.id
 //   OP=add-item     NAME=<item name>                  insert as Claude if missing
@@ -98,8 +99,8 @@ var want = fields();
 var keys = Object.keys(want);
 if (NAME.indexOf('ZZ-e2e-') !== 0) throw new Error('DB: test rows must start with ZZ-e2e-');
 
-if (OP === 'expect-item' || OP === 'expect-note') {
-  var table = OP === 'expect-item' ? 'items' : 'flat_notes';
+if (OP === 'expect-item' || OP === 'expect-note' || OP === 'expect-task-row') {
+  var table = OP === 'expect-item' ? 'items' : OP === 'expect-note' ? 'flat_notes' : 'tasks';
   poll(table + ' "' + NAME + '" with ' + FIELDS, function () { return live(table, NAME); }, function (rows) {
     return rows.length === 1 && keys.every(function (k) { return same(rows[0][k], want[k]); });
   });

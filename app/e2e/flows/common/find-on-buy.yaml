@@ -1,0 +1,13 @@
+# Finds TARGET (a row label regex, such as "ZZ-e2e-offline, .*") on the Buy list from the top: rows move
+# between rooms and up or down when they change, so first back to the top, then down to it.
+appId: app.homesetup.household
+---
+- tapOn: "Buy"
+- scrollUntilVisible:
+    element: "Add an item"
+    direction: UP
+    waitToSettleTimeoutMs: 500
+- scrollUntilVisible:
+    element: ${TARGET}
+    timeout: 30000
+    waitToSettleTimeoutMs: 500
