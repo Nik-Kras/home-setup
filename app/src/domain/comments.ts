@@ -12,11 +12,15 @@ export interface Comment {
   createdAt: string;
 }
 
-/** Comments on one item or task, oldest first, so the newest sits just above the comment bar. */
+/** At most this many comments show per item or task: the newest. */
+export const COMMENTS_SHOWN = 200;
+
+/** The newest comments on one item or task (at most COMMENTS_SHOWN), oldest first. */
 export function commentsFor(comments: readonly Comment[] | undefined, targetType: Comment['targetType'], targetId: string): Comment[] {
   return (comments ?? [])
     .filter((c) => c.targetType === targetType && c.targetId === targetId)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    .slice(-COMMENTS_SHOWN);
 }
 
 /**
@@ -24,7 +28,7 @@ export function commentsFor(comments: readonly Comment[] | undefined, targetType
  * "commented: the 800 W one is enough, 2 h ago".
  */
 export function commentActivity(comments: readonly Comment[] | undefined, targetType: Comment['targetType'], targetId: string, now: number): ActivityItem[] {
-  return commentsFor(comments, targetType, targetId).reverse().map((c) => ({ actor: c.author, text: `commented: ${c.body}, ${timeAgo(c.createdAt, now)}`, at: c.createdAt }));
+  return commentsFor(comments, targetType, targetId).reverse().map((c) => ({ actor: c.author, text: `commented: ${c.body}, ${timeAgo(c.createdAt, now)}`, at: c.createdAt, commentId: c.id }));
 }
 
 /** History and comments together, newest first. Lines without a time keep their place after the dated ones. */

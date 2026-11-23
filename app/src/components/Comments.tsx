@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../data/store';
+import type { ActivityItem } from '../domain/activity';
 import { commentActivity, type Comment } from '../domain/comments';
 import { colors, fonts, TARGET } from '../theme/tokens';
 import { ActivityLine } from './ActivityLine';
@@ -17,17 +18,35 @@ export function useNow(): number {
   return now;
 }
 
+/**
+ * Activity lines; a comment of mine also gets a "Delete" (a soft delete the snackbar can undo).
+ * Mine means written by this account: the database stamps the author, so it is `actor` (Claude for
+ * the test account), not the person the test account acts as.
+ */
+export function ActivityLines({ lines }: { lines: readonly ActivityItem[] }) {
+  const { me, actor, deleteComment } = useStore();
+  const self = actor ?? me;
+  return (
+    <>
+      {lines.map((l, i) => (
+        <View key={l.commentId ?? `${i}-${l.text}`} style={s.line}>
+          <View style={s.lineText}><ActivityLine actor={l.actor} text={l.text} /></View>
+          {l.commentId && l.actor === self ? (
+            <Pressable onPress={() => deleteComment(l.commentId!)} accessibilityRole="button" accessibilityLabel={`Delete comment: ${l.text.replace(/^commented: /, '')}`} hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }} style={({ pressed }) => [s.delete, pressed && { opacity: 0.6 }]}>
+              <Text style={s.deleteText}>Delete</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
+    </>
+  );
+}
+
 /** Comments on a task as activity lines, newest first: "Daryna commented: the 800 W one is enough, 2 h ago". */
 export function CommentLines({ targetType, targetId }: { targetType: Comment['targetType']; targetId: string }) {
   const { comments } = useStore();
   const now = useNow();
-  return (
-    <>
-      {commentActivity(comments, targetType, targetId, now).map((c) => (
-        <ActivityLine key={c.at} actor={c.actor} text={c.text} />
-      ))}
-    </>
-  );
+  return <ActivityLines lines={commentActivity(comments, targetType, targetId, now)} />;
 }
 
 /**
@@ -75,6 +94,10 @@ export function CommentBar({ targetType, targetId, safeBottom = true }: { target
 }
 
 const s = StyleSheet.create({
+  line: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  lineText: { flex: 1 },
+  delete: { minHeight: 20, paddingHorizontal: 4, justifyContent: 'center' },
+  deleteText: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 20, color: colors.textSecondary },
   bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.hairline },
   input: { flex: 1, minWidth: 0, height: TARGET, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)', backgroundColor: colors.surface, paddingHorizontal: 16, fontFamily: fonts.regular, fontSize: 15, color: colors.text },
   send: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },

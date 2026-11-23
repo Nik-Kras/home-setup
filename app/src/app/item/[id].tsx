@@ -5,7 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
 import { ClaimRow } from '../../components/ClaimRow';
-import { CommentBar, useNow } from '../../components/Comments';
+import { ActivityLines, CommentBar, useNow } from '../../components/Comments';
 import { commentActivity, mergeActivity } from '../../domain/comments';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
 import { ItemPhotos } from '../../components/ItemPhotos';
@@ -35,7 +35,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { me, items, rooms, comments, pending, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
+  const { items, rooms, comments, pending, retry, claimItem, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   /** Set by Delete, so the screen sliding away shows nothing rather than "Item not found". */
@@ -115,7 +115,7 @@ export default function ItemDetail() {
           {item.assignedTo ? (
             <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone="value" dot={personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
           ) : (
-            <ClaimRow onOpen={() => setSheet('assignedTo')} onClaim={() => updateItem(item.id, { assignedTo: me })} />
+            <ClaimRow itemName={item.name} onOpen={() => setSheet('assignedTo')} onClaim={() => claimItem(item.id)} />
           )}
           <FieldRow label="Estimated price" value={item.estPrice !== undefined ? formatMoney(item.estPrice) : 'Add'} tone={item.estPrice !== undefined ? 'value' : 'action'} a11yValue={item.estPrice === undefined ? 'not set' : undefined} onPress={() => setSheet('estPrice')} />
           <FieldRow label="Price paid" value={item.actualPrice !== undefined ? formatMoney(item.actualPrice) : 'Add'} tone={item.actualPrice !== undefined ? 'value' : 'action'} a11yValue={item.actualPrice === undefined ? 'not paid yet' : undefined} onPress={() => setSheet('actualPrice')} />
@@ -133,9 +133,9 @@ export default function ItemDetail() {
 
         <View style={s.activity}>
           {/* The change history (or, until it loads, the last change) with comments among it by time. */}
-          {history && history.length > 0 ? mergeActivity(history, notes).map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />) : (
+          {history && history.length > 0 ? <ActivityLines lines={mergeActivity(history, notes)} /> : (
             <>
-              {notes.map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />)}
+              <ActivityLines lines={notes} />
               <ActivityLine actor={item.updatedBy} text="made the last change" />
               <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
             </>

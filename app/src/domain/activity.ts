@@ -16,6 +16,8 @@ export interface ActivityItem {
   text: string;
   /** When it happened, so comments can be listed among the changes. */
   at?: string;
+  /** Set on a comment line, so its author can delete it. */
+  commentId?: string;
 }
 
 const asActor = (s: string): Actor => (s === 'nikita' || s === 'daryna' ? s : 'claude');

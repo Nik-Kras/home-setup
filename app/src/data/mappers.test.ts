@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { taskFromRow, type TaskRow } from './mappers';
+import { itemChangedColumns, itemFromRow, itemToRow, taskFromRow, type ItemRow, type TaskRow } from './mappers';
+import type { Item } from '../domain/types';
 import type { Person } from '../domain/types';
 
 describe('taskFromRow', () => {
@@ -31,5 +32,22 @@ describe('taskFromRow', () => {
     };
     expect(taskFromRow(row).assignments.map((a) => a.person)).toEqual(['nikita', 'daryna']);
     expect(taskFromRow({ ...row, task_assignments: [part('daryna'), part('nikita')] }).assignments.map((a) => a.person)).toEqual(['nikita', 'daryna']);
+  });
+});
+
+describe('price_paid_at', () => {
+  const base: Item = { id: 'i1', name: 'Kettle', status: 'ordered', quantity: 1, urgent: false, needsInstall: false, addedAt: '2026-11-01T10:00:00Z', updatedBy: 'nikita' };
+  const rooms = new Map<string, string>();
+  it('is read from the row, and left out of a row until there is one (works before migration 0008)', () => {
+    const row = { ...itemToRow(base, rooms), updated_by: 'nikita', price_paid_at: '2026-11-20T10:00:00Z' } as unknown as ItemRow;
+    expect(itemFromRow(row, rooms).pricePaidAt).toBe('2026-11-20T10:00:00Z');
+    expect(itemFromRow({ ...row, price_paid_at: null }, rooms).pricePaidAt).toBeUndefined();
+    expect(itemToRow(base, rooms)).not.toHaveProperty('price_paid_at');
+    expect(itemToRow({ ...base, pricePaidAt: '2026-11-20T10:00:00Z' }, rooms).price_paid_at).toBe('2026-11-20T10:00:00Z');
+  });
+  it('setting and clearing it are both field changes', () => {
+    const paid = { ...base, actualPrice: 20, pricePaidAt: '2026-11-20T10:00:00Z' };
+    expect(itemChangedColumns(base, paid, rooms)).toEqual({ actual_price: 20, price_paid_at: '2026-11-20T10:00:00Z' });
+    expect(itemChangedColumns(paid, base, rooms)).toEqual({ actual_price: null, price_paid_at: null });
   });
 });

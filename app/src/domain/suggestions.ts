@@ -1,12 +1,18 @@
 import { guessRoom, isItemDone } from './items';
 import type { Item } from './types';
 
-/** A name to add and the room it goes in. `onList` marks a name that is already on the list, not got yet. */
+/**
+ * A name to add and the room it goes in. `id` is set when it is one of the household's own items;
+ * `onList` marks one that is on the list and not got yet.
+ */
 export interface Suggestion {
   name: string;
   room?: string;
+  id?: string;
   onList?: boolean;
 }
+
+type OwnItem = Pick<Item, 'id' | 'name' | 'room' | 'status' | 'needsInstall'>;
 
 /** Common things a new flat needs, with the room each goes in. Generic names only. */
 export const COMMON_ITEMS: readonly Suggestion[] = [
@@ -86,7 +92,7 @@ function rank(name: string, q: string): number | undefined {
  * Names to offer while typing in the add bar: the household's own item names first (their room as
  * stored), then the built-in list. Case-insensitive, one entry per name, best match first.
  */
-export function suggestItems(query: string, items: readonly Pick<Item, 'name' | 'room' | 'status' | 'needsInstall'>[], limit = 3): Suggestion[] {
+export function suggestItems(query: string, items: readonly OwnItem[], limit = 3): Suggestion[] {
   const q = norm(query);
   if (!q) return [];
   const seen = new Set<string>();
@@ -99,12 +105,14 @@ export function suggestItems(query: string, items: readonly Pick<Item, 'name' | 
     seen.add(key);
     pool.push({ ...s, r, own });
   };
-  for (const item of items) consider({ name: item.name, room: item.room ?? guessRoom(item.name), onList: !isItemDone(item) }, 0);
+  // Open items first, so a name both got and still on the list suggests the open one.
+  const own = [...items].sort((a, b) => Number(isItemDone(a)) - Number(isItemDone(b)));
+  for (const item of own) consider({ name: item.name, room: item.room ?? guessRoom(item.name), id: item.id, onList: !isItemDone(item) }, 0);
   for (const s of COMMON_ITEMS) consider(s, 1);
   return pool
     .sort((a, b) => a.r - b.r || a.own - b.own || a.name.length - b.name.length || a.name.localeCompare(b.name))
     .slice(0, limit)
-    .map(({ r: _r, own: _own, ...s }) => (s.onList ? s : { name: s.name, room: s.room }));
+    .map(({ r: _r, own: _own, ...s }) => ({ name: s.name, room: s.room, ...(s.id ? { id: s.id } : {}), ...(s.onList ? { onList: true } : {}) }));
 }
 
 /** True when the typed text is already one of the suggestions, so "Add as new" is not offered twice. */
@@ -120,11 +128,36 @@ export function quickPicks(items: readonly Pick<Item, 'name'>[], count = 6): Sug
 }
 
 /**
- * The room the add screen starts on: the one the person picked, else the suggestion's room, else the
- * room guessed from the name, else the last room used, else the first room. Only rooms that exist are
- * returned, so the screen always shows which room the item goes in.
+ * The room a typed name goes in, so the "Goes in <room>" hint and the added item agree: the room of a
+ * suggestion with exactly that name (own items first), else of the best suggestion the name begins,
+ * else the keyword guess. Undefined when nothing fits.
  */
-export function defaultRoom(opts: { picked?: string; suggested?: string; name: string; lastUsed?: string; rooms: readonly string[] }): string | undefined {
+export function roomForName(name: string, items: readonly OwnItem[]): string | undefined {
+  const q = norm(name);
+  if (!q) return undefined;
+  const exact = items.find((i) => norm(i.name) === q);
+  if (exact) return exact.room ?? guessRoom(exact.name);
+  const common = COMMON_ITEMS.find((c) => norm(c.name) === q);
+  if (common) return common.room;
+  const best = suggestItems(name, items, 1)[0];
+  if (best && norm(best.name).startsWith(q)) return best.room;
+  return guessRoom(name);
+}
+
+/** An item already called this (trimmed, any case), open ones first; adding it again would make a copy. */
+export function findExisting<T extends Pick<Item, 'name' | 'status' | 'needsInstall'>>(name: string, items: readonly T[]): T | undefined {
+  const q = norm(name);
+  if (!q) return undefined;
+  const same = items.filter((i) => norm(i.name) === q);
+  return same.find((i) => !isItemDone(i)) ?? same[0];
+}
+
+/**
+ * The room the add screen starts on: the one the person picked, else the suggestion's room, else the
+ * room for the typed name (see roomForName), else the last room used, else the first room. Only rooms
+ * that exist are returned, so the screen always shows which room the item goes in.
+ */
+export function defaultRoom(opts: { picked?: string; suggested?: string; name: string; lastUsed?: string; rooms: readonly string[]; items?: readonly OwnItem[] }): string | undefined {
   const known = (r?: string) => (r && opts.rooms.includes(r) ? r : undefined);
-  return known(opts.picked) ?? known(opts.suggested) ?? known(guessRoom(opts.name)) ?? known(opts.lastUsed) ?? opts.rooms[0];
+  return known(opts.picked) ?? known(opts.suggested) ?? known(roomForName(opts.name, opts.items ?? [])) ?? known(opts.lastUsed) ?? opts.rooms[0];
 }

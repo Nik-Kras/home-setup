@@ -48,7 +48,7 @@ function AddTaskBar({ text, setText, placeholder, onAdd, onMore }: { text: strin
 }
 
 export default function Tasks() {
-  const { tasks, me, identity, addTask, setTaskStatus } = useStore();
+  const { tasks, items, me, identity, addTask, setTaskStatus } = useStore();
   const [view, setView] = useState<View_>('mine');
   const other: Person = me === 'nikita' ? 'daryna' : 'nikita';
   const viewer = view === 'both' ? null : view === 'mine' ? me : other;
@@ -81,18 +81,19 @@ export default function Tasks() {
 
   const toggle = useCallback((id: string, p: Person, done: boolean) => setTaskStatus(id, p, done ? 'done' : 'todo'), [setTaskStatus]);
   const groupPerson = viewer ?? me;
-  // "More options" keeps the typed text; it is cleared only once a new task of mine shows up (backing out keeps it).
+  // "+" keeps the typed text; it is cleared once a new task of mine shows up, or a new item if the
+  // add screen was switched to Item (backing out keeps it).
   const [text, setText] = useState('');
   const optionsFrom = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (optionsFrom.current && addedSince(optionsFrom.current, tasks, me)) {
+    if (optionsFrom.current && (addedSince(optionsFrom.current, tasks, me) || addedSince(optionsFrom.current, items, me))) {
       optionsFrom.current = null;
       setText('');
     }
-  }, [tasks, me]);
+  }, [tasks, items, me]);
   // "Each of us" lives in the add-task screen; the Both view adds shared tasks, so a new one shows where it was typed.
   const openOptions = (title: string) => {
-    optionsFrom.current = new Set(tasks.map((t) => t.id));
+    optionsFrom.current = new Set([...tasks.map((t) => t.id), ...items.map((i) => i.id)]);
     router.push({ pathname: '/add-task', params: { title, who: view === 'mine' ? 'me' : view } });
   };
   const quickAdd = (title: string) => {

@@ -2,6 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { addScreenExit } from '../domain/addScreen';
 import { colors, TARGET } from '../theme/tokens';
 import { AddItemForm } from './AddItemForm';
 import { AddTaskForm } from './AddTaskForm';
@@ -12,14 +13,20 @@ export type AddMode = 'item' | 'task';
 
 /**
  * One add screen for both things (Add.png, AddTask.png): back, an Item / Task switch, then the bar and
- * the options for the chosen kind. The typed text carries over when switching.
+ * the options for the chosen kind. The typed text carries over when switching, and each side keeps
+ * its own options (both stay mounted; only the shown one has the keyboard).
  */
-export function AddScreen({ initialMode, initialText = '', initialGroup, initialWho }: { initialMode: AddMode; initialText?: string; initialGroup?: string; initialWho?: string }) {
+export function AddScreen({ initialMode, initialText = '', initialGroup, initialWho, byLink = false }: { initialMode: AddMode; initialText?: string; initialGroup?: string; initialWho?: string; byLink?: boolean }) {
   const { top } = useSafeAreaInsets();
   const [mode, setMode] = useState<AddMode>(initialMode);
   const [text, setText] = useState(initialText);
-  const fallback = mode === 'item' ? '/' : '/tasks';
-  const close = () => (router.canGoBack() ? router.back() : router.replace(fallback));
+  const close = () => {
+    const to = addScreenExit({ byLink, canGoBack: router.canGoBack(), mode });
+    if (to === 'back') router.back();
+    else router.replace(to);
+  };
+  // Opening an existing item instead of adding a copy: the item takes the add screen's place.
+  const openItem = (id: string) => router.replace(`/item/${id}`);
 
   return (
     <View style={s.root}>
@@ -31,9 +38,12 @@ export function AddScreen({ initialMode, initialText = '', initialGroup, initial
           <Segmented<AddMode> value={mode} onChange={setMode} options={[{ value: 'item', label: 'Item' }, { value: 'task', label: 'Task' }]} />
         </View>
       </View>
-      {mode === 'item'
-        ? <AddItemForm key="item" text={text} setText={setText} onDone={close} />
-        : <AddTaskForm key="task" text={text} setText={setText} initialGroup={initialGroup} initialWho={initialWho} onDone={close} />}
+      <View style={mode === 'item' ? s.side : s.hidden}>
+        <AddItemForm active={mode === 'item'} text={text} setText={setText} onDone={close} onOpenItem={openItem} />
+      </View>
+      <View style={mode === 'task' ? s.side : s.hidden}>
+        <AddTaskForm active={mode === 'task'} text={text} setText={setText} initialGroup={initialGroup} initialWho={initialWho} onDone={close} />
+      </View>
     </View>
   );
 }
@@ -43,4 +53,6 @@ const s = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },
   back: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', borderRadius: TARGET / 2 },
   switch: { flex: 1 },
+  side: { flex: 1 },
+  hidden: { display: 'none' },
 });

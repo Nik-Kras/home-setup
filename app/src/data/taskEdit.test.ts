@@ -46,9 +46,24 @@ describe('a price saved without a buyer', () => {
     expect(reducer(priced, { type: 'updateItem', id: 'i1', patch: { actualPrice: undefined } }).items[0]!.boughtBy).toBeUndefined();
   });
 
-  it('sends the price and the buyer in one patch', () => {
+  it('sends the price and the buyer in one patch, and when it was paid in its own patch', () => {
     const next = reducer(start, { type: 'updateItem', id: 'i1', patch: { actualPrice: 40 } });
-    expect(diffToOps(start, next, rooms)).toEqual([expect.objectContaining({ kind: 'patch', table: 'items', match: { id: 'i1' }, row: { actual_price: 40, bought_by: 'nikita' } })]);
+    const paidAt = next.items[0]!.pricePaidAt!;
+    expect(paidAt).toMatch(/^\d{4}-\d\d-\d\dT/);
+    expect(diffToOps(start, next, rooms)).toEqual([
+      expect.objectContaining({ kind: 'patch', table: 'items', match: { id: 'i1' }, row: { actual_price: 40, bought_by: 'nikita' } }),
+      expect.objectContaining({ kind: 'patch', table: 'items', match: { id: 'i1' }, row: { price_paid_at: paidAt } }),
+    ]);
+  });
+
+  it('changing the price stamps a new paid time; clearing it clears the time; other edits leave it', () => {
+    const priced: State = { ...start, items: [{ ...kettle, actualPrice: 40, boughtBy: 'daryna', pricePaidAt: '2026-11-01T10:00:00.000Z' }] };
+    expect(reducer(priced, { type: 'updateItem', id: 'i1', patch: { actualPrice: 45 } }).items[0]!.pricePaidAt).not.toBe('2026-11-01T10:00:00.000Z');
+    expect(reducer(priced, { type: 'updateItem', id: 'i1', patch: { actualPrice: 40 } })).toBe(priced);
+    expect(reducer(priced, { type: 'updateItem', id: 'i1', patch: { actualPrice: undefined } }).items[0]!.pricePaidAt).toBeUndefined();
+    expect(reducer(priced, { type: 'updateItem', id: 'i1', patch: { notes: 'white' } }).items[0]!.pricePaidAt).toBe('2026-11-01T10:00:00.000Z');
+    const cleared = reducer(priced, { type: 'updateItem', id: 'i1', patch: { actualPrice: undefined } });
+    expect(diffToOps(priced, cleared, rooms).map((o) => o.row)).toEqual([{ actual_price: null }, { price_paid_at: null }]);
   });
 });
 

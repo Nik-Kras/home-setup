@@ -30,7 +30,7 @@ Needs:
 | 05 tasks | own task (tick), the other person's task (cannot tick), shared task: my tick changes only my part; the other person's tick (through the database) completes it on the open screen |
 | 06 photos | pick the pushed image in Android's photo picker, it uploads (`item_photos` row under `items/`), shows on the item, and on Home once delivered |
 | 07 flat notes | create (kind "To confirm"), edit details, still there after a cold restart |
-| 08 widget | app process killed (Home, then `killApp`): the widget's circle marks an item got (database checked); `+` opens the app on the focused add field |
+| 08 widget | app process killed (Home, then `killApp`): the widget's circle marks an item got (database checked); `+` opens the add screen with its field focused, and the added item shows on the Buy list |
 | 08b widget, app in background | the same got tap while the app is alive in the background |
 | 09 deep links | `homesetup://item/<id>` warm, cold and signed out (sign in, then the item opens); `homesetup://add-item` |
 | 10 live sync | another device (REST API as Claude) adds, marks urgent, renames and delivers an item; the open app follows without a tap |

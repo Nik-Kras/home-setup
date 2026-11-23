@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 import type { Comment } from '../domain/comments';
 import type { DisplayPhoto } from '../domain/photos';
-import { identityFor, memberIdentity, statusWhileSending, type Identity, type SyncStatus } from '../domain/sync';
+import { actorFor, identityFor, memberIdentity, statusWhileSending, type Identity, type SyncStatus } from '../domain/sync';
 import type { Item, ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { asksForPrice } from '../domain/items';
 import { diffToOps } from './diff';
@@ -11,7 +11,7 @@ import { newId } from './mappers';
 import type { Op } from './queue';
 import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
 import { loadAll, ops, subscribe } from './repo';
-import { afterUndoSnack, applyUndo, noticeSnack, offerSnack, popUndo, pushUndo, removalNotice, undoEntryFor, type Snack, type UndoEntry } from './undo';
+import { afterUndoSnack, applyUndo, claimNotice, noticeSnack, offerSnack, popUndo, pushUndo, removalNotice, undoEntryFor, type Snack, type UndoEntry } from './undo';
 import { seedItems, seedNotes, seedRooms, seedTasks } from './seed';
 import { claimDevice } from './accountScope';
 import type { PhotoSource } from './photoFiles';
@@ -56,6 +56,8 @@ interface Store extends State {
   advanceItem: (id: string) => void;
   addItem: (name: string, opts?: { room?: string; urgent?: boolean; assignedTo?: Person }) => void;
   updateItem: (id: string, patch: ItemPatch) => void;
+  /** "I'll buy it": assigns an unclaimed item to me, only if nobody took it meanwhile (see claimNotice). */
+  claimItem: (id: string) => void;
   setItemStatus: (id: string, status: ItemStatus) => void;
   /** Soft delete: hidden at once, deleted_at in the database, and Undo brings it back. */
   deleteItem: (id: string) => void;
@@ -71,6 +73,8 @@ interface Store extends State {
   updateNote: (id: string, patch: NotePatch) => void;
   /** A comment by me on an item or task; sent through the offline queue. */
   addComment: (targetType: Comment['targetType'], targetId: string, body: string) => void;
+  /** Soft delete of one of my own comments, with Undo. */
+  deleteComment: (id: string) => void;
   /** Soft delete with Undo. */
   deleteNote: (id: string) => void;
   /** The snackbar after an edit ("Kettle → Ordered. Undo") or after an Undo; null when hidden. */
@@ -96,6 +100,8 @@ const DEFAULT_PERSON: Person = 'nikita';
 const LAST_ACCOUNT = 'homesetup.photo-account.v1';
 const itemCacheKey = (account: string) => `homesetup.photo-items.v1.${account}`;
 const memberCacheKey = (account: string) => `homesetup.photo-member.v1.${account}`;
+/** This account's comments, so a cold start offline still shows them (and any not sent yet). */
+const commentCacheKey = (account: string) => `homesetup.comments.v1.${account}`;
 
 async function readCache<T>(key: string): Promise<T | null> {
   try {
@@ -134,6 +140,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [widgetReady, setWidgetReady] = useState(false);
 
   const undoStack = useRef<UndoEntry[]>([]);
+  /** The account whose cached comments are on screen; only then is the comment cache written back. */
+  const commentsRestored = useRef<string | null>(null);
   /** The last Undo's sent patches, to correct its snackbar if the server kept the other person's value. */
   const lastUndo = useRef<{ key: string; ids: Set<string>; missed: number } | null>(null);
   const [snack, setSnack] = useState<Snack | null>(null);
@@ -162,7 +170,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const found = memberIdentity(data as { key: string; is_person: boolean } | null);
     if (found.identity === 'failed') return setIdentity('failed');
     const { me, canDelete } = found;
-    set({ ...ref.current, me: me ?? DEFAULT_PERSON });
+    set({ ...ref.current, me: me ?? DEFAULT_PERSON, actor: actorFor({ me, canDelete }) });
     setIdentity(found.identity);
     setMember({ account, canDelete });
     memberKnown.current = account;
@@ -225,7 +233,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const previous = currentAccount.current;
         setAccount(null);
         void kv.removeItem(LAST_ACCOUNT).catch(() => undefined);
-        if (previous) void kv.multiRemove([itemCacheKey(previous), memberCacheKey(previous)]).catch(() => undefined);
+        if (previous) void kv.multiRemove([itemCacheKey(previous), memberCacheKey(previous), commentCacheKey(previous)]).catch(() => undefined);
       } else if (event === 'INITIAL_SESSION') {
         // An expired token can produce an empty initial session when the device is offline.
         // Only restore the local account when auth confirms a retryable network error.
@@ -271,15 +279,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       if (!active) return;
       await countPending().catch(() => 0);
-      const [cached, cachedMember] = await Promise.all([
+      const [cached, cachedMember, cachedComments] = await Promise.all([
         readCache<{ items: Item[]; rooms: Room[] }>(itemCacheKey(account)),
         readCache<{ me?: Person; canDelete: boolean }>(memberCacheKey(account)),
+        readCache<Comment[]>(commentCacheKey(account)),
       ]);
       if (!active) return;
       const cachedRooms = cached?.rooms ?? [];
       roomIds.current = new Map(cachedRooms.map((r) => [r.name, r.id]));
       setRooms(cachedRooms);
-      set({ ...ref.current, me: cachedMember?.me ?? DEFAULT_PERSON, items: cached?.items ?? [], tasks: [], notes: [], comments: [] });
+      set({ ...ref.current, me: cachedMember?.me ?? DEFAULT_PERSON, actor: actorFor(cachedMember), items: cached?.items ?? [], tasks: [], notes: [], comments: Array.isArray(cachedComments) ? cachedComments : [] });
+      commentsRestored.current = account;
       setIdentity(identityFor(cachedMember));
       setMember({ account, canDelete: cachedMember?.canDelete === true });
       setAuth('signedIn');
@@ -303,6 +313,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       clearInterval(timer);
     };
   }, [account, auth, refresh]);
+
+  // Keep this account's comments for an offline cold start, including ones not sent yet.
+  useEffect(() => {
+    if (!account || commentsRestored.current !== account) return;
+    void kv.setItem(commentCacheKey(account), JSON.stringify(state.comments ?? [])).catch(() => undefined);
+  }, [account, state.comments]);
 
   /**
    * Show the new state at once, then queue its ops and send them. `out` may be worked out after the
@@ -337,7 +353,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const out = action.type === 'deleteItem' ? [ops.softDelete('items', action.id)]
         : action.type === 'deleteTask' ? [ops.softDelete('tasks', action.id)]
           : action.type === 'deleteNote' ? [ops.softDelete('flat_notes', action.id)]
-            : diffToOps(prev, next, roomIds.current);
+          : action.type === 'deleteComment' ? [ops.softDelete('comments', action.id)]
+            : action.type === 'claimItem' ? [ops.claimIf(action.id, prev.me)]
+              : diffToOps(prev, next, roomIds.current);
       commit(next, out);
       const entry = undoEntryFor(prev, next, action, Date.now(), newId());
       if (entry) {
@@ -372,6 +390,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       missListeners.delete(listener);
       dropListeners.delete(listener);
     };
+  }, [refresh]);
+
+  // "I'll buy it" matched no row: the other person took the item first. Say so and show theirs.
+  useEffect(() => {
+    const listener = (op: Op) => {
+      const message = claimNotice(op, ref.current.me);
+      if (!message) return;
+      setSnack(noticeSnack(message, newId()));
+      void refresh();
+    };
+    missListeners.add(listener);
+    return () => { missListeners.delete(listener); };
   }, [refresh]);
 
   // An Undo patch matched no row: the other person changed that field first, and theirs stayed.
@@ -421,6 +451,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       advanceItem: (id: string) => act({ type: 'advanceItem', id }),
       addItem: (name: string, opts?: { room?: string; urgent?: boolean; assignedTo?: Person }) => act({ type: 'addItem', name, ...opts }),
       updateItem: (id: string, patch: ItemPatch) => act({ type: 'updateItem', id, patch }),
+      claimItem: (id: string) => act({ type: 'claimItem', id }),
       setItemStatus: (id: string, status: ItemStatus) => act({ type: 'setItemStatus', id, status }),
       deleteItem: (id: string) => act({ type: 'deleteItem', id }),
       addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean; group?: string }) => act({ type: 'addTask', title, assignees, ...opts }),
@@ -432,6 +463,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => act({ type: 'addNote', title, ...opts }),
       updateNote: (id: string, patch: NotePatch) => act({ type: 'updateNote', id, patch }),
       addComment: (targetType: Comment['targetType'], targetId: string, body: string) => act({ type: 'addComment', targetType, targetId, body }),
+      deleteComment: (id: string) => act({ type: 'deleteComment', id }),
       deleteNote: (id: string) => act({ type: 'deleteNote', id }),
       undo,
       dismissSnack: (key: string) => setSnack((cur) => (cur?.key === key ? null : cur)),

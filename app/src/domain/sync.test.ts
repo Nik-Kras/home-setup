@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detailState, identityFor, memberIdentity, statusWhileSending, syncPill, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
+import { actorFor, detailState, identityFor, memberIdentity, statusWhileSending, syncPill, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
 
 describe('syncView', () => {
   it('says Synced in mint when the queue is empty', () => {
@@ -111,5 +111,13 @@ describe('statusWhileSending', () => {
     expect(statusWhileSending('synced')).toBe('pending');
     expect(statusWhileSending('pending')).toBe('pending');
     expect(syncPill(statusWhileSending('offline'), 4)).toEqual({ label: 'Offline · 4 unsent', tone: 'amber', sending: false });
+  });
+});
+
+describe('actorFor', () => {
+  it('is the person for a person, Claude for the test account, unknown until loaded', () => {
+    expect(actorFor({ me: 'daryna', canDelete: true })).toBe('daryna');
+    expect(actorFor({ canDelete: false })).toBe('claude');
+    expect(actorFor(null)).toBeUndefined();
   });
 });

@@ -58,9 +58,12 @@ export function assigneesFor(who: Who, me: Person): Person[] {
   return [who === 'me' ? me : other];
 }
 
-/** Whether `person` added a task whose id is not in `before`. Used to clear the add bar only once a task is really added. */
-export function addedSince(before: ReadonlySet<string>, tasks: readonly Task[], person: Person): boolean {
-  return tasks.some((t) => !before.has(t.id) && t.updatedBy === person);
+/**
+ * Whether `person` added a task (or, from the same add screen, an item) whose id is not in `before`.
+ * Used to clear the add bar only once something is really added.
+ */
+export function addedSince(before: ReadonlySet<string>, things: readonly Pick<Task, 'id' | 'updatedBy'>[], person: Person): boolean {
+  return things.some((t) => !before.has(t.id) && t.updatedBy === person);
 }
 
 /** A group name as a route segment. Encoded here so '/', '%', '?' and '#' survive the route. */

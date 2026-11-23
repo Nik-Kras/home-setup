@@ -22,7 +22,7 @@ export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
     db.from('items').select('*, item_photos(id,path,created_at)').is('deleted_at', null).order('added_at', { ascending: false }),
     db.from('tasks').select('*, task_assignments(person,status,updated_by,updated_at, task_steps(id,title,done,sort))').is('deleted_at', null).order('created_at', { ascending: false }),
     db.from('flat_notes').select('id,title,body,reference,kind,sort,updated_by').is('deleted_at', null).order('sort').order('created_at'),
-    db.from('comments').select('id,target_type,target_id,author,body,created_at').order('created_at'),
+    loadComments(db),
   ]);
   const err = rooms.error ?? items.error ?? tasks.error;
   if (err) throw err;
@@ -39,6 +39,24 @@ export async function loadAll(db: SupabaseClient): Promise<Snapshot> {
     // Comments are extra: a failed read shows none rather than failing the whole load.
     comments: comments.error ? [] : ((comments.data ?? []) as CommentRow[]).map(commentFromRow),
   };
+}
+
+/**
+ * Comments, newest first, so the 1000-row cap of a read only ever leaves out the oldest. Deleted ones
+ * are hidden; until migration 0009 adds deleted_at, all are read.
+ */
+async function loadComments(db: SupabaseClient) {
+  const read = (live: boolean) => {
+    const q = db.from('comments').select('id,target_type,target_id,author,body,created_at');
+    return (live ? q.is('deleted_at', null) : q).order('created_at', { ascending: false }).limit(1000);
+  };
+  const first = await read(true);
+  return first.error && isMissingColumn(first.error) ? read(false) : first;
+}
+
+/** Postgres 42703 (PostgREST PGRST204 on writes): the column is not there yet (a migration is pending). */
+export function isMissingColumn(error: { code?: string }): boolean {
+  return error.code === '42703' || error.code === 'PGRST204';
 }
 
 /** PostgREST says PGRST205 (Postgres 42P01) when a table is not in the schema yet. */
@@ -122,11 +140,19 @@ export const ops = {
   patchIf(table: 'items' | 'tasks' | 'task_assignments' | 'task_steps', match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
     return { id: newId(), kind: 'patch', table, match, row, reportMiss: true };
   },
+  /** "I'll buy it": only while the item is still unclaimed; a miss means the other person took it first. */
+  claimIf(itemId: string, person: Person): Op {
+    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId, assigned_to: null }, row: { assigned_to: person }, reportMiss: true };
+  },
+  /** A patch that applies only while `match` still holds, without reporting a miss (a dependent column). */
+  patchItemIf(itemId: string, match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
+    return { id: newId(), kind: 'patch', table: 'items', match: { id: itemId, ...match }, row };
+  },
   /** Undo of a soft delete. */
-  restore(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
+  restore(table: 'items' | 'tasks' | 'flat_notes' | 'comments', id: string): Op {
     return { id: newId(), kind: 'patch', table, match: { id }, row: { deleted_at: null } };
   },
-  softDelete(table: 'items' | 'tasks' | 'flat_notes', id: string): Op {
+  softDelete(table: 'items' | 'tasks' | 'flat_notes' | 'comments', id: string): Op {
     return { id: newId(), kind: 'patch', table: table, match: { id }, row: { deleted_at: new Date().toISOString() } };
   },
 };

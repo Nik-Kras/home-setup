@@ -59,6 +59,16 @@ export function identityFor(member: { me?: string; canDelete: boolean } | null):
   return member.canDelete && member.me ? 'known' : 'standIn';
 }
 
+/**
+ * Who the database stamps as the author of what this account writes: the person for a person's
+ * account, Claude for the test account (which acts as a person on screen). Undefined until known.
+ */
+export function actorFor(member: { me?: string; canDelete: boolean } | null): 'nikita' | 'daryna' | 'claude' | undefined {
+  const identity = identityFor(member);
+  if (identity === 'loading') return undefined;
+  return identity === 'known' && (member!.me === 'nikita' || member!.me === 'daryna') ? member!.me : 'claude';
+}
+
 /** Whether the signed-in screens can open: they wait for `me`, and offer a retry when it cannot be read. */
 export function identityGate(identity: Identity, status: SyncStatus): LoadState {
   if (identity === 'known' || identity === 'standIn') return 'ready';

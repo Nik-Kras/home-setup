@@ -42,7 +42,7 @@ function Ring({ done, total }: { done: number; total: number }) {
  */
 function AddBar() {
   return (
-    <Pressable onPress={() => router.push('/add-item')} accessibilityRole="button" accessibilityLabel="Add an item" accessibilityHint="Opens the add screen" style={({ pressed }) => [s.addBar, pressed && { opacity: 0.85 }]}>
+    <Pressable onPress={() => router.push({ pathname: '/add-item', params: { from: 'list' } })} accessibilityRole="button" accessibilityLabel="Add an item" accessibilityHint="Opens the add screen" style={({ pressed }) => [s.addBar, pressed && { opacity: 0.85 }]}>
       <Text style={s.addPlaceholder} numberOfLines={1}>Add something...</Text>
       <View style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></View>
     </Pressable>
@@ -128,8 +128,8 @@ function UrgentMeta({ meta }: { meta: string }) {
 }
 
 export default function Buy() {
-  const { items, me, snack, advanceItem, setItemStatus, updateItem } = useStore();
-  const claim = useCallback((id: string) => updateItem(id, { assignedTo: me }), [updateItem, me]);
+  const { items, me, snack, advanceItem, setItemStatus, claimItem } = useStore();
+  const claim = claimItem;
   // The item just added (its "Added to <room>" snackbar is up) is outlined so it is easy to spot.
   const fresh = snack?.changeItemId;
   const [statusFor, setStatusFor] = useState<string | null>(null);
