@@ -86,7 +86,7 @@ export function CommentBar({ targetType, targetId, safeBottom = true }: { target
           style={s.input}
         />
         <Pressable onPress={send} disabled={!ready} accessibilityRole="button" accessibilityLabel="Send comment" accessibilityState={{ disabled: !ready }} style={({ pressed }) => [s.send, !ready && s.idle, pressed && { opacity: 0.75 }]}>
-          <Icon name="arrowRight" size={20} color={colors.onMint} stroke={2.2} />
+          <Icon name="arrowRight" size={20} color={ready ? colors.onMint : colors.textMuted} stroke={2.2} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -101,5 +101,6 @@ const s = StyleSheet.create({
   bar: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 12, paddingHorizontal: 16, backgroundColor: colors.bg, borderTopWidth: 1, borderTopColor: colors.hairline },
   input: { flex: 1, minWidth: 0, height: TARGET, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(255,255,255,0.38)', backgroundColor: colors.surface, paddingHorizontal: 16, fontFamily: fonts.regular, fontSize: 15, color: colors.text },
   send: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
-  idle: { opacity: 0.5 },
+  // Disabled: neutral, not dimmed mint, so it never reads as ready to send.
+  idle: { backgroundColor: colors.neutralFill },
 });

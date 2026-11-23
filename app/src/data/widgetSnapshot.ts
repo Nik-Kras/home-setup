@@ -10,8 +10,8 @@ import { ops } from './repo';
  *   {
  *     data: {                                    // what the widgets draw (WidgetView)
  *       v: 1, updatedAt: ISO string, leftCount: number,
- *       top: [{ id, name, status, urgent, action, icon }],          // medium widget, 3 rows
- *       rooms: [{ room, items: [{ id, name, status, urgent, action }] }],  // large widget, 4 rows
+ *       top: [{ id, name, status, urgent, action, icon }],          // medium widget, up to 6 rows
+ *       rooms: [{ room, items: [{ id, name, status, urgent, action }] }],  // large widget, up to 12 rows
  *     },
  *     items: [{ id, name, room?, status, urgent, needsInstall, addedAt }],  // for the headless stage tap
  *   }

@@ -7,7 +7,8 @@ import { ListGate, useListState } from '../../components/LoadState';
 import { SectionScreen } from '../../components/SectionScreen';
 import { GroupChips } from '../../components/GroupChips';
 import { NAME, TaskRow } from '../../components/TaskRow';
-import { Icon, SectionHeading, Segmented, Sub, Title } from '../../components/ui';
+import { Icon, SectionHeading, Segmented, Sub } from '../../components/ui';
+import { HeaderTitle } from '../../components/SyncPill';
 import { useStore } from '../../data/store';
 import { focusTask } from '../../domain/focus';
 import { addedSince, groupsFor, localDate } from '../../domain/taskOptions';
@@ -106,7 +107,7 @@ export default function Tasks() {
       header={
         <View style={{ gap: 10 }}>
           <View>
-            <Title>Tasks</Title>
+            <HeaderTitle>Tasks</HeaderTitle>
             <Sub>{viewer ? `${NAME[viewer]}'s list` : 'Shared tasks'}{ready ? ` · ${list.length} open` : ''}</Sub>
             {identity === 'standIn' ? <Sub>Test account, acting as {NAME[me]}</Sub> : null}
           </View>

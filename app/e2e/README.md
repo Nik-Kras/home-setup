@@ -67,7 +67,7 @@ Signed in as the Claude account the app acts as Nikita (`me` defaults to Nikita 
 
 - Open an item with `common/open-item.yaml` (taps its name inside its row), not by tapping the row: the row's "Got it", "Add price" and "I'll buy it" pills sit inside the same target, and Maestro taps the centre, which can land on a pill.
 - The lists are long with real data: find rows with `scrollUntilVisible` (Buy: `common/find-on-buy.yaml`, from the top, since a row moves when it changes) and give every `scrollUntilVisible` `waitToSettleTimeoutMs: 500` (without it Maestro sometimes reports a row on screen as not visible). Do not centre the last element of a list (the Done and Got it toggles): Maestro cannot, and the step fails.
-- The large widget shows four rows, urgent first; the widget flows mark their rows urgent through the database so they are among them.
+- The large widget shows as many rows as its height allows (at most 12, then "+n more"), urgent first; the widget flows mark their rows urgent through the database so they are among them.
 
 ## Limits
 

@@ -10,7 +10,8 @@ import { StatusSheet } from '../../components/StatusSheet';
 import { PriceSheet } from '../../components/PaidForm';
 import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
 import { NAME } from '../../components/TaskRow';
-import { Card, Icon, IconTile, itemGlyph, PersonDot, SectionHeading, Sub, Title, UrgentBadge } from '../../components/ui';
+import { Card, Icon, IconTile, itemGlyph, PersonDot, SectionHeading, Sub, UrgentBadge } from '../../components/ui';
+import { HeaderTitle } from '../../components/SyncPill';
 import { useStore } from '../../data/store';
 import { counts, isItemDone, leftByRoom, needsPrice, nextUpAction, nextUpFor, rowGotIt } from '../../domain/items';
 import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
@@ -161,7 +162,7 @@ export default function Buy() {
       header={
         <View style={s.header}>
           <View style={s.headerText}>
-            <Title>Our flat</Title>
+            <HeaderTitle>Our flat</HeaderTitle>
             <Sub>{ready ? `${today()} · ${left} left` : today()}</Sub>
           </View>
           <PersonFilterDiscs value={person} onChange={setPerson} />
@@ -178,7 +179,8 @@ export default function Buy() {
                 <Text style={[s.nextEyebrow, next.urgent && { color: colors.coral }]}>{next.urgent ? 'Next up · urgent' : 'Next up'}</Text>
                 {/* A single word stays on one line and shrinks to fit, so it never breaks mid-word beside a long button label. */}
                 <Text style={[s.nextName, next.name.length > 14 && s.nextNameLong]} numberOfLines={/\s/.test(next.name.trim()) ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.6}>{next.name}</Text>
-                <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null, next.assignedTo === undefined ? 'Not claimed yet' : next.assignedTo !== me ? `For ${NAME[next.assignedTo]}` : null].filter(Boolean).join(' · ')}</Text>
+                {/* Up to two lines, then an ellipsis; never clipped. */}
+                <Text style={s.meta} numberOfLines={2} ellipsizeMode="tail">{[next.room, next.estPrice ? `about £${next.estPrice}` : null, next.assignedTo === undefined ? 'Not claimed yet' : next.assignedTo !== me ? `For ${NAME[next.assignedTo]}` : null].filter(Boolean).join(' · ')}</Text>
               </View>
               <View style={s.nextActions}>
                 {nextAction.kind === 'open' ? (
@@ -232,7 +234,7 @@ const s = StyleSheet.create({
   sectionBelow: { paddingTop: ROW_GAP, marginBottom: ROW_GAP },
   headerText: { flex: 1 },
   next: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 84, paddingVertical: 12, paddingLeft: 14, paddingRight: 12, ...glow },
-  nextEyebrow: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, color: colors.textSecondary },
+  nextEyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.textSecondary },
   nextName: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 30, color: colors.text },
   nextNameLong: { fontSize: 24, lineHeight: 26 },
   nextActions: { flexShrink: 0, alignItems: 'stretch', gap: 4 },
@@ -243,7 +245,7 @@ const s = StyleSheet.create({
   gotText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
   ringLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ringNum: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },
-  ringTotal: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary },
+  ringTotal: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
   addBar: { flexDirection: 'row', alignItems: 'center', minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5 },
   addPlaceholder: { flex: 1, fontFamily: fonts.medium, fontSize: 16, color: colors.textSecondary },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },

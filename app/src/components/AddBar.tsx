@@ -28,8 +28,8 @@ export function AddBar({ value, onChange, onSubmit, placeholder, label, addLabel
         accessibilityLabel={label}
         style={s.input}
       />
-      <Pressable onPress={onSubmit} disabled={!ready} accessibilityRole="button" accessibilityLabel={addLabel} accessibilityState={{ disabled: !ready }} style={[s.add, !ready && { opacity: 0.5 }]}>
-        <Text style={s.addText}>Add</Text>
+      <Pressable onPress={onSubmit} disabled={!ready} accessibilityRole="button" accessibilityLabel={addLabel} accessibilityState={{ disabled: !ready }} style={[s.add, !ready && s.addOff]}>
+        <Text style={[s.addText, !ready && s.addTextOff]}>Add</Text>
       </Pressable>
     </View>
   );
@@ -43,4 +43,7 @@ const s = StyleSheet.create({
   input: { flex: 1, minWidth: 0, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 17, color: colors.text },
   add: { minHeight: TARGET, paddingHorizontal: 20, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   addText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
+  // Disabled until something is typed: neutral, not dimmed mint.
+  addOff: { backgroundColor: colors.neutralFill },
+  addTextOff: { color: colors.textMuted },
 });

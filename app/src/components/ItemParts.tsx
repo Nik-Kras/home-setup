@@ -33,8 +33,8 @@ export function StatusCard({ item, onSet, onNext }: { item: Item; onSet: (s: Ite
               {state === 'done' || (state === 'current' && tone === 'done') ? <Icon name="check" size={12} color={colors.onMint} stroke={3.5} /> : null}
               {state === 'current' && tone !== 'done' ? <View style={s.currentDot} /> : null}
             </View>
-            {/* Equal widths; the label never shrinks below 13px and wraps to a second line instead (hyphenated on Android). */}
-            <Text numberOfLines={2} android_hyphenationFrequency="normal" style={[s.stepText, state === 'done' && s.stepTextDone, state === 'current' && cur.text]}>
+            {/* One line, never hyphenated: each step is as wide as its label plus an equal share of the rest. */}
+            <Text numberOfLines={1} style={[s.stepText, state === 'done' && s.stepTextDone, state === 'current' && cur.text]}>
               {ITEM_STATUS_LABEL[status]}
             </Text>
             {optional ? <Text style={s.optional}>optional</Text> : null}
@@ -113,9 +113,9 @@ function Chevron() {
 
 const s = StyleSheet.create({
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.hairline, borderRadius: 24, padding: 16, gap: 14 },
-  steps: { flexDirection: 'row', gap: 6 },
-  // Top-aligned so the bars stay level when one label wraps to two lines.
-  step: { flex: 1, minWidth: 0, minHeight: TARGET, alignItems: 'stretch', justifyContent: 'flex-start', gap: 6, paddingTop: 2 },
+  steps: { flexDirection: 'row', gap: 4 },
+  // Width from the label (flexBasis auto), the spare room shared equally, so "Delivered" fits on one line.
+  step: { flexGrow: 1, flexShrink: 1, flexBasis: 'auto', minWidth: 0, minHeight: TARGET, alignItems: 'stretch', justifyContent: 'flex-start', gap: 6, paddingTop: 2 },
   bar: { alignSelf: 'stretch', height: 18, borderRadius: 9, backgroundColor: colors.track, alignItems: 'center', justifyContent: 'center' },
   barDone: { backgroundColor: colors.mint },
   barCurrent: { backgroundColor: colors.text },

@@ -28,8 +28,8 @@ export function SignIn() {
         <TextInput value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" placeholder="Email" placeholderTextColor={colors.textSecondary} accessibilityLabel="Email" style={s.input} />
         <TextInput value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" placeholder="Password" placeholderTextColor={colors.textSecondary} accessibilityLabel="Password" onSubmitEditing={submit} style={s.input} />
         {error ? <Text style={s.error} accessibilityLiveRegion="polite">{error}</Text> : null}
-        <Pressable onPress={submit} disabled={busy || !email || !password} accessibilityRole="button" style={[s.btn, (busy || !email || !password) && { opacity: 0.5 }]}>
-          <Text style={s.btnText}>{busy ? 'Signing in...' : 'Sign in'}</Text>
+        <Pressable onPress={submit} disabled={busy || !email || !password} accessibilityRole="button" accessibilityState={{ disabled: busy || !email || !password }} style={[s.btn, (busy || !email || !password) && s.btnOff]}>
+          <Text style={[s.btnText, (busy || !email || !password) && s.btnTextOff]}>{busy ? 'Signing in...' : 'Sign in'}</Text>
         </Pressable>
       </View>
     </KeyboardAvoidingView>
@@ -42,5 +42,7 @@ const s = StyleSheet.create({
   input: { height: 54, borderRadius: 27, borderWidth: 1, borderColor: colors.hairlineStrong, backgroundColor: colors.surface, paddingHorizontal: 20, fontFamily: fonts.medium, fontSize: 16, color: colors.text },
   btn: { height: TARGET + 8, borderRadius: 26, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   btnText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.onMint },
+  btnOff: { backgroundColor: colors.neutralFill },
+  btnTextOff: { color: colors.textMuted },
   error: { fontFamily: fonts.regular, fontSize: 14, color: colors.coral, paddingHorizontal: 4 },
 });

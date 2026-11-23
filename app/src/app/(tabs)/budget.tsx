@@ -3,8 +3,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { BudgetTrend, WeekSpend } from '../../components/BudgetTrend';
 import { ListGate } from '../../components/LoadState';
 import { Screen } from '../../components/Screen';
-import { Card, PersonDot, Sub, Title } from '../../components/ui';
+import { Card, PersonDot, Sub } from '../../components/ui';
 import { roomTone } from '../../domain/glyphs';
+import { HeaderTitle } from '../../components/SyncPill';
 import { useStore } from '../../data/store';
 import { budgetView, gbp, type BudgetRoomRow } from '../../domain/budgetView';
 import { localDay, spendTrend } from '../../domain/spendTrend';
@@ -32,7 +33,7 @@ export default function Budget() {
   const trend = useMemo(() => spendTrend(items, localDay(new Date())), [items]);
 
   return (
-    <Screen header={<View><Title>Budget</Title><Sub>Worked out from the prices you enter</Sub></View>}>
+    <Screen header={<View><HeaderTitle>Budget</HeaderTitle><Sub>Worked out from the prices you enter</Sub></View>}>
       <ListGate count={items.length}>
         <Card style={s.hero}>
           <View style={s.heroTop}><Text style={s.label}>Spent so far</Text><WeekSpend trend={trend} /></View>
