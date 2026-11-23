@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Home Setup",
+    "name": "Moved In",
     "slug": "home-setup",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -46,7 +46,7 @@
           "widgets": [
             {
               "name": "OurFlatSmall",
-              "label": "Our flat \u00b7 small",
+              "label": "Moved In \u00b7 small",
               "minWidth": "110dp",
               "minHeight": "110dp",
               "targetCellWidth": 2,
@@ -56,7 +56,7 @@
             },
             {
               "name": "OurFlatMedium",
-              "label": "Our flat \u00b7 medium",
+              "label": "Moved In \u00b7 medium",
               "minWidth": "260dp",
               "minHeight": "164dp",
               "targetCellWidth": 4,
@@ -66,7 +66,7 @@
             },
             {
               "name": "OurFlatLarge",
-              "label": "Our flat \u00b7 large",
+              "label": "Moved In \u00b7 large",
               "minWidth": "260dp",
               "minHeight": "304dp",
               "targetCellWidth": 4,
@@ -85,7 +85,7 @@
           "widgets": [
             {
               "name": "OurFlat",
-              "displayName": "Our flat",
+              "displayName": "Moved In",
               "description": "What is left to get for the flat",
               "ios": {
                 "supportedFamilies": [
@@ -104,8 +104,8 @@
       [
         "expo-image-picker",
         {
-          "cameraPermission": "Allow Home Setup to take item photos.",
-          "photosPermission": "Allow Home Setup to choose item photos from your library.",
+          "cameraPermission": "Allow Moved In to take item photos.",
+          "photosPermission": "Allow Moved In to choose item photos from your library.",
           "microphonePermission": false
         }
       ],
