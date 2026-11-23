@@ -14,7 +14,7 @@ import { NAME } from './TaskRow';
 import { UrgentBadge } from './ui';
 
 /** The Task side of the add screen: when, group, who and urgent (AddTask.png). */
-export function AddTaskForm({ text, setText, initialGroup, initialWho, onDone }: { text: string; setText: (t: string) => void; initialGroup?: string; initialWho?: string; onDone: () => void }) {
+export function AddTaskForm({ active, text, setText, initialGroup, initialWho, onDone }: { active: boolean; text: string; setText: (t: string) => void; initialGroup?: string; initialWho?: string; onDone: () => void }) {
   const { me, addTask } = useStore();
   const insets = useSafeAreaInsets();
   const other: Person = me === 'nikita' ? 'daryna' : 'nikita';
@@ -44,7 +44,7 @@ export function AddTaskForm({ text, setText, initialGroup, initialWho, onDone }:
   return (
     <>
       <View style={s.barWrap}>
-        <AddBar value={text} onChange={setText} onSubmit={submit} placeholder="New task..." label="New task" addLabel="Add task" />
+        <AddBar focused={active} value={text} onChange={setText} onSubmit={submit} placeholder="New task..." label="New task" addLabel="Add task" />
       </View>
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
@@ -67,14 +67,14 @@ export function AddTaskForm({ text, setText, initialGroup, initialWho, onDone }:
         </View>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Group</Text>
-        <ChipScroller id="groupFade" label="Group">
+        <ChipScroller id="groupFadeTask" label="Group">
           {groups.map((g) => (
             <ChoiceChip key={g} label={g} selected={group === g} onPress={() => setGroup(group === g ? undefined : g)} />
           ))}
         </ChipScroller>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Who</Text>
-        <ChipScroller id="whoFade" label="Who">
+        <ChipScroller id="whoFadeTask" label="Who">
           <ChoiceChip label="Me" selected={who === 'me'} onPress={() => setWho('me')} />
           <ChoiceChip label={NAME[other]} selected={who === 'other'} onPress={() => setWho('other')} />
           <ChoiceChip label="Each of us" selected={who === 'both'} onPress={() => setWho('both')} />

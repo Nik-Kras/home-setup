@@ -122,11 +122,18 @@ export function budget(items: readonly Item[]): {
 /** Best-guess room from an item name, so adding "kettle" needs no extra taps. Undefined when unsure. */
 export function guessRoom(name: string): string | undefined {
   const n = name.toLowerCase();
+  // Most specific first: a room named in the item, then telling phrases, then generic things.
   const rules: [RegExp, string][] = [
-    [/kettle|toast|microwave|pan\b|pot\b|plate|cutlery|fridge|oven|mug|cup|knife/, 'Kitchen'],
-    [/sofa|tv\b|lamp|rug|shelf|shelves|bookcase|router|wifi|speaker/, 'Living room'],
-    [/bed|mattress|pillow|duvet|curtain|wardrobe|hanger/, 'Bedroom'],
-    [/towel|shower|toilet|bath|mirror|bin\b/, 'Bathroom'],
+    [/kitchen/, 'Kitchen'],
+    [/bathroom|\bbath\b|shower|toilet/, 'Bathroom'],
+    [/bedroom|bedside/, 'Bedroom'],
+    [/living room|lounge/, 'Living room'],
+    [/\bhall|doormat|coat hook|shoe rack/, 'Hallway'],
+    [/tea towel|dish|washing-up|chopping|food container/, 'Kitchen'],
+    [/kettle|toast|microwave|pan\b|pans\b|pot\b|plate|cutlery|fridge|oven|mug|cup|knife|knives/, 'Kitchen'],
+    [/\bbed\b|bedding|bed frame|sheets|mattress|pillow|duvet|curtain|wardrobe|hanger|drawers/, 'Bedroom'],
+    [/sofa|tv\b|lamp|rug|shelf|shelves|bookcase|router|wifi|speaker|cushion/, 'Living room'],
+    [/towel|mirror|bin\b/, 'Bathroom'],
   ];
   return rules.find(([re]) => re.test(n))?.[1];
 }

@@ -1,6 +1,6 @@
 # 8. Home-screen widget, app not running: tap the circle to move an item one stage on (handled in the
-# background; a needed item goes to looking and stays on the widget), and tap + to open the app on the
-# add field. The circle's label names the stage: "Mark looking: <name>", "Mark ordered", "Got it".
+# background; a needed item goes to looking and stays on the widget), and tap + to open the app's add
+# screen with its field focused. The circle's label names the stage: "Mark looking: <name>", "Mark ordered", "Got it".
 # Needs a large Our flat widget on a home page (run.sh runs place-widget.sh first).
 appId: app.homesetup.household
 name: 08 widget
@@ -56,7 +56,8 @@ name: 08 widget
     visible: "Mark ordered: ZZ-e2e-widget"
     timeout: 30000
 
-# Tap to add: + opens the app on the Buy list with the add field focused.
+# Tap to add: + opens the add screen (Item side) with its field focused; Enter adds the item and closes
+# it onto the Buy list, where the new row shows (labelled "<name>, <owner>").
 - tapOn: "Add an item"
 - extendedWaitUntil:
     visible:

@@ -1,18 +1,28 @@
+import { useEffect, useRef, type ComponentRef } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, fonts, TARGET } from '../theme/tokens';
 
-/** The add screen's text bar: mint glow ring, the keyboard open, and one Add button (Add.png, AddTask.png). */
-export function AddBar({ value, onChange, onSubmit, placeholder, label, addLabel }: { value: string; onChange: (t: string) => void; onSubmit: () => void; placeholder: string; label: string; addLabel: string }) {
+/**
+ * The add screen's text bar: mint glow ring, the keyboard open, and one Add button (Add.png, AddTask.png).
+ * `focused`: this side of the add screen is shown, so its field takes the keyboard.
+ */
+export function AddBar({ value, onChange, onSubmit, placeholder, label, addLabel, focused }: { value: string; onChange: (t: string) => void; onSubmit: () => void; placeholder: string; label: string; addLabel: string; focused: boolean }) {
   const ready = value.trim().length > 0;
+  const ref = useRef<ComponentRef<typeof TextInput>>(null);
+  useEffect(() => {
+    if (!focused) return;
+    const frame = requestAnimationFrame(() => ref.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [focused]);
   return (
     <View style={s.bar}>
       <TextInput
+        ref={ref}
         value={value}
         onChangeText={onChange}
         onSubmitEditing={onSubmit}
         submitBehavior="submit"
         returnKeyType="done"
-        autoFocus
         placeholder={placeholder}
         placeholderTextColor={colors.textSecondary}
         accessibilityLabel={label}

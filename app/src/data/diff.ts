@@ -28,8 +28,10 @@ export function diffToOps(
       out.push(ops.saveItem(item, roomIds));
       continue;
     }
-    const fields = itemChangedColumns(before, item, roomIds);
+    const { price_paid_at: paidAt, ...fields } = itemChangedColumns(before, item, roomIds);
     if (Object.keys(fields).length > 0) out.push(ops.patchItem(item.id, fields));
+    // Its own patch: if migration 0008 is not applied yet, only this timestamp is refused, not the price.
+    if (paidAt !== undefined) out.push(ops.patchItem(item.id, { price_paid_at: paidAt }));
   }
 
   const prevTasks = new Map(prev.tasks.map((t) => [t.id, t]));

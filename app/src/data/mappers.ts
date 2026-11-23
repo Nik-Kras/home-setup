@@ -4,7 +4,7 @@ import type { Assignment, FlatNote, Item, Person, Task, TaskStatus } from '../do
 /** Row shapes as PostgREST returns them. Only the columns the app reads. */
 export interface ItemRow {
   id: string; name: string; status: Item['status']; quantity: number; urgent: boolean; needs_install: boolean;
-  room_id: string | null; est_price: number | null; actual_price: number | null;
+  room_id: string | null; est_price: number | null; actual_price: number | null; price_paid_at?: string | null;
   assigned_to: Person | null; bought_by: Person | null; link: string | null; notes: string | null;
   added_at: string; delivered_at: string | null; installed_at: string | null; updated_by: string;
 }
@@ -25,19 +25,22 @@ export function itemFromRow(r: ItemRow, roomNames: ReadonlyMap<string, string>):
   return {
     id: r.id, name: r.name, status: r.status, quantity: r.quantity, urgent: r.urgent, needsInstall: r.needs_install,
     room: r.room_id ? roomNames.get(r.room_id) : undefined,
-    estPrice: opt(r.est_price), actualPrice: opt(r.actual_price),
+    estPrice: opt(r.est_price), actualPrice: opt(r.actual_price), pricePaidAt: r.price_paid_at ?? undefined,
     assignedTo: opt(r.assigned_to), boughtBy: opt(r.bought_by), link: opt(r.link), notes: opt(r.notes),
     addedAt: r.added_at, deliveredAt: opt(r.delivered_at), installedAt: opt(r.installed_at),
     updatedBy: asActor(r.updated_by),
   };
 }
 
-/** Domain item to a row for upsert. The server stamps updated_by, so it is never sent. */
+/**
+ * Domain item to a row for upsert. The server stamps updated_by, so it is never sent. price_paid_at is
+ * left out until there is one, so adding items keeps working before migration 0008 is applied.
+ */
 export function itemToRow(i: Item, roomIds: ReadonlyMap<string, string>): Record<string, unknown> {
   return {
     id: i.id, name: i.name, status: i.status, quantity: i.quantity, urgent: i.urgent, needs_install: i.needsInstall,
     room_id: i.room ? roomIds.get(i.room) ?? null : null,
-    est_price: i.estPrice ?? null, actual_price: i.actualPrice ?? null,
+    est_price: i.estPrice ?? null, actual_price: i.actualPrice ?? null, ...(i.pricePaidAt ? { price_paid_at: i.pricePaidAt } : {}),
     assigned_to: i.assignedTo ?? null, bought_by: i.boughtBy ?? null, link: i.link ?? null, notes: i.notes ?? null,
     added_at: i.addedAt, delivered_at: i.deliveredAt ?? null, installed_at: i.installedAt ?? null,
   };
@@ -52,7 +55,7 @@ export function itemChangedColumns(before: Item, after: Item, roomIds: ReadonlyM
   const was = itemToRow(before, roomIds);
   const now = itemToRow(after, roomIds);
   const out: Record<string, unknown> = {};
-  for (const col of Object.keys(now)) if (col !== 'id' && now[col] !== was[col]) out[col] = now[col];
+  for (const col of new Set([...Object.keys(now), ...Object.keys(was)])) if (col !== 'id' && (now[col] ?? null) !== (was[col] ?? null)) out[col] = now[col] ?? null;
   if (after.room !== undefined && !roomIds.has(after.room)) delete out.room_id;
   return out;
 }
@@ -95,7 +98,7 @@ export function noteChangedColumns(before: FlatNote, after: FlatNote): Record<st
   const was = noteToRow(before);
   const now = noteToRow(after);
   const out: Record<string, unknown> = {};
-  for (const col of Object.keys(now)) if (col !== 'id' && now[col] !== was[col]) out[col] = now[col];
+  for (const col of new Set([...Object.keys(now), ...Object.keys(was)])) if (col !== 'id' && (now[col] ?? null) !== (was[col] ?? null)) out[col] = now[col] ?? null;
   return out;
 }
 

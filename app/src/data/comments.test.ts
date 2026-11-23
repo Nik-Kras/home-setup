@@ -1,10 +1,11 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { commentActivity, commentsFor, mergeActivity, type Comment } from '../domain/comments';
+import { commentActivity, commentsFor, COMMENTS_SHOWN, mergeActivity, type Comment } from '../domain/comments';
 import { diffToOps } from './diff';
 import { commentFromRow, commentToRow, type CommentRow } from './mappers';
 import { reducer, type State } from './reducer';
-import { makeExecutor, ops } from './repo';
+import { isMissingColumn, makeExecutor, ops } from './repo';
+import { applyUndo, offerSnack, undoEntryFor } from './undo';
 
 const start: State = { me: 'daryna', items: [], tasks: [], notes: [] };
 const row: CommentRow = { id: 'c1', target_type: 'item', target_id: 'i1', author: 'daryna', body: 'the 800 W one is enough', created_at: '2026-11-21T18:00:00Z' };
@@ -65,8 +66,8 @@ describe('comment activity lines', () => {
   it('reads like the item history, newest first', () => {
     const lines = commentActivity([c('a', '2026-11-22T09:00:00Z'), c('b', '2026-11-22T11:55:00Z', 'nikita')], 'item', 'i1', now);
     expect(lines).toEqual([
-      { actor: 'nikita', text: 'commented: note b, 5 min ago', at: '2026-11-22T11:55:00Z' },
-      { actor: 'daryna', text: 'commented: note a, 3 h ago', at: '2026-11-22T09:00:00Z' },
+      { actor: 'nikita', text: 'commented: note b, 5 min ago', at: '2026-11-22T11:55:00Z', commentId: 'b' },
+      { actor: 'daryna', text: 'commented: note a, 3 h ago', at: '2026-11-22T09:00:00Z', commentId: 'a' },
     ]);
   });
 
@@ -75,5 +76,44 @@ describe('comment activity lines', () => {
     const comments = commentActivity([c('a', '2026-11-22T09:00:00Z')], 'item', 'i1', now);
     expect(mergeActivity(history, comments).map((l) => l.text)).toEqual(['marked it ordered', 'commented: note a, 3 h ago', 'added it']);
     expect(mergeActivity([{ actor: 'claude', text: 'made the last change' }], comments).map((l) => l.text)).toEqual(['commented: note a, 3 h ago', 'made the last change']);
+  });
+});
+
+describe('comment author and delete', () => {
+  it('my new comment carries the account the database will stamp (Claude for the test account)', () => {
+    const asClaude: State = { ...start, me: 'nikita', actor: 'claude' };
+    expect(reducer(asClaude, { type: 'addComment', targetType: 'item', targetId: 'i1', body: 'Hi' }).comments![0]!.author).toBe('claude');
+    expect(reducer({ ...start, me: 'nikita' }, { type: 'addComment', targetType: 'item', targetId: 'i1', body: 'Hi' }).comments![0]!.author).toBe('nikita');
+  });
+
+  it('only my own comment can be deleted; it is a soft delete with Undo that puts it back', () => {
+    const mine = commentFromRow({ ...row, id: 'm', author: 'daryna' });
+    const theirs = commentFromRow({ ...row, id: 't', author: 'nikita' });
+    const withTwo: State = { ...start, comments: [theirs, mine] };
+    expect(reducer(withTwo, { type: 'deleteComment', id: 't' })).toBe(withTwo);
+    const action = { type: 'deleteComment' as const, id: 'm' };
+    const next = reducer(withTwo, action);
+    expect(next.comments).toEqual([theirs]);
+    const entry = undoEntryFor(withTwo, next, action, 1, 'u')!;
+    expect(entry.message).toBe('Comment deleted');
+    expect(offerSnack(entry)).toMatchObject({ canUndo: true, ms: 10_000 });
+    const undone = applyUndo(next, entry, new Map());
+    expect(undone.state.comments).toEqual([theirs, mine]);
+    expect(undone.ops).toEqual([{ id: expect.any(String), kind: 'patch', table: 'comments', match: { id: 'm' }, row: { deleted_at: null } }]);
+    expect(ops.softDelete('comments', 'm')).toMatchObject({ table: 'comments', match: { id: 'm' }, row: { deleted_at: expect.any(String) } });
+  });
+
+  it('shows at most the newest COMMENTS_SHOWN per item', () => {
+    const many: Comment[] = Array.from({ length: COMMENTS_SHOWN + 5 }, (_, n) => ({ id: `c${n}`, targetType: 'item', targetId: 'i1', author: 'nikita', body: 'x', createdAt: new Date(Date.UTC(2026, 10, 1, 0, n)).toISOString() }));
+    const shown = commentsFor(many, 'item', 'i1');
+    expect(shown).toHaveLength(COMMENTS_SHOWN);
+    expect(shown.at(-1)!.id).toBe(`c${COMMENTS_SHOWN + 4}`);
+    expect(shown[0]!.id).toBe('c5');
+  });
+
+  it('a missing column (migration pending) is recognised', () => {
+    expect(isMissingColumn({ code: '42703' })).toBe(true);
+    expect(isMissingColumn({ code: 'PGRST204' })).toBe(true);
+    expect(isMissingColumn({ code: '23505' })).toBe(false);
   });
 });

@@ -31,7 +31,7 @@ name: 09 deep links
 - tapOn: "Back to list"
 - assertVisible: "Add an item"
 
-# Widget "add" link: opens the Buy list with the add field focused.
+# Widget "add" link: opens the add screen (Item side) with its field focused; closing it goes to the Buy list.
 - openLink: homesetup://add-item
 - extendedWaitUntil:
     visible:

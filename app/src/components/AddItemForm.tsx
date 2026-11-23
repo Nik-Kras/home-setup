@@ -3,7 +3,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../data/store';
 import { kv } from '../data/supabase';
-import { defaultRoom, isExactSuggestion, quickPicks, suggestItems, type Suggestion } from '../domain/suggestions';
+import { isItemDone } from '../domain/items';
+import { defaultRoom, findExisting, isExactSuggestion, quickPicks, suggestItems, type Suggestion } from '../domain/suggestions';
 import type { Person } from '../domain/types';
 import { colors, fonts, radius, TARGET } from '../theme/tokens';
 import { AddBar } from './AddBar';
@@ -18,9 +19,11 @@ type Who = 'me' | 'other' | 'none';
 /**
  * The Item side of the add screen (Add.png): suggestions as you type with their glyph and room, "Add
  * as new", and the optional details: room, who buys it and urgent. The room always shows which one
- * the item goes in: the suggestion's, else guessed from the name, else the last one used.
+ * the item goes in: the suggestion's, else the room for the typed name (the same one its suggestion
+ * shows), else the last one used. A name already on the list is never added again silently: the
+ * screen offers to open it, or to add another anyway.
  */
-export function AddItemForm({ text, setText, onDone }: { text: string; setText: (t: string) => void; onDone: () => void }) {
+export function AddItemForm({ active, text, setText, onDone, onOpenItem }: { active: boolean; text: string; setText: (t: string) => void; onDone: () => void; onOpenItem: (id: string) => void }) {
   const { me, items, rooms, addItem } = useStore();
   const insets = useSafeAreaInsets();
   const other: Person = me === 'nikita' ? 'daryna' : 'nikita';
@@ -29,6 +32,8 @@ export function AddItemForm({ text, setText, onDone }: { text: string; setText: 
   const [lastUsed, setLastUsed] = useState<string>();
   const [who, setWho] = useState<Who>('me');
   const [urgent, setUrgent] = useState(false);
+  /** The existing item a name matched; shown as "Already on the list: Open / Add anyway". */
+  const [dupe, setDupe] = useState<{ id: string; name: string; got: boolean; room?: string } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -37,35 +42,56 @@ export function AddItemForm({ text, setText, onDone }: { text: string; setText: 
   }, []);
 
   const roomNames = useMemo(() => rooms.map((r) => r.name), [rooms]);
-  const room = defaultRoom({ picked, suggested, name: text, lastUsed, rooms: roomNames });
+  const room = defaultRoom({ picked, suggested, name: text, lastUsed, rooms: roomNames, items });
   const list = useMemo(() => suggestItems(text, items), [text, items]);
   const picks = useMemo(() => (text.trim() ? [] : quickPicks(items, 6)), [text, items]);
   const typed = text.trim();
 
   const type = (t: string) => {
     setText(t);
+    setDupe(null);
     setSuggested(undefined); // a suggestion's room no longer applies once the name is changed by hand
   };
   const fill = (s: Suggestion) => {
     setText(s.name);
+    setDupe(null);
     setSuggested(s.room);
   };
-  const add = (name: string, itemRoom = room) => {
+  const add = (name: string, itemRoom = room, anyway = false) => {
     if (!name.trim()) return;
+    const existing = anyway ? undefined : findExisting(name, items);
+    if (existing) return setDupe({ id: existing.id, name: name.trim(), got: isItemDone(existing), room: itemRoom });
     addItem(name, { room: itemRoom, urgent, assignedTo: who === 'me' ? me : who === 'other' ? other : undefined });
     if (itemRoom) void kv.setItem(LAST_ROOM, itemRoom).catch(() => undefined);
     onDone();
   };
-  // A suggestion's own room wins over the default, unless the person picked one.
-  const addSuggestion = (s: Suggestion) => add(s.name, defaultRoom({ picked, suggested: s.room, name: s.name, lastUsed, rooms: roomNames }));
+  // A suggestion's own room wins over the default, unless the person picked one. One that is already
+  // on the list opens instead.
+  const addSuggestion = (s: Suggestion) => {
+    if (s.onList && s.id) return onOpenItem(s.id);
+    add(s.name, defaultRoom({ picked, suggested: s.room, name: s.name, lastUsed, rooms: roomNames, items }));
+  };
 
   return (
     <>
       <View style={s.barWrap}>
-        <AddBar value={text} onChange={type} onSubmit={() => add(text)} placeholder="Add something..." label="Add an item" addLabel="Add item" />
+        <AddBar focused={active} value={text} onChange={type} onSubmit={() => add(text)} placeholder="Add something..." label="Add an item" addLabel="Add item" />
       </View>
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
+        {dupe ? (
+          <View style={s.dupe} accessibilityLiveRegion="polite">
+            <Text style={s.dupeText}>{dupe.got ? `You already got ${dupe.name}.` : `${dupe.name} is already on the list.`}</Text>
+            <View style={s.dupeActions}>
+              <Pressable onPress={() => onOpenItem(dupe.id)} accessibilityRole="button" accessibilityLabel={`Open ${dupe.name}`} style={({ pressed }) => [s.dupeOpen, pressed && { opacity: 0.8 }]}>
+                <Text style={s.dupeOpenText}>Open</Text>
+              </Pressable>
+              <Pressable onPress={() => add(dupe.name, dupe.room, true)} accessibilityRole="button" accessibilityLabel={`Add another ${dupe.name} anyway`} style={({ pressed }) => [s.dupeAnyway, pressed && { opacity: 0.7 }]}>
+                <Text style={s.dupeAnywayText}>Add anyway</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
         {list.length > 0 || picks.length > 0 ? <Text style={s.label} accessibilityRole="header">Suggestions</Text> : null}
         {list.map((sg) => {
           const g = itemGlyph(sg);
@@ -79,8 +105,8 @@ export function AddItemForm({ text, setText, onDone }: { text: string; setText: 
                   <Text style={s.meta} numberOfLines={1}>{meta}</Text>
                 </View>
               </Pressable>
-              <Pressable onPress={() => addSuggestion(sg)} accessibilityRole="button" accessibilityLabel={`Add ${sg.name}`} hitSlop={6} style={({ pressed }) => [s.plusHit, pressed && { opacity: 0.6 }]}>
-                <View style={s.plus}><Icon name="plus" size={16} color={colors.text} stroke={2.4} /></View>
+              <Pressable onPress={() => addSuggestion(sg)} accessibilityRole="button" accessibilityLabel={sg.onList ? `Open ${sg.name}` : `Add ${sg.name}`} hitSlop={6} style={({ pressed }) => [s.plusHit, pressed && { opacity: 0.6 }]}>
+                <View style={s.plus}><Icon name={sg.onList ? 'chevron' : 'plus'} size={16} color={colors.text} stroke={2.4} /></View>
               </Pressable>
             </View>
           );
@@ -127,6 +153,13 @@ const s = StyleSheet.create({
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   plusHit: { width: TARGET, height: TARGET, alignItems: 'center', justifyContent: 'center', marginRight: -6 },
   plus: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
+  dupe: { gap: 10, padding: 14, borderRadius: radius.row, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.hairlineStrong },
+  dupeText: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 20, color: colors.text },
+  dupeActions: { flexDirection: 'row', gap: 8 },
+  dupeOpen: { minHeight: TARGET, paddingHorizontal: 20, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
+  dupeOpenText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
+  dupeAnyway: { minHeight: TARGET, paddingHorizontal: 16, borderRadius: 22, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
+  dupeAnywayText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.text },
   newRow: { backgroundColor: 'transparent', borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(255,255,255,0.38)' },
   newTile: { width: 44, height: 44, borderRadius: radius.tile, backgroundColor: 'rgba(255,255,255,0.10)', alignItems: 'center', justifyContent: 'center' },
   // Wraps rather than scrolls, so Urgent is never hidden off the edge.

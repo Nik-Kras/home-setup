@@ -24,6 +24,8 @@ export interface Item {
   room?: string;
   estPrice?: number;
   actualPrice?: number;
+  /** When the paid price was last saved (ISO). Missing for prices saved before it was recorded. */
+  pricePaidAt?: string;
   assignedTo?: Person;
   boughtBy?: Person;
   link?: string;

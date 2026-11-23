@@ -1,3 +1,4 @@
+import type { Comment } from '../domain/comments';
 import { formatMoney, ITEM_STATUS_LABEL } from '../domain/items';
 import { dayMonth } from '../domain/taskOptions';
 import type { FlatNote, Item, Person, Task, TaskStatus } from '../domain/types';
@@ -25,6 +26,8 @@ type TaskChange = { kind: 'task'; before: Task; after: Task | null; index: numbe
 type NoteChange = { kind: 'note'; before: FlatNote; after: null; index: number };
 /** A new item: Undo soft-deletes it (or takes its insert back from the queue if it was never sent). */
 type AddedChange = { kind: 'added'; item: Item };
+/** A comment of mine deleted: Undo puts it back where it was. */
+type CommentChange = { kind: 'comment'; before: Comment; after: null; index: number };
 
 export interface UndoEntry {
   id: string;
@@ -34,7 +37,7 @@ export interface UndoEntry {
   spoken: string;
   /** When the edit was made, in ms. */
   at: number;
-  change: ItemChange | TaskChange | NoteChange | AddedChange;
+  change: ItemChange | TaskChange | NoteChange | AddedChange | CommentChange;
   /** The queue Ops the edit sent. If none has gone out yet (offline), Undo takes them back instead. */
   opIds?: readonly string[];
 }
@@ -156,6 +159,7 @@ export function undoEntryFor(prev: State, next: State, action: Action, at: numbe
   if (prev === next) return undefined;
   switch (action.type) {
     case 'advanceItem':
+    case 'claimItem':
     case 'setItemStatus':
     case 'updateItem':
     case 'deleteItem': {
@@ -184,6 +188,13 @@ export function undoEntryFor(prev: State, next: State, action: Action, at: numbe
       const before = prev.notes[index];
       if (!before || next.notes.some((n) => n.id === action.id)) return undefined;
       return { id, at, message: `${before.title} deleted`, spoken: `Note ${before.title} deleted`, change: { kind: 'note', before, after: null, index } };
+    }
+    case 'deleteComment': {
+      const list = prev.comments ?? [];
+      const index = list.findIndex((c) => c.id === action.id);
+      const before = list[index];
+      if (!before || (next.comments ?? []).some((c) => c.id === action.id)) return undefined;
+      return { id, at, message: 'Comment deleted', spoken: 'Comment deleted', change: { kind: 'comment', before, after: null, index } };
     }
     case 'addItem': {
       const known = new Set(prev.items.map((i) => i.id));
@@ -250,10 +261,25 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
       if (field === 'room' && [before.room, after.room].some((r) => r !== undefined && !roomIds.has(r))) continue;
       const col = COLUMN[field];
       out.push(ops.patchIf('items', { id: before.id, [col]: now[col] as string | number | boolean | null }, { [col]: was[col] }));
+      // The paid price goes back with the time it was paid (only while that is still the time this edit set).
+      if (field === 'actualPrice' && before.pricePaidAt !== after.pricePaidAt) {
+        Object.assign(patch, { pricePaidAt: before.pricePaidAt });
+        out.push(ops.patchItemIf(before.id, { price_paid_at: after.pricePaidAt ?? null }, { price_paid_at: before.pricePaidAt ?? null }));
+      }
     }
     if (reverted === 0) return { state: current, ops: [], outcome: 'none' };
     const items = current.items.map((i) => (i === cur ? { ...cur, ...patch, updatedBy: me } : i));
     return { state: { ...current, items }, ops: out, outcome: skipped > 0 ? 'partial' : 'done' };
+  }
+
+  if (change.kind === 'comment') {
+    // Undo a comment delete: show it again where it was and clear deleted_at.
+    const { before, index } = change;
+    const list = current.comments ?? [];
+    if (list.some((c) => c.id === before.id)) return { state: current, ops: [], outcome: 'done' };
+    const comments = [...list];
+    comments.splice(Math.min(index, comments.length), 0, before);
+    return { state: { ...current, comments }, ops: [ops.restore('comments', before.id)], outcome: 'done' };
   }
 
   if (change.kind === 'note') {
@@ -374,6 +400,12 @@ export function removalNotice(op: Op, tasks: readonly Task[]): string | undefine
 }
 
 /** A plain notice on the snackbar (no Undo), such as a removal that did not happen. */
+/** A claim ("I'll buy it") that matched no row: someone took the item first. Undefined for other ops. */
+export function claimNotice(op: Op, me: Person): string | undefined {
+  if (op.kind !== 'patch' || op.table !== 'items' || !('assigned_to' in op.match) || op.match.assigned_to !== null || op.row.assigned_to !== me) return undefined;
+  return `${PERSON[me === 'nikita' ? 'daryna' : 'nikita']} already took it`;
+}
+
 export function noticeSnack(message: string, key: string): Snack {
   return { key, message, spoken: `${message}.`, canUndo: false, ms: DELETE_SNACK_MS };
 }

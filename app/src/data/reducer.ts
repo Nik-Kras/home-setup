@@ -11,6 +11,11 @@ export interface State {
   notes: FlatNote[];
   /** Comments on items and tasks. Optional so older callers and tests need not list them. */
   comments?: Comment[];
+  /**
+   * Who the database stamps on what this account writes (Claude for the test account, which acts as
+   * `me` on screen). Comments show it as their author at once. Defaults to `me`.
+   */
+  actor?: Actor;
 }
 
 /**
@@ -38,6 +43,8 @@ export type Action =
   | { type: 'addItem'; name: string; room?: string; urgent?: boolean; assignedTo?: Person }
   | { type: 'updateItem'; id: string; patch: ItemPatch }
   | { type: 'setItemStatus'; id: string; status: ItemStatus }
+  /** "I'll buy it": assigns an unclaimed item to me. Sent as a patch conditional on it still being unclaimed. */
+  | { type: 'claimItem'; id: string }
   /** Hides the item here; the database row is soft-deleted (deleted_at), so Undo can bring it back. */
   | { type: 'deleteItem'; id: string }
   | { type: 'addTask'; title: string; assignees: Person[]; due?: string; urgent?: boolean; group?: string }
@@ -53,7 +60,9 @@ export type Action =
   /** Soft delete with Undo, as for items. */
   | { type: 'deleteNote'; id: string }
   /** A comment by me on an item or task. Comments are never edited. */
-  | { type: 'addComment'; targetType: Comment['targetType']; targetId: string; body: string };
+  | { type: 'addComment'; targetType: Comment['targetType']; targetId: string; body: string }
+  /** Soft delete of one of my own comments, with Undo. */
+  | { type: 'deleteComment'; id: string };
 
 /** Apply a patch, or return the same object when nothing would change, so no op is sent. */
 function patched<T extends object>(obj: T, patch: NoInfer<Partial<T>>, actor: Actor): T {
@@ -95,7 +104,13 @@ export function reducer(state: State, action: Action): State {
       }
       // A price saved without a buyer counts as bought by me, so Budget's split always adds up.
       const buyer = (i: Item): ItemPatch => (patch.actualPrice !== undefined && !('boughtBy' in patch) && i.boughtBy === undefined ? { boughtBy: state.me } : {});
-      const items = state.items.map((i) => (i.id === action.id ? patched(i, { ...patch, ...buyer(i) }, actor) : i));
+      // Saving or changing the paid price stamps when it was paid (for "+£X this week"); clearing it clears that.
+      const paidAt = (i: Item): Partial<Item> => ('actualPrice' in patch && patch.actualPrice !== i.actualPrice ? { pricePaidAt: patch.actualPrice === undefined ? undefined : now } : {});
+      const items = state.items.map((i) => (i.id === action.id ? patched<Item>(i, { ...patch, ...buyer(i), ...paidAt(i) }, actor) : i));
+      return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
+    }
+    case 'claimItem': {
+      const items = state.items.map((i) => (i.id === action.id && i.assignedTo === undefined ? { ...i, assignedTo: state.me, updatedBy: actor } : i));
       return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
     }
     case 'setItemStatus': {
@@ -163,8 +178,12 @@ export function reducer(state: State, action: Action): State {
     case 'addComment': {
       const body = action.body.trim();
       if (!body) return state;
-      const comment: Comment = { id: newId(), targetType: action.targetType, targetId: action.targetId, author: actor, body, createdAt: now };
+      const comment: Comment = { id: newId(), targetType: action.targetType, targetId: action.targetId, author: state.actor ?? actor, body, createdAt: now };
       return { ...state, comments: [...(state.comments ?? []), comment] };
+    }
+    case 'deleteComment': {
+      const mine = (state.comments ?? []).find((c) => c.id === action.id && c.author === (state.actor ?? actor));
+      return mine ? { ...state, comments: (state.comments ?? []).filter((c) => c !== mine) } : state;
     }
   }
 }

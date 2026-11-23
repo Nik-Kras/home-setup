@@ -72,6 +72,10 @@ describe('addedSince', () => {
     expect(addedSince(before, [task('t2', undefined, [a('nikita')], { updatedBy: 'daryna' })], 'nikita')).toBe(false);
     expect(addedSince(before, [task('t2', undefined, [a('nikita')], { updatedBy: 'nikita' })], 'nikita')).toBe(true);
   });
+  it('also counts an item added after switching the add screen to Item', () => {
+    expect(addedSince(before, [{ id: 'i9', updatedBy: 'nikita' }], 'nikita')).toBe(true);
+    expect(addedSince(new Set(['i9']), [{ id: 'i9', updatedBy: 'nikita' }], 'nikita')).toBe(false);
+  });
 });
 
 describe('group route param', () => {

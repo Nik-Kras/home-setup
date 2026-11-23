@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { spendTrend, trendPath } from './spendTrend';
 
-const paid = (actualPrice: number | undefined, deliveredAt?: string, extra: { installedAt?: string; addedAt?: string } = {}) =>
-  ({ actualPrice, deliveredAt, installedAt: extra.installedAt, addedAt: extra.addedAt ?? '2026-10-01T09:00:00' });
+const paid = (actualPrice: number | undefined, deliveredAt?: string, extra: { installedAt?: string; addedAt?: string; pricePaidAt?: string } = {}) =>
+  ({ actualPrice, deliveredAt, installedAt: extra.installedAt, addedAt: extra.addedAt ?? '2026-10-01T09:00:00', pricePaidAt: extra.pricePaidAt });
 
 describe('spendTrend', () => {
   it('nothing paid: no line and nothing this week', () => {
@@ -30,6 +30,17 @@ describe('spendTrend', () => {
   it('"this week" is the last 7 days including today', () => {
     const t = spendTrend([paid(100, '2026-11-15T10:00:00'), paid(20, '2026-11-16T10:00:00'), paid(5, '2026-11-22T08:00:00')], '2026-11-22');
     expect(t.thisWeek).toBe(25);
+  });
+
+  it('"this week" follows when the price was paid, not when the item arrived', () => {
+    // Delivered a month ago, price entered today: this week. Delivered today, paid weeks ago: not.
+    const t = spendTrend([
+      paid(40, '2026-10-20T10:00:00', { pricePaidAt: '2026-11-22T08:00:00' }),
+      paid(15, '2026-11-22T09:00:00', { pricePaidAt: '2026-10-30T09:00:00' }),
+    ], '2026-11-22');
+    expect(t.thisWeek).toBe(40);
+    expect(t.start).toBe('2026-10-30');
+    expect(t.points.at(-1)!.total).toBe(55);
   });
 
   it('a date after today counts today', () => {

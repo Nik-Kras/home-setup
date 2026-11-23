@@ -20,15 +20,16 @@ const dayMs = (day: string) => Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, 
 const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /**
- * Spending over time for the Budget trend line. A paid price counts on the day the item arrived
- * (delivered_at, else installed_at); a price paid before it arrived counts from when it was added, so
- * the line ends at the same "Spent so far" total. Days after today are clamped to today.
+ * Spending over time for the Budget trend line and "+£X this week". A paid price counts on the day it
+ * was saved (price_paid_at); prices saved before that was recorded fall back to the day the item
+ * arrived (delivered, else installed), else when it was added, so the line ends at the same "Spent so
+ * far" total. Days after today are clamped to today.
  */
-export function spendTrend(items: readonly Pick<Item, 'actualPrice' | 'deliveredAt' | 'installedAt' | 'addedAt'>[], today: string): SpendTrend {
+export function spendTrend(items: readonly Pick<Item, 'actualPrice' | 'pricePaidAt' | 'deliveredAt' | 'installedAt' | 'addedAt'>[], today: string): SpendTrend {
   const byDay = new Map<string, number>();
   for (const i of items) {
     if (!i.actualPrice) continue;
-    const when = i.deliveredAt ?? i.installedAt ?? i.addedAt;
+    const when = i.pricePaidAt ?? i.deliveredAt ?? i.installedAt ?? i.addedAt;
     let day = localDay(when);
     if (day > today) day = today;
     byDay.set(day, (byDay.get(day) ?? 0) + i.actualPrice);

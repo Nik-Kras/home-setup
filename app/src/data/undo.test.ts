@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { budgetView } from '../domain/budgetView';
 import type { Item, Task } from '../domain/types';
 import { OpQueue, type KV, type Op } from './queue';
-import { makeExecutor } from './repo';
+import { makeExecutor, ops } from './repo';
 import { reducer, type Action, type State } from './reducer';
-import { afterUndoSnack, applyUndo, offerSnack, popUndo, pushUndo, UNDO_LIMIT, undoEntryFor, type UndoEntry } from './undo';
+import { afterUndoSnack, applyUndo, claimNotice, offerSnack, popUndo, pushUndo, UNDO_LIMIT, undoEntryFor, type UndoEntry } from './undo';
 
 const rooms = new Map([['Kitchen', 'room-k'], ['Hallway', 'room-h']]);
 const kettle: Item = { id: 'i1', name: 'Kettle', status: 'needed', quantity: 1, urgent: false, needsInstall: false, room: 'Kitchen', addedAt: '2026-11-21T10:00:00Z', updatedBy: 'claude' };
@@ -111,9 +111,12 @@ describe('applyUndo: inverse patches', () => {
     const { next, entry } = edit(start, { type: 'updateItem', id: 'i1', patch: { actualPrice: 25, room: 'Hallway', assignedTo: 'daryna' } });
     const undone = applyUndo(next, entry, rooms);
     expect(item(undone.state)).toEqual({ ...kettle, updatedBy: 'nikita' });
+    const paidAt = item(next).pricePaidAt!;
     expect(undone.ops.map((o) => [(o as Extract<Op, { kind: 'patch' }>).match, o.row])).toEqual([
       [{ id: 'i1', room_id: 'room-h' }, { room_id: 'room-k' }],
       [{ id: 'i1', actual_price: 25 }, { actual_price: null }],
+      // The paid time goes back with the price, only while it is still the time this edit set.
+      [{ id: 'i1', price_paid_at: paidAt }, { price_paid_at: null }],
       [{ id: 'i1', assigned_to: 'daryna' }, { assigned_to: null }],
       [{ id: 'i1', bought_by: 'nikita' }, { bought_by: null }],
     ]);
@@ -400,11 +403,26 @@ describe('adding an item: "Added to <room>", Undo, Change', () => {
     expect(applyUndo(start, entry, rooms)).toMatchObject({ outcome: 'none', ops: [] });
   });
 
-  it('a claim ("I\'ll buy it") is an ordinary undoable assignment', () => {
-    const { next, entry } = edit(start, { type: 'updateItem', id: 'i1', patch: { assignedTo: 'nikita' } });
+  it('a claim ("I\'ll buy it") assigns an unclaimed item to me and is undoable', () => {
+    const { next, entry } = edit(start, { type: 'claimItem', id: 'i1' });
+    expect(item(next).assignedTo).toBe('nikita');
     expect(entry.message).toBe('Kettle → assigned to Nikita');
     const undone = applyUndo(next, entry, rooms);
     expect(item(undone.state).assignedTo).toBeUndefined();
     expect(undone.ops[0]).toMatchObject({ table: 'items', match: { id: 'i1', assigned_to: 'nikita' }, row: { assigned_to: null } });
+  });
+
+  it('a claim never takes an item someone already has', () => {
+    const taken: State = { ...start, items: [{ ...kettle, assignedTo: 'daryna' }, router] };
+    expect(reducer(taken, { type: 'claimItem', id: 'i1' })).toBe(taken);
+  });
+
+  it('is sent only while the item is still unclaimed; a miss says the other person took it', () => {
+    const op = ops.claimIf('i1', 'nikita');
+    expect(op).toMatchObject({ kind: 'patch', table: 'items', match: { id: 'i1', assigned_to: null }, row: { assigned_to: 'nikita' }, reportMiss: true });
+    expect(claimNotice(op, 'nikita')).toBe('Daryna already took it');
+    expect(claimNotice(ops.claimIf('i1', 'daryna'), 'daryna')).toBe('Nikita already took it');
+    // Other conditional patches (an Undo of a claim) are not claims.
+    expect(claimNotice(ops.patchIf('items', { id: 'i1', assigned_to: 'nikita' }, { assigned_to: null }), 'nikita')).toBeUndefined();
   });
 });
