@@ -12,10 +12,10 @@ def page(inner, size, bg):
 BGDEF = f'<defs><linearGradient id="g" x1="0.2" y1="0" x2="0.8" y2="1"><stop offset="0" stop-color="{BG1}"/><stop offset="1" stop-color="{BG2}"/></linearGradient></defs><rect width="108" height="108" fill="url(#g)"/>'
 jobs = {
  "icon": (BGDEF + glyph(MINT, LILAC, 1.35), 1024, BG2, False, "ios"),
- "android-icon-foreground": (glyph(MINT, LILAC, 1.15), 1024, "transparent", True, "tr"),
+ "android-icon-foreground": (glyph(MINT, LILAC, 0.85), 1024, "transparent", True, "tr"),
  "android-icon-background": (BGDEF, 1024, BG2, False, "bg"),
- "android-icon-monochrome": (glyph("#FFFFFF", "#FFFFFF", 1.15), 432, "transparent", True, "tr"),
- "splash-icon": (glyph(MINT, LILAC, 1.6), 1024, "transparent", True, "tr"),
+ "android-icon-monochrome": (glyph("#FFFFFF", "#FFFFFF", 0.85), 432, "transparent", True, "tr"),
+ "splash-icon": (glyph(MINT, LILAC, 0.8), 1024, "transparent", True, "tr"),
  "favicon": (BGDEF + glyph(MINT, LILAC, 1.5), 48, BG2, False, "ios"),
 }
 os.makedirs("out", exist_ok=True)
