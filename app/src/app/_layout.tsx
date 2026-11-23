@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { IdentityState, useIdentityReady } from '../components/IdentityState';
 import { SignIn } from '../components/SignIn';
 import { UndoBar } from '../components/UndoBar';
+import { useForegroundUpdateChecks } from '../data/appUpdates';
 import { StoreProvider, useStore } from '../data/store';
 import { colors } from '../theme/tokens';
 
@@ -36,6 +37,8 @@ function Gate() {
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({ Geist_400Regular, Geist_500Medium, Geist_600SemiBold, InstrumentSerif_400Regular });
+  // Over-the-air updates: look again when the app comes back to the foreground (at most every 15 min).
+  useForegroundUpdateChecks();
 
   useEffect(() => {
     if (loaded || error) SplashScreen.hideAsync();

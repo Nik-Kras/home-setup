@@ -111,6 +111,17 @@
       ],
       "./plugins/with-release-signing"
     ],
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6f58cb80-e4e4-4144-9af0-c97c60bdd8eb",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    },
     "scheme": "homesetup",
     "backgroundColor": "#0E1110",
     "extra": {
