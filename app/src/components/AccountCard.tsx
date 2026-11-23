@@ -45,18 +45,20 @@ export function SyncStatusRow() {
 }
 
 /**
- * Which app update is running: "Up to date · 1a2b3c4d", or "Update ready · Restart" once one is
+ * Which app update is running: "Up to date · 4f2a9c · 23 Nov", or "Update ready · Restart" once one is
  * downloaded. Restart is only ever a tap here or on the snackbar; never automatic mid-use.
  */
 function AppUpdateRow() {
   const { view } = useAppUpdate();
   const text = view.detail ? `${view.label} · ${view.detail}` : view.label;
+  // Wraps only between parts ("Update ready ·" over "4f2a9c · 23 Nov"), never inside "23 Nov".
+  const shown = text.split(' · ').map((part) => part.replace(/ /g, '\u00A0')).join('\u00A0· ');
   if (view.canRestart) {
     return (
       <Pressable onPress={() => void restartWithUpdate()} testID="app-update" accessibilityRole="button" accessibilityLabel={`App, ${text}`} accessibilityHint="Restarts the app to use the update" style={({ pressed }) => [s.row, pressed && s.pressed]}>
         <Text style={s.label}>App</Text>
         <View style={s.value}>
-          <Text style={s.valueText} numberOfLines={1}>{text}</Text>
+          <Text style={[s.valueText, s.valueRight]} numberOfLines={2}>{shown}</Text>
           <Text style={s.action}>Restart</Text>
         </View>
       </Pressable>
@@ -65,7 +67,7 @@ function AppUpdateRow() {
   return (
     <View style={s.row} testID="app-update" accessible accessibilityLabel={`App, ${text}`}>
       <Text style={s.label}>App</Text>
-      <Text style={s.valueText} numberOfLines={1}>{text}</Text>
+      <Text style={[s.valueText, s.valueRight]} numberOfLines={2}>{shown}</Text>
     </View>
   );
 }
@@ -138,6 +140,7 @@ const s = StyleSheet.create({
   label: { fontFamily: fonts.medium, fontSize: 15, color: colors.text },
   value: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   valueText: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, flexShrink: 1 },
+  valueRight: { textAlign: 'right', fontVariant: ['tabular-nums'] },
   action: { fontFamily: fonts.semibold, fontSize: 14, color: colors.mint },
   dot: { width: 8, height: 8, borderRadius: 4 },
   dotOutline: { borderWidth: 1.5, borderColor: colors.textMuted },

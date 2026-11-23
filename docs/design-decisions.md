@@ -149,3 +149,10 @@ User feedback: the app must look and work like the design. Added what the design
 - The Next up meta line wraps to two lines, then ends with an ellipsis.
 - Disabled mint buttons (Send comment, Add, Save price, sheet Save, Sign in) turn neutral with muted text and report themselves as disabled; they no longer look like a dimmed active button.
 - Widgets fill their height: the large widget shows as many rows as fit (up to 12) with "+n more" when items remain, and the medium widget up to six rows, with "+n more" when that line fits too. The header and the "Updated" line stay; taps and the one-stage advance are unchanged.
+
+## Last cosmetic fixes (T17, 2026-11-23)
+- **Budget with no prices** shows only "Spent so far £0" and "No prices yet. Add one on an item." (no "of £0", empty bars or £0 tiles). With estimates but nothing paid, Who paid shows "No spending yet" without an empty bar; rooms keep "£0 of £45" (spent of estimated).
+- **Home header** as in Home.png: title and count on the left, the Room/Owner switch centred beside both lines; the sync pill sits on the title line as on the other tabs. Chips and cards start right under the header. Tile captions never cut the person's name.
+- **No mid-phrase wrapping**: the Next-up meta line ("Kitchen · about £20 · unclaimed", "for Daryna") and the sync pill ("Offline ·" over "3 unsent") break only after a "·"; the Next-up meta may take three lines beside two buttons. "Next up · urgent" shortens to "Urgent" if it would wrap.
+- **Row pills**: an unclaimed row shows only "I'll buy it" (Main.png); the row's "Got it" is only on my items still Needed or Looking. Got it stays on the Next-up card and the status sheet.
+- **App row** on Home: "Up to date · 4f2a9c · 23 Nov" (last 6 characters of the update id and the day it was published; "built in" for the update inside the app), or "Update ready · ... Restart".

@@ -55,17 +55,24 @@ describe('showUpdateBanner', () => {
 describe('updateStatusView', () => {
   const base = { dev: false, enabled: true, runningId: '1a2b3c4d-0000-4000-8000-000000000000', embedded: false, ready: false };
 
-  it('is up to date with the short id of the running update', () => {
-    expect(updateStatusView(base)).toEqual({ label: 'Up to date', detail: '1a2b3c4d', canRestart: false });
+  it('is up to date with the last 6 characters of the running update id', () => {
+    expect(updateStatusView(base)).toEqual({ label: 'Up to date', detail: '000000', canRestart: false });
+    expect(updateStatusView({ ...base, runningId: '019ab1c2-7d3e-7f00-9a1b-3c4d5e4f2a9c' }).detail).toBe('4f2a9c');
+  });
+
+  it('adds the date the update was published', () => {
+    const now = new Date(2026, 10, 23, 12);
+    expect(updateStatusView({ ...base, createdAt: new Date(2026, 10, 23, 9) }, now).detail).toBe('000000 · 23 Nov');
+    expect(updateStatusView({ ...base, createdAt: new Date(2025, 0, 2) }, now).detail).toBe('000000 · 2 Jan 2025');
   });
 
   it('marks the update built into the app', () => {
-    expect(updateStatusView({ ...base, embedded: true }).detail).toBe('1a2b3c4d · built in');
+    expect(updateStatusView({ ...base, embedded: true, createdAt: new Date() }).detail).toBe('000000 · built in');
     expect(updateStatusView({ ...base, embedded: true, runningId: null }).detail).toBe('built in');
   });
 
   it('offers Restart when an update is waiting', () => {
-    expect(updateStatusView({ ...base, ready: true })).toEqual({ label: 'Update ready', detail: '1a2b3c4d', canRestart: true });
+    expect(updateStatusView({ ...base, ready: true })).toEqual({ label: 'Update ready', detail: '000000', canRestart: true });
   });
 
   it('is off in a dev build or when expo-updates is off', () => {

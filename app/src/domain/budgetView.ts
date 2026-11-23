@@ -16,6 +16,8 @@ export interface BudgetRoomRow {
 }
 
 export interface BudgetView {
+  /** Any paid price or estimate at all. Without one the screen shows only its empty state. */
+  hasPrices: boolean;
   spent: number;
   toBuy: number;
   estimatedTotal: number;
@@ -68,6 +70,7 @@ export function budgetView(items: readonly Item[]): BudgetView {
   const splitNote = b.spent === 0 ? 'No spending yet' : undefined;
 
   return {
+    hasPrices: b.estimatedTotal > 0,
     spent: b.spent,
     toBuy: b.toBuy,
     estimatedTotal: b.estimatedTotal,

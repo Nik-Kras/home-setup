@@ -55,8 +55,10 @@ describe('item detail helpers', () => {
     expect(nextUpAction(item({ assignedTo: 'nikita', status: 'ordered' }), null, 'nikita')).toEqual({ kind: 'advance', label: 'Got it', jump: false });
   });
 
-  it('a row offers its own Got it only on my or unclaimed items still Needed or Looking', () => {
-    expect(rowGotIt(item(), 'nikita')).toBe(true);
+  it('a row offers its own Got it only on my items still Needed or Looking', () => {
+    // Unclaimed rows show only "I'll buy it" (Main.png); Got it is on Next up and the status sheet.
+    expect(rowGotIt(item(), 'nikita')).toBe(false);
+    expect(rowGotIt(item({ assignedTo: 'nikita' }), 'nikita')).toBe(true);
     expect(rowGotIt(item({ assignedTo: 'nikita', status: 'looking' }), 'nikita')).toBe(true);
     expect(rowGotIt(item({ assignedTo: 'daryna' }), 'nikita')).toBe(false);
     expect(rowGotIt(item({ status: 'ordered' }), 'nikita')).toBe(false);

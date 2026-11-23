@@ -54,9 +54,9 @@ function AddBar() {
  * Memoised: `item` keeps its identity until it changes and the callbacks are stable, so 300 rows stay
  * cheap. Compact as in the design: name and one meta line. Tile and name open the item; the status
  * chip (every stage, forwards or backwards) and one small pill change things here: "Got it" (straight
- * to Delivered) on my or an unclaimed item still Needed or Looking, or "Add price" on an ordered or got
- * item with no paid price. An unclaimed thing shows "I'll buy it" where the owner would be (one tap
- * claims it for me; Undo puts it back). A row just added is outlined in mint while its snackbar shows.
+ * to Delivered) on my item still Needed or Looking, or "Add price" on an ordered or got item with no
+ * paid price. An unclaimed thing shows only "I'll buy it" where the owner would be (one tap claims it
+ * for me; Undo puts it back). A row just added is outlined in mint while its snackbar shows.
  */
 const ItemRow = memo(function ItemRow({ item, me, fresh, onStatus, onPrice, onGot, onClaim }: { item: Item; me: Person; fresh: boolean; onStatus: (id: string) => void; onPrice: (id: string) => void; onGot: (id: string) => void; onClaim: (id: string) => void }) {
   const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
@@ -107,6 +107,35 @@ const ItemRow = memo(function ItemRow({ item, me, fresh, onStatus, onPrice, onGo
     </View>
   );
 });
+
+/**
+ * "Next up" or, in coral, "Next up · urgent". The label never breaks mid-phrase: if the urgent one
+ * would wrap beside a long button label, it shortens to "Urgent".
+ */
+function NextEyebrow({ urgent }: { urgent: boolean }) {
+  const [fits, setFits] = useState(true);
+  if (!urgent) return <Text style={s.nextEyebrow} numberOfLines={1}>Next up</Text>;
+  return (
+    <Text
+      style={[s.nextEyebrow, { color: colors.coral }]}
+      numberOfLines={fits ? undefined : 1}
+      onTextLayout={fits ? (e) => { if (e.nativeEvent.lines.length > 1) setFits(false); } : undefined}
+    >
+      {fits ? 'Next\u00A0up\u00A0·\u00A0urgent' : 'Urgent'}
+    </Text>
+  );
+}
+
+/**
+ * The Next-up meta line: "Kitchen · about £25 · unclaimed". Spaces inside a part do not break and each
+ * "·" stays with the part before it, so a wrap only ever falls between parts ("Living room · about £25 ·"
+ * then "unclaimed"), never mid-phrase.
+ */
+function nextMeta(next: Item, me: Person): string {
+  const who = next.assignedTo === undefined ? 'unclaimed' : next.assignedTo !== me ? `for ${NAME[next.assignedTo]}` : null;
+  const parts = [next.room, next.estPrice ? `about £${next.estPrice}` : null, who].filter((p): p is string => !!p);
+  return parts.map((p) => p.replace(/ /g, '\u00A0')).join('\u00A0· ');
+}
 
 const DONE = 'done';
 type BuySection = { key: string; title: string; meta?: string; data: Item[] };
@@ -175,12 +204,13 @@ export default function Buy() {
           {next && nextAction ? (
             <Card style={s.next}>
               <Ring done={done} total={total} />
-              <View style={{ flex: 1 }}>
-                <Text style={[s.nextEyebrow, next.urgent && { color: colors.coral }]}>{next.urgent ? 'Next up · urgent' : 'Next up'}</Text>
+              <View style={s.nextText}>
+                {/* Keyed so a new item or button label measures again. */}
+                <NextEyebrow key={`${next.id}:${nextAction.label}`} urgent={next.urgent} />
                 {/* A single word stays on one line and shrinks to fit, so it never breaks mid-word beside a long button label. */}
                 <Text style={[s.nextName, next.name.length > 14 && s.nextNameLong]} numberOfLines={/\s/.test(next.name.trim()) ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.6}>{next.name}</Text>
-                {/* Up to two lines, then an ellipsis; never clipped. */}
-                <Text style={s.meta} numberOfLines={2} ellipsizeMode="tail">{[next.room, next.estPrice ? `about £${next.estPrice}` : null, next.assignedTo === undefined ? 'Not claimed yet' : next.assignedTo !== me ? `For ${NAME[next.assignedTo]}` : null].filter(Boolean).join(' · ')}</Text>
+                {/* Broken only between its parts (one part per line at most three lines beside two buttons), never clipped. */}
+                <Text style={s.meta} numberOfLines={3} ellipsizeMode="tail">{nextMeta(next, me)}</Text>
               </View>
               <View style={s.nextActions}>
                 {nextAction.kind === 'open' ? (
@@ -233,12 +263,13 @@ const s = StyleSheet.create({
   // The Screen layout's 8 between blocks, then the 6 between a heading and its first row.
   sectionBelow: { paddingTop: ROW_GAP, marginBottom: ROW_GAP },
   headerText: { flex: 1 },
-  next: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 84, paddingVertical: 12, paddingLeft: 14, paddingRight: 12, ...glow },
+  nextText: { flex: 1, minWidth: 0 },
+  next: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 84, paddingVertical: 12, paddingLeft: 14, paddingRight: 12, ...glow },
   nextEyebrow: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.textSecondary },
   nextName: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 30, color: colors.text },
   nextNameLong: { fontSize: 24, lineHeight: 26 },
   nextActions: { flexShrink: 0, alignItems: 'stretch', gap: 4 },
-  gotBtn: { flexShrink: 0, minHeight: TARGET, paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
+  gotBtn: { flexShrink: 0, minHeight: TARGET, paddingHorizontal: 15, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   jumpBtn: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
   jumpText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.text },
   openBtn: { minHeight: TARGET, borderRadius: 22 },

@@ -35,48 +35,61 @@ export default function Budget() {
   return (
     <Screen header={<View><HeaderTitle>Budget</HeaderTitle><Sub>Worked out from the prices you enter</Sub></View>}>
       <ListGate count={items.length}>
-        <Card style={s.hero}>
-          <View style={s.heroTop}><Text style={s.label}>Spent so far</Text><WeekSpend trend={trend} /></View>
-          <Text style={s.big}>{gbp(b.spent)}<Text style={s.of}>  of {gbp(b.estimatedTotal)}</Text></Text>
-          <View style={s.track} accessible accessibilityLabel={`${b.percent} percent of the estimate spent`}><View style={[s.fill, { width: `${b.percent}%`, backgroundColor: colors.mint }]} /></View>
-          <BudgetTrend trend={trend} />
-        </Card>
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <Card style={{ flex: 1, gap: 2 }}><Text style={s.label}>Still to buy</Text><Text style={s.mid}>{gbp(b.toBuy)}</Text></Card>
-          <Card style={{ flex: 1, gap: 2 }}><Text style={s.label}>Estimated total</Text><Text style={s.mid}>{gbp(b.estimatedTotal)}</Text></Card>
-        </View>
-        <Card style={{ gap: 12 }}>
-          <Text style={s.label}>Who paid</Text>
-          {/* Only the neutral track until someone has paid, so an empty budget never looks split. */}
-          <View style={[s.split, b.split.length === 0 && s.splitEmpty]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-            {b.split.map(({ person, share }) => <View key={person} style={{ flex: share, backgroundColor: person === 'unassigned' ? UNASSIGNED : personColor[person], borderRadius: 7 }} />)}
-          </View>
-          {b.splitNote ? (
-            <Text style={s.note}>{b.splitNote}</Text>
-          ) : (
-            <View style={s.legendRow}>
-              {(['nikita', 'daryna'] as const).map((p) => (
-                <View key={p} style={s.legend}>
-                  <PersonDot person={p} />
-                  <Text style={s.barLabel}>{p === 'nikita' ? 'Nikita' : 'Daryna'} {gbp(b.byPerson[p])}</Text>
-                </View>
-              ))}
-              {/* Spend nobody is recorded as buying, so the shares always add up to Spent. */}
-              {b.unassigned > 0 ? (
-                <View style={s.legend} accessible accessibilityLabel={`Unassigned ${gbp(b.unassigned)}, no buyer recorded`}>
-                  <View style={s.unassignedDot} />
-                  <Text style={s.barLabel}>Unassigned {gbp(b.unassigned)}</Text>
-                </View>
-              ) : null}
-            </View>
-          )}
-        </Card>
-        {b.rooms.length > 0 ? (
-          <Card style={{ gap: 12 }}>
-            <Text style={s.label}>By room</Text>
-            {b.rooms.map((row) => <RoomBar key={row.room} row={row} />)}
+        {!b.hasPrices ? (
+          // No price or estimate anywhere: "of £0", empty bars and £0 tiles would mean nothing.
+          <Card style={s.hero}>
+            <Text style={s.label}>Spent so far</Text>
+            <Text style={s.big}>{gbp(0)}</Text>
+            <Text style={s.emptyNote}>No prices yet. Add one on an item.</Text>
           </Card>
-        ) : null}
+        ) : (
+          <>
+            <Card style={s.hero}>
+              <View style={s.heroTop}><Text style={s.label}>Spent so far</Text><WeekSpend trend={trend} /></View>
+              <Text style={s.big}>{gbp(b.spent)}<Text style={s.of}>  of {gbp(b.estimatedTotal)}</Text></Text>
+              <View style={s.track} accessible accessibilityLabel={`${b.percent} percent of the estimate spent`}><View style={[s.fill, { width: `${b.percent}%`, backgroundColor: colors.mint }]} /></View>
+              <BudgetTrend trend={trend} />
+            </Card>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Card style={{ flex: 1, gap: 2 }}><Text style={s.label}>Still to buy</Text><Text style={s.mid}>{gbp(b.toBuy)}</Text></Card>
+              <Card style={{ flex: 1, gap: 2 }}><Text style={s.label}>Estimated total</Text><Text style={s.mid}>{gbp(b.estimatedTotal)}</Text></Card>
+            </View>
+            <Card style={{ gap: 12 }}>
+              <Text style={s.label}>Who paid</Text>
+              {b.splitNote ? (
+                // Nothing paid yet: the note alone, no empty bar that could look like a split.
+                <Text style={s.note}>{b.splitNote}</Text>
+              ) : (
+                <>
+                  <View style={s.split} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+                    {b.split.map(({ person, share }) => <View key={person} style={{ flex: share, backgroundColor: person === 'unassigned' ? UNASSIGNED : personColor[person], borderRadius: 7 }} />)}
+                  </View>
+                  <View style={s.legendRow}>
+                    {(['nikita', 'daryna'] as const).map((p) => (
+                      <View key={p} style={s.legend}>
+                        <PersonDot person={p} />
+                        <Text style={s.barLabel}>{p === 'nikita' ? 'Nikita' : 'Daryna'} {gbp(b.byPerson[p])}</Text>
+                      </View>
+                    ))}
+                    {/* Spend nobody is recorded as buying, so the shares always add up to Spent. */}
+                    {b.unassigned > 0 ? (
+                      <View style={s.legend} accessible accessibilityLabel={`Unassigned ${gbp(b.unassigned)}, no buyer recorded`}>
+                        <View style={s.unassignedDot} />
+                        <Text style={s.barLabel}>Unassigned {gbp(b.unassigned)}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </>
+              )}
+            </Card>
+            {b.rooms.length > 0 ? (
+              <Card style={{ gap: 12 }}>
+                <Text style={s.label}>By room</Text>
+                {b.rooms.map((row) => <RoomBar key={row.room} row={row} />)}
+              </Card>
+            ) : null}
+          </>
+        )}
       </ListGate>
     </Screen>
   );
@@ -92,12 +105,12 @@ const s = StyleSheet.create({
   track: { height: 8, borderRadius: 4, backgroundColor: colors.track, overflow: 'hidden' },
   fill: { height: 8 },
   split: { flexDirection: 'row', height: 14, gap: 3 },
-  splitEmpty: { borderRadius: 7, backgroundColor: colors.track },
   barRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   barLabel: { flexShrink: 1, fontFamily: fonts.medium, fontSize: 14, lineHeight: 18, color: colors.text, fontVariant: ['tabular-nums'] },
   barValue: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   legendRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', columnGap: 16, rowGap: 6 },
   unassignedDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: UNASSIGNED },
+  emptyNote: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.textSecondary, marginTop: 4 },
   note: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary },
 });

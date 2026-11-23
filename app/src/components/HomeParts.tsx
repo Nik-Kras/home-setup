@@ -81,7 +81,7 @@ export function HomeTile({ item, photoUri }: { item: Item; photoUri?: string }) 
           {owner ? (
             <>
               <View style={[s.dot, { backgroundColor: personColor[owner] }]} />
-              <Text style={s.meta} numberOfLines={1}>{actorName(owner)}</Text>
+              <Text style={[s.meta, s.owner]} numberOfLines={1}>{actorName(owner)}</Text>
             </>
           ) : null}
         </View>
@@ -139,7 +139,7 @@ export function HomeEmpty({ onGoToBuy }: { onGoToBuy: () => void }) {
 
 const s = StyleSheet.create({
   switch: { flexDirection: 'row', borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
-  mode: { minHeight: TARGET, minWidth: TARGET, paddingHorizontal: 16, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
+  mode: { minHeight: TARGET, minWidth: TARGET, paddingHorizontal: 13, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center' },
   modeOn: { backgroundColor: colors.mintFill },
   modeText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textSecondary },
   modeTextOn: { fontFamily: fonts.semibold, color: colors.mint },
@@ -158,10 +158,12 @@ const s = StyleSheet.create({
   glyph: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 64, alignItems: 'center', justifyContent: 'center' },
   photo: { position: 'absolute', width: '100%', height: '100%' },
   photoCap: { backgroundColor: colors.bg },
-  cap: { paddingHorizontal: 14, paddingBottom: 12, paddingTop: 28, gap: 2 },
+  cap: { paddingHorizontal: 12, paddingBottom: 12, paddingTop: 28, gap: 2 },
   name: { fontFamily: fonts.serif, fontSize: 21, lineHeight: 24, color: colors.text },
   metaLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   meta: { flexShrink: 1, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: '#D5DBD7' },
+  // The person is never cut; a long room name gives way first.
+  owner: { flexShrink: 0 },
   dot: { width: 8, height: 8, borderRadius: 4 },
   empty: { backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.hairline, padding: 20, gap: 14, alignItems: 'flex-start' },
   emptyGlyph: { width: 52, height: 52, borderRadius: radius.tile, backgroundColor: colors.neutralFill, alignItems: 'center', justifyContent: 'center' },

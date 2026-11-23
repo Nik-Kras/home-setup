@@ -229,9 +229,12 @@ export function nextUpAction(item: Item, filter: Person | null, me: Person): { k
   return { kind: 'advance', label: nextActionLabel(item) ?? 'Open', jump: canJumpToGot(item) };
 }
 
-/** A row's own small "Got it" (the shop case): only on my or unclaimed items still Needed or Looking. */
+/**
+ * A row's own small "Got it" (the shop case): only on my items still Needed or Looking. An unclaimed
+ * row shows "I'll buy it" alone, as in the design; its Got it is on the Next-up card and the status sheet.
+ */
 export function rowGotIt(item: Item, me: Person): boolean {
-  return canJumpToGot(item) && (item.assignedTo === undefined || item.assignedTo === me);
+  return canJumpToGot(item) && item.assignedTo === me;
 }
 
 /** Stages at which money has usually changed hands: ordered online, or got in a shop. */

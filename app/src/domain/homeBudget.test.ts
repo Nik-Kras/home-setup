@@ -70,6 +70,7 @@ describe('budgetView', () => {
   it('shows no split and a note when nothing is spent, and rooms with only estimates', () => {
     const v = budgetView([item({ estPrice: 25, room: 'Kitchen' }), item({ estPrice: 90, room: 'Kitchen' }), item({ estPrice: 40, room: 'Bedroom' }), item({ room: 'Bedroom' })]);
     expect(v.spent).toBe(0);
+    expect(v.hasPrices).toBe(true);
     expect(v.split).toEqual([]);
     expect(v.splitNote).toBe('No spending yet');
     expect(v.rooms).toEqual([
@@ -80,6 +81,7 @@ describe('budgetView', () => {
 
   it('hides the room card only when there is nothing at all', () => {
     const v = budgetView([item({ room: 'Kitchen' })]);
+    expect(v.hasPrices).toBe(false);
     expect(v.rooms).toEqual([]);
     expect(v.percent).toBe(0);
   });

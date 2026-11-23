@@ -55,22 +55,36 @@ export interface UpdateStatusInput {
   runningId: string | undefined | null;
   /** `currentlyRunning.isEmbeddedLaunch`. */
   embedded: boolean;
+  /** `currentlyRunning.createdAt`: when the running update was published (or the app built). */
+  createdAt?: Date | null;
   ready: boolean;
 }
 
 export interface UpdateStatusView {
   /** "Up to date", "Update ready" or "Updates off". */
   label: string;
-  /** Short id of the running update, such as "1a2b3c4d · built in". Empty when updates are off. */
+  /** Short id and date of the running update, such as "4f2a9c · 23 Nov" or "4f2a9c · built in". Empty when updates are off. */
   detail: string;
   /** Restart applies a downloaded update. */
   canRestart: boolean;
 }
 
+/**
+ * The last 6 characters of an update id. EAS ids are time-based UUIDs, so their start is nearly the
+ * same for every update; the end tells them apart.
+ */
+export const shortUpdateId = (id: string) => id.replace(/-/g, '').slice(-6);
+
+/** "23 Nov", or "23 Nov 2025" when not this year. */
+function shortDate(d: Date, now: Date): string {
+  const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) };
+  return d.toLocaleDateString('en-GB', opts);
+}
+
 /** The "App" row of the Home account card. */
-export function updateStatusView({ dev, enabled, runningId, embedded, ready }: UpdateStatusInput): UpdateStatusView {
+export function updateStatusView({ dev, enabled, runningId, embedded, createdAt, ready }: UpdateStatusInput, now = new Date()): UpdateStatusView {
   if (dev || !enabled) return { label: 'Updates off', detail: '', canRestart: false };
-  const id = runningId ? runningId.slice(0, 8) : '';
-  const detail = embedded ? (id ? `${id} · built in` : 'built in') : id;
+  const when = createdAt && !Number.isNaN(createdAt.getTime()) ? shortDate(createdAt, now) : '';
+  const detail = [runningId ? shortUpdateId(runningId) : '', embedded ? 'built in' : when].filter(Boolean).join(' · ');
   return ready ? { label: 'Update ready', detail, canRestart: true } : { label: 'Up to date', detail, canRestart: false };
 }

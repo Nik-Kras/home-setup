@@ -58,6 +58,6 @@ export function useAppUpdate() {
   const ready = isUpdatePending && !__DEV__ && Updates.isEnabled;
   // A rollback directive has no update id; its time tells two apart.
   const readyKey = ready ? (downloadedUpdate?.updateId ?? `rollback:${downloadedUpdate?.createdAt?.getTime() ?? 0}`) : undefined;
-  const view = updateStatusView({ dev: __DEV__, enabled: Updates.isEnabled, runningId: currentlyRunning.updateId, embedded: currentlyRunning.isEmbeddedLaunch, ready });
+  const view = updateStatusView({ dev: __DEV__, enabled: Updates.isEnabled, runningId: currentlyRunning.updateId, embedded: currentlyRunning.isEmbeddedLaunch, createdAt: currentlyRunning.createdAt, ready });
   return { readyKey, view };
 }
