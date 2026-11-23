@@ -14,6 +14,8 @@ export interface ActivityItem {
   actor: Actor;
   /** "marked it ordered, 2 h ago" (the name is shown before it). */
   text: string;
+  /** When it happened, so comments can be listed among the changes. */
+  at?: string;
 }
 
 const asActor = (s: string): Actor => (s === 'nikita' || s === 'daryna' ? s : 'claude');
@@ -54,7 +56,7 @@ export function itemActivity(rows: readonly ActivityRow[], now: number, limit = 
   for (const row of [...rows].sort((a, b) => b.at.localeCompare(a.at))) {
     const what = itemChangeText(row);
     if (!what) continue;
-    out.push({ actor: asActor(row.actor), text: `${what}, ${timeAgo(row.at, now)}` });
+    out.push({ actor: asActor(row.actor), text: `${what}, ${timeAgo(row.at, now)}`, at: row.at });
     if (out.length >= limit) break;
   }
   return out;

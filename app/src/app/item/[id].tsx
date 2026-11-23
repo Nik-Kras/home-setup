@@ -4,6 +4,9 @@ import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
+import { ClaimRow } from '../../components/ClaimRow';
+import { CommentBar, useNow } from '../../components/Comments';
+import { commentActivity, mergeActivity } from '../../domain/comments';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
 import { ItemPhotos } from '../../components/ItemPhotos';
 import { QuantityRow } from '../../components/QuantityRow';
@@ -32,7 +35,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, rooms, pending, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
+  const { me, items, rooms, comments, pending, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   /** Set by Delete, so the screen sliding away shows nothing rather than "Item not found". */
@@ -45,6 +48,8 @@ export default function ItemDetail() {
   const rows = useItemActivity(id, item ? JSON.stringify(item) : '', pending === 0);
   // While my edits wait in the queue the log cannot have them yet: show the plain line instead.
   const history = useMemo(() => (rows && pending === 0 ? itemActivity(rows, Date.now()) : null), [rows, pending]);
+  const now = useNow();
+  const notes = useMemo(() => commentActivity(comments, 'item', id, now), [comments, id, now]);
 
   const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 
@@ -84,7 +89,7 @@ export default function ItemDetail() {
     <View style={s.root}>
       <TintWash color={tone.fg} />
       {header}
-      <ScrollView contentContainerStyle={[s.content, { paddingBottom: insets.bottom + 24 }]}>
+      <ScrollView style={s.scroll} contentContainerStyle={[s.content, { paddingBottom: 24 }]} keyboardShouldPersistTaps="handled">
         <View style={s.titleBlock}>
           <View style={[s.glyph, { backgroundColor: tone.fill, borderColor: tone.ring }]}>
             <Icon name={glyph.icon} size={38} color={tone.fg} stroke={1.5} />
@@ -107,7 +112,11 @@ export default function ItemDetail() {
         </FieldGroup>
 
         <FieldGroup>
-          <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone={item.assignedTo ? 'value' : 'empty'} dot={item.assignedTo && personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
+          {item.assignedTo ? (
+            <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone="value" dot={personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
+          ) : (
+            <ClaimRow onOpen={() => setSheet('assignedTo')} onClaim={() => updateItem(item.id, { assignedTo: me })} />
+          )}
           <FieldRow label="Estimated price" value={item.estPrice !== undefined ? formatMoney(item.estPrice) : 'Add'} tone={item.estPrice !== undefined ? 'value' : 'action'} a11yValue={item.estPrice === undefined ? 'not set' : undefined} onPress={() => setSheet('estPrice')} />
           <FieldRow label="Price paid" value={item.actualPrice !== undefined ? formatMoney(item.actualPrice) : 'Add'} tone={item.actualPrice !== undefined ? 'value' : 'action'} a11yValue={item.actualPrice === undefined ? 'not paid yet' : undefined} onPress={() => setSheet('actualPrice')} />
           <FieldRow label="Bought by" value={person(item.boughtBy)} tone={item.boughtBy ? 'value' : 'empty'} dot={item.boughtBy && personColor[item.boughtBy]} onPress={() => setSheet('boughtBy')} />
@@ -123,8 +132,10 @@ export default function ItemDetail() {
         </FieldGroup>
 
         <View style={s.activity}>
-          {history && history.length > 0 ? history.map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />) : (
+          {/* The change history (or, until it loads, the last change) with comments among it by time. */}
+          {history && history.length > 0 ? mergeActivity(history, notes).map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />) : (
             <>
+              {notes.map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />)}
               <ActivityLine actor={item.updatedBy} text="made the last change" />
               <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
             </>
@@ -133,6 +144,7 @@ export default function ItemDetail() {
 
         <SheetButton label="Delete item" onPress={remove} />
       </ScrollView>
+      <CommentBar targetType="item" targetId={item.id} />
 
       <TextSheet
         visible={sheet === 'name'}
@@ -225,6 +237,7 @@ function PriceForm({ title, value, helper, onSave, onClose }: { title: string; v
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   missing: { paddingHorizontal: 16, paddingTop: 12 },
+  scroll: { flex: 1 },
   content: { paddingHorizontal: 16, gap: 12 },
   titleBlock: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingHorizontal: 4 },
   glyph: { width: 72, height: 72, borderRadius: 22, backgroundColor: colors.neutralFill, borderWidth: 1, borderColor: colors.hairline, alignItems: 'center', justifyContent: 'center' },

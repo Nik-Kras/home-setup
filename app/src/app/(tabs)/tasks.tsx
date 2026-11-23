@@ -29,7 +29,7 @@ const Row = memo(function Row({ task, viewer, me, onToggle }: { task: Task; view
   return <TaskRow task={task} viewer={viewer} me={me} onToggle={(p, done) => onToggle(task.id, p, done)} />;
 });
 
-/** The typed text lives with the screen, so "More options" can keep it until a task is really added. */
+/** The typed text lives with the screen, so the add screen can keep it until a task is really added. */
 function AddTaskBar({ text, setText, placeholder, onAdd, onMore }: { text: string; setText: (t: string) => void; placeholder: string; onAdd: (title: string) => void; onMore: (title: string) => void }) {
   const ref = useRef<ComponentRef<typeof TextInput>>(null);
   const submit = () => {
@@ -41,11 +41,8 @@ function AddTaskBar({ text, setText, placeholder, onAdd, onMore }: { text: strin
   return (
     <View style={s.addBar}>
       <TextInput ref={ref} value={text} onChangeText={setText} onSubmitEditing={submit} submitBehavior="submit" returnKeyType="done" placeholder={placeholder} placeholderTextColor={colors.textSecondary} accessibilityLabel="Add a task" style={s.addInput} />
-      <Pressable onPress={() => onMore(text.trim())} accessibilityRole="button" accessibilityLabel="Options" accessibilityHint="Due date, group, who and urgent" style={({ pressed }) => [s.moreBtn, pressed && { opacity: 0.6 }]}>
-        <Icon name="sliders" size={18} color={colors.textSecondary} stroke={2} />
-        <Text style={s.moreText}>Options</Text>
-      </Pressable>
-      <Pressable onPress={submit} accessibilityRole="button" accessibilityLabel="Add task" style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></Pressable>
+      {/* As in the design, "+" opens the add screen on Task (when, group, who, urgent), keeping the typed text; Enter still adds at once. */}
+      <Pressable onPress={() => onMore(text.trim())} accessibilityRole="button" accessibilityLabel="Add task" accessibilityHint="Opens the add screen: due date, group, who and urgent" style={s.addBtn}><Icon name="plus" size={20} color={colors.onMint} stroke={2.6} /></Pressable>
     </View>
   );
 }
@@ -161,8 +158,6 @@ const s = StyleSheet.create({
   addBar: { flexDirection: 'row', alignItems: 'center', gap: 4, minHeight: 54, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5, paddingVertical: 4 },
   addInput: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.medium, fontSize: 16, color: colors.text },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
-  moreBtn: { flexDirection: 'row', gap: 5, minWidth: TARGET, height: TARGET, paddingHorizontal: 10, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  moreText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textSecondary },
   doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4, marginTop: 8 },
   doneText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },
   empty: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },

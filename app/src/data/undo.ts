@@ -23,6 +23,8 @@ type ItemChange = { kind: 'item'; before: Item; after: Item | null; index: numbe
 type TaskChange = { kind: 'task'; before: Task; after: Task | null; index: number };
 /** Notes offer Undo for a delete only. */
 type NoteChange = { kind: 'note'; before: FlatNote; after: null; index: number };
+/** A new item: Undo soft-deletes it (or takes its insert back from the queue if it was never sent). */
+type AddedChange = { kind: 'added'; item: Item };
 
 export interface UndoEntry {
   id: string;
@@ -32,7 +34,7 @@ export interface UndoEntry {
   spoken: string;
   /** When the edit was made, in ms. */
   at: number;
-  change: ItemChange | TaskChange | NoteChange;
+  change: ItemChange | TaskChange | NoteChange | AddedChange;
   /** The queue Ops the edit sent. If none has gone out yet (offline), Undo takes them back instead. */
   opIds?: readonly string[];
 }
@@ -45,13 +47,15 @@ export interface Snack {
   canUndo: boolean;
   /** How long it stays, in ms (a screen reader gets longer, see UndoBar). */
   ms: number;
+  /** An item the snackbar's "Change" button opens (after adding one). */
+  changeItemId?: string;
 }
 
 /** A status or field change: 6 s. A delete: 10 s, as losing a thing by mistake costs more. */
 export const SNACK_MS = 6_000;
 export const DELETE_SNACK_MS = 10_000;
 
-const isDelete = (entry: UndoEntry) => entry.change.after === null;
+const isDelete = (entry: UndoEntry) => entry.change.kind !== 'added' && entry.change.after === null;
 
 export type UndoOutcome = 'done' | 'partial' | 'none';
 
@@ -181,6 +185,13 @@ export function undoEntryFor(prev: State, next: State, action: Action, at: numbe
       if (!before || next.notes.some((n) => n.id === action.id)) return undefined;
       return { id, at, message: `${before.title} deleted`, spoken: `Note ${before.title} deleted`, change: { kind: 'note', before, after: null, index } };
     }
+    case 'addItem': {
+      const known = new Set(prev.items.map((i) => i.id));
+      const item = next.items.find((i) => !known.has(i.id));
+      if (!item) return undefined;
+      const where = item.room ? `Added to ${item.room}` : 'Added, no room';
+      return { id, at, message: where, spoken: `${item.name} ${where.replace('Added', 'added')}`, change: { kind: 'added', item } };
+    }
     default:
       return undefined;
   }
@@ -198,6 +209,12 @@ export function applyUndo(current: State, entry: UndoEntry, roomIds: ReadonlyMap
   let reverted = 0;
   let skipped = 0;
   const change = entry.change;
+
+  if (change.kind === 'added') {
+    // Deleted on the other phone since: nothing left to take back.
+    if (!current.items.some((i) => i.id === change.item.id)) return { state: current, ops: [], outcome: 'none' };
+    return { state: { ...current, items: current.items.filter((i) => i.id !== change.item.id) }, ops: [ops.softDelete('items', change.item.id)], outcome: 'done' };
+  }
 
   if (change.kind === 'item') {
     const { before, after, index } = change;
@@ -374,7 +391,8 @@ export function popUndo(stack: readonly UndoEntry[]): { entry?: UndoEntry; rest:
 
 /** The snackbar right after an edit. */
 export function offerSnack(entry: UndoEntry): Snack {
-  return { key: entry.id, message: entry.message, spoken: `${entry.spoken}. Undo available.`, canUndo: true, ms: isDelete(entry) ? DELETE_SNACK_MS : SNACK_MS };
+  const changeItemId = entry.change.kind === 'added' ? entry.change.item.id : undefined;
+  return { key: entry.id, message: entry.message, spoken: `${entry.spoken}. Undo available.`, canUndo: true, ms: isDelete(entry) || changeItemId ? DELETE_SNACK_MS : SNACK_MS, ...(changeItemId ? { changeItemId } : {}) };
 }
 
 /**

@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { BudgetTrend, WeekSpend } from '../../components/BudgetTrend';
 import { ListGate } from '../../components/LoadState';
 import { Screen } from '../../components/Screen';
 import { Card, PersonDot, Sub, Title } from '../../components/ui';
 import { roomTone } from '../../domain/glyphs';
 import { useStore } from '../../data/store';
 import { budgetView, gbp, type BudgetRoomRow } from '../../domain/budgetView';
+import { localDay, spendTrend } from '../../domain/spendTrend';
 import { colors, fonts, glow, personColor, tileTone } from '../../theme/tokens';
 
 /** Spend with no buyer: a neutral segment, as nobody's colour applies. */
@@ -27,14 +29,16 @@ function RoomBar({ row }: { row: BudgetRoomRow }) {
 export default function Budget() {
   const { items } = useStore();
   const b = useMemo(() => budgetView(items), [items]);
+  const trend = useMemo(() => spendTrend(items, localDay(new Date())), [items]);
 
   return (
     <Screen header={<View><Title>Budget</Title><Sub>Worked out from the prices you enter</Sub></View>}>
       <ListGate count={items.length}>
         <Card style={s.hero}>
-          <Text style={s.label}>Spent so far</Text>
+          <View style={s.heroTop}><Text style={s.label}>Spent so far</Text><WeekSpend trend={trend} /></View>
           <Text style={s.big}>{gbp(b.spent)}<Text style={s.of}>  of {gbp(b.estimatedTotal)}</Text></Text>
           <View style={s.track} accessible accessibilityLabel={`${b.percent} percent of the estimate spent`}><View style={[s.fill, { width: `${b.percent}%`, backgroundColor: colors.mint }]} /></View>
+          <BudgetTrend trend={trend} />
         </Card>
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Card style={{ flex: 1, gap: 2 }}><Text style={s.label}>Still to buy</Text><Text style={s.mid}>{gbp(b.toBuy)}</Text></Card>
@@ -79,6 +83,7 @@ export default function Budget() {
 
 const s = StyleSheet.create({
   hero: { gap: 8, ...glow },
+  heroTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
   label: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
   big: { fontFamily: fonts.serif, fontSize: 48, lineHeight: 50, color: colors.text, fontVariant: ['tabular-nums'] },
   of: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary },

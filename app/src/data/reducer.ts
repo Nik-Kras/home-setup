@@ -1,3 +1,4 @@
+import type { Comment } from '../domain/comments';
 import { advance, setStatus } from '../domain/items';
 import { addStep, setAssignees, setAssignmentStatus, toggleStep } from '../domain/tasks';
 import type { Actor, FlatNote, Item, ItemStatus, NoteKind, Person, Task, TaskStatus } from '../domain/types';
@@ -8,6 +9,8 @@ export interface State {
   items: Item[];
   tasks: Task[];
   notes: FlatNote[];
+  /** Comments on items and tasks. Optional so older callers and tests need not list them. */
+  comments?: Comment[];
 }
 
 /**
@@ -29,7 +32,7 @@ export type NotePatch = Partial<Pick<FlatNote, (typeof NOTE_FIELDS)[number]>>;
 const clean = (v: string | undefined) => (v?.trim() ? v.trim() : undefined);
 
 export type Action =
-  | { type: 'replace'; items: Item[]; tasks: Task[]; notes?: FlatNote[] }
+  | { type: 'replace'; items: Item[]; tasks: Task[]; notes?: FlatNote[]; comments?: Comment[] }
   /** Exactly one stage on (see nextStatus). Nothing ever jumps to the end. */
   | { type: 'advanceItem'; id: string }
   | { type: 'addItem'; name: string; room?: string; urgent?: boolean; assignedTo?: Person }
@@ -48,7 +51,9 @@ export type Action =
   | { type: 'addNote'; title: string; body?: string; reference?: string; kind?: NoteKind }
   | { type: 'updateNote'; id: string; patch: NotePatch }
   /** Soft delete with Undo, as for items. */
-  | { type: 'deleteNote'; id: string };
+  | { type: 'deleteNote'; id: string }
+  /** A comment by me on an item or task. Comments are never edited. */
+  | { type: 'addComment'; targetType: Comment['targetType']; targetId: string; body: string };
 
 /** Apply a patch, or return the same object when nothing would change, so no op is sent. */
 function patched<T extends object>(obj: T, patch: NoInfer<Partial<T>>, actor: Actor): T {
@@ -66,7 +71,7 @@ export function reducer(state: State, action: Action): State {
   const now = new Date().toISOString();
   switch (action.type) {
     case 'replace':
-      return { ...state, items: action.items, tasks: action.tasks, notes: action.notes ?? state.notes };
+      return { ...state, items: action.items, tasks: action.tasks, notes: action.notes ?? state.notes, comments: action.comments ?? state.comments };
     case 'advanceItem': {
       const items = state.items.map((i) => (i.id === action.id ? advance(i, now, actor) : i));
       return items.some((i, n) => i !== state.items[n]) ? { ...state, items } : state;
@@ -154,6 +159,12 @@ export function reducer(state: State, action: Action): State {
       if ('reference' in patch) patch.reference = clean(patch.reference);
       const notes = state.notes.map((n) => (n.id === action.id ? patched(n, patch, actor) : n));
       return notes.some((n, i) => n !== state.notes[i]) ? { ...state, notes } : state;
+    }
+    case 'addComment': {
+      const body = action.body.trim();
+      if (!body) return state;
+      const comment: Comment = { id: newId(), targetType: action.targetType, targetId: action.targetId, author: actor, body, createdAt: now };
+      return { ...state, comments: [...(state.comments ?? []), comment] };
     }
   }
 }

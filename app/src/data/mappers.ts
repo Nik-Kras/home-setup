@@ -1,3 +1,4 @@
+import type { Comment } from '../domain/comments';
 import type { Assignment, FlatNote, Item, Person, Task, TaskStatus } from '../domain/types';
 
 /** Row shapes as PostgREST returns them. Only the columns the app reads. */
@@ -96,6 +97,19 @@ export function noteChangedColumns(before: FlatNote, after: FlatNote): Record<st
   const out: Record<string, unknown> = {};
   for (const col of Object.keys(now)) if (col !== 'id' && now[col] !== was[col]) out[col] = now[col];
   return out;
+}
+
+export interface CommentRow {
+  id: string; target_type: Comment['targetType']; target_id: string; author: string; body: string; created_at: string;
+}
+
+export function commentFromRow(r: CommentRow): Comment {
+  return { id: r.id, targetType: r.target_type, targetId: r.target_id, author: asActor(r.author), body: r.body, createdAt: r.created_at };
+}
+
+/** A new comment for insert. author is stamped by the server from the signed-in account, so it is never sent. */
+export function commentToRow(c: Comment): Record<string, unknown> {
+  return { id: c.id, target_type: c.targetType, target_id: c.targetId, body: c.body, created_at: c.createdAt };
 }
 
 /** v4-style id made on the device, so an offline-created row keeps the same id once it syncs. */
