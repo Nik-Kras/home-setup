@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Pressable, StyleSheet, Text, View } from 'react-native';
+import { restartWithUpdate, useAppUpdate } from '../data/appUpdates';
 import { useStore } from '../data/store';
 import { settledAnnouncement, signOutPrompt, syncView, type SyncView } from '../domain/sync';
 import { colors, fonts, radius, TARGET } from '../theme/tokens';
@@ -44,7 +45,33 @@ export function SyncStatusRow() {
 }
 
 /**
- * The small settings area at the end of the Home tab: sync status and Sign out. Sign out sends what
+ * Which app update is running: "Up to date · 1a2b3c4d", or "Update ready · Restart" once one is
+ * downloaded. Restart is only ever a tap here or on the snackbar; never automatic mid-use.
+ */
+function AppUpdateRow() {
+  const { view } = useAppUpdate();
+  const text = view.detail ? `${view.label} · ${view.detail}` : view.label;
+  if (view.canRestart) {
+    return (
+      <Pressable onPress={() => void restartWithUpdate()} testID="app-update" accessibilityRole="button" accessibilityLabel={`App, ${text}`} accessibilityHint="Restarts the app to use the update" style={({ pressed }) => [s.row, pressed && s.pressed]}>
+        <Text style={s.label}>App</Text>
+        <View style={s.value}>
+          <Text style={s.valueText} numberOfLines={1}>{text}</Text>
+          <Text style={s.action}>Restart</Text>
+        </View>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={s.row} testID="app-update" accessible accessibilityLabel={`App, ${text}`}>
+      <Text style={s.label}>App</Text>
+      <Text style={s.valueText} numberOfLines={1}>{text}</Text>
+    </View>
+  );
+}
+
+/**
+ * The small settings area at the end of the Home tab: sync status, the app update and Sign out. Sign out sends what
  * it can first and asks before leaving unsent changes behind.
  */
 export function AccountCard() {
@@ -78,6 +105,8 @@ export function AccountCard() {
         </>
       )}
       <SyncStatusRow />
+      <View style={s.divider} />
+      <AppUpdateRow />
       {demo ? null : (
         <>
           <View style={s.divider} />
@@ -109,6 +138,7 @@ const s = StyleSheet.create({
   label: { fontFamily: fonts.medium, fontSize: 15, color: colors.text },
   value: { flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   valueText: { fontFamily: fonts.regular, fontSize: 14, color: colors.textSecondary, flexShrink: 1 },
+  action: { fontFamily: fonts.semibold, fontSize: 14, color: colors.mint },
   dot: { width: 8, height: 8, borderRadius: 4 },
   dotOutline: { borderWidth: 1.5, borderColor: colors.textMuted },
   confirm: { fontFamily: fonts.regular, fontSize: 15, lineHeight: 21, color: colors.textSecondary, paddingHorizontal: 4, paddingBottom: 8 },

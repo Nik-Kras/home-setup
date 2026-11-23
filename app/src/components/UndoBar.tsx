@@ -2,7 +2,9 @@ import { router, useSegments } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Keyboard, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { restartWithUpdate, useAppUpdate } from '../data/appUpdates';
 import { useStore } from '../data/store';
+import { showUpdateBanner, UPDATE_BANNER_MS } from '../domain/appUpdate';
 import { formatMoney, needsPrice } from '../domain/items';
 import type { Item } from '../domain/types';
 import { PaidForm } from './PaidForm';
@@ -68,12 +70,20 @@ export function UndoBar() {
   const arrived = items.find((i) => i.id === pricePrompt);
   // Hidden again if the item was moved back (Undo), got a price elsewhere, or was deleted.
   const ask = arrived && needsPrice(arrived) ? arrived : undefined;
-  if (!snack && !ask) return null;
+
+  // "Update ready · Restart": once per downloaded update, never while typing or on an add form.
+  const { readyKey } = useAppUpdate();
+  const [shownUpdate, setShownUpdate] = useState<string>();
+  const editing = keyboard > 0 || segments[0] === 'add-item' || segments[0] === 'add-task' || !!ask;
+  const update = showUpdateBanner({ readyKey, shownKey: shownUpdate, editing, snackVisible: !!snack }) ? readyKey : undefined;
+
+  if (!snack && !ask && !update) return null;
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       <View pointerEvents="box-none" style={[s.stack, { bottom }]}>
         {ask ? <PricePrompt key={`${ask.id}:${pricePromptKey}`} item={ask} onDone={closePricePrompt} /> : null}
+        {update ? <UpdateSnack key={update} onDone={() => setShownUpdate(update)} /> : null}
         {snack ? (
           <View style={s.snack}>
             <Text style={s.snackText} numberOfLines={2}>{snack.message}</Text>
@@ -91,6 +101,36 @@ export function UndoBar() {
           </View>
         ) : null}
       </View>
+    </View>
+  );
+}
+
+/**
+ * A downloaded over-the-air update: "Update ready  Restart". It goes away by itself after a while
+ * (the Home account card keeps a Restart); without a tap the update applies at the next cold start.
+ */
+function UpdateSnack({ onDone }: { onDone: () => void }) {
+  // The parent passes a new function each render; the timer must not restart with it.
+  const done = useRef(onDone);
+  done.current = onDone;
+  useEffect(() => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    AccessibilityInfo.announceForAccessibility('App update ready. Restart to use it.');
+    void AccessibilityInfo.isScreenReaderEnabled().catch(() => false).then((reader) => {
+      if (alive) timer = setTimeout(() => done.current(), reader ? SNACK_MS_SCREEN_READER : UPDATE_BANNER_MS);
+    });
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, []);
+  return (
+    <View style={s.snack} testID="update-ready">
+      <Text style={s.snackText} numberOfLines={2}>Update ready</Text>
+      <Pressable onPress={() => void restartWithUpdate()} accessibilityRole="button" accessibilityLabel="Restart to use the app update" hitSlop={4} style={({ pressed }) => [s.undo, pressed && s.pressed]}>
+        <Text style={s.undoText}>Restart</Text>
+      </Pressable>
     </View>
   );
 }
