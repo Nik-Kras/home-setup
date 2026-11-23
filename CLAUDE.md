@@ -27,7 +27,10 @@ Android: `JAVA_HOME=/opt/homebrew/opt/openjdk@17`, `ANDROID_HOME=/opt/homebrew/s
 - Writes go through the offline queue (`app/src/data`). A person's edit sends only their own change (see `diff.ts`).
 
 ## Status
-Updated 2026-11-22.
-- Done: app shell, Buy list, Tasks (mine, other person, shared), Home, Budget, sign-in, Supabase sync with offline queue and realtime, schema migrations 0001 to 0004 applied, live sync check passing, 27 unit tests.
-- Next: M1 (detail screens and add-task options), then M2 photos, M3 Android widgets, M4 hardening, M5 Android release, M6 iPhone, M7 acceptance.
-- Waiting on the user: Apple Developer approval (for M6), sign-up must be switched off in Supabase Auth settings (unverified), change the Claude account password.
+Updated 2026-11-23.
+- App name: **Moved In** (bundle id `app.homesetup.household`, Expo slug `home-setup`, EAS project @nikitakras/home-setup). In-app title stays "Our flat".
+- Built and merged: Buy list, Tasks (mine, other, shared, Done), Home, Budget (trend), item and task detail, notes, add screen with suggestions, comments, one-stage status + status sheet, undo bar, price + who paid, task edit, claim, sync pill, sign-out, Android widgets, iOS widgets (expo-widgets), photos, over-the-air updates (EAS Update, channel `production`, runtime `fingerprint`). Migrations 0001 to 0009 applied. 369 unit tests, Maestro e2e flows 01 to 13 (run `app/e2e/run.sh`), all green on the signed release APK.
+- Data: the move-in checklist (40 tasks, 14 items) was loaded privately with `design-ref/seed-flat.mts` (git-ignored). Never commit it.
+- Android: signed release APK (release key outside the repo), private release repo Nik-Kras/home-setup-releases. Needs a new APK only for native changes; JS changes ship with `eas update` (see docs/store-publishing.md).
+- iPhone: EAS build 7 uploaded to App Store Connect (app record "Moved In"), App Group group.app.homesetup.household registered. Testers are added by the owner in TestFlight.
+- Open: app icon is still the Expo placeholder (needs design + native rebuild); Play Store account and listing (owner, see docs/store-publishing.md); change the two weak account passwords; decide whether the in-app title should read "Moved In".
