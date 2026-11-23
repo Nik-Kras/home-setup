@@ -1,11 +1,12 @@
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ActivityLine } from '../../components/ActivityLine';
 import { ClaimRow } from '../../components/ClaimRow';
-import { CommentBar, CommentLines } from '../../components/Comments';
+import { CommentBar, useNow } from '../../components/Comments';
+import { commentActivity, mergeActivity } from '../../domain/comments';
 import { FieldGroup, FieldRow, LinkRow, StatusCard, ToggleRow } from '../../components/ItemParts';
 import { ItemPhotos } from '../../components/ItemPhotos';
 import { QuantityRow } from '../../components/QuantityRow';
@@ -15,6 +16,8 @@ import { Sheet, SheetButton, SheetOption, TextSheet, TextSheetBody } from '../..
 import { Icon, itemGlyph } from '../../components/ui';
 import { TintWash } from '../../components/TintWash';
 import { useStore } from '../../data/store';
+import { useItemActivity } from '../../data/useActivity';
+import { itemActivity } from '../../domain/activity';
 import { actorName, formatMoney, itemMeta, parseLink, parsePrice, roomOptions } from '../../domain/items';
 import type { Person } from '../../domain/types';
 import { colors, fonts, personColor, TARGET, tileTone } from '../../theme/tokens';
@@ -32,7 +35,7 @@ const shortDate = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { d
 
 export default function ItemDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { me, items, rooms, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
+  const { me, items, rooms, comments, pending, retry, updateItem, setItemStatus, advanceItem, deleteItem } = useStore();
   const insets = useSafeAreaInsets();
   const [sheet, setSheet] = useState<SheetName | null>(null);
   /** Set by Delete, so the screen sliding away shows nothing rather than "Item not found". */
@@ -40,6 +43,13 @@ export default function ItemDetail() {
   const item = items.find((i) => i.id === id);
   const close = () => setSheet(null);
   const state = useDetailState(item !== undefined);
+  // The real history from the activity log when it can be read; reloads only when the item really
+  // changes (a periodic refresh hands over new but equal objects).
+  const rows = useItemActivity(id, item ? JSON.stringify(item) : '', pending === 0);
+  // While my edits wait in the queue the log cannot have them yet: show the plain line instead.
+  const history = useMemo(() => (rows && pending === 0 ? itemActivity(rows, Date.now()) : null), [rows, pending]);
+  const now = useNow();
+  const notes = useMemo(() => commentActivity(comments, 'item', id, now), [comments, id, now]);
 
   const header = <ScreenHeader onBack={back} backLabel="Back to list" />;
 
@@ -95,6 +105,12 @@ export default function ItemDetail() {
         {/* Any stage, forwards or backwards; every change offers Undo, which also restores the dates. */}
         <StatusCard item={item} onSet={(status) => setItemStatus(item.id, status)} onNext={() => advanceItem(item.id)} />
 
+        {/* Right under the stages: whether it needs installing decides where the main button stops. */}
+        <FieldGroup>
+          <ToggleRow first label="Needs installing" value={item.needsInstall} onChange={(needsInstall) => updateItem(item.id, { needsInstall })} />
+          <ToggleRow label="Urgent" tone="coral" value={item.urgent} onChange={(urgent) => updateItem(item.id, { urgent })} />
+        </FieldGroup>
+
         <FieldGroup>
           {item.assignedTo ? (
             <FieldRow first label="Assigned to" value={person(item.assignedTo)} tone="value" dot={personColor[item.assignedTo]} onPress={() => setSheet('assignedTo')} />
@@ -115,15 +131,15 @@ export default function ItemDetail() {
           <ItemPhotos itemId={item.id} itemName={item.name} />
         </FieldGroup>
 
-        <FieldGroup>
-          <ToggleRow first label="Urgent" tone="coral" value={item.urgent} onChange={(urgent) => updateItem(item.id, { urgent })} />
-          <ToggleRow label="Needs installing" value={item.needsInstall} onChange={(needsInstall) => updateItem(item.id, { needsInstall })} />
-        </FieldGroup>
-
         <View style={s.activity}>
-          <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
-          <ActivityLine actor={item.updatedBy} text="made the last change" />
-          <CommentLines targetType="item" targetId={item.id} />
+          {/* The change history (or, until it loads, the last change) with comments among it by time. */}
+          {history && history.length > 0 ? mergeActivity(history, notes).map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />) : (
+            <>
+              {notes.map((h, i) => <ActivityLine key={i} actor={h.actor} text={h.text} />)}
+              <ActivityLine actor={item.updatedBy} text="made the last change" />
+              <ActivityLine text={`Added ${shortDate(item.addedAt)}`} />
+            </>
+          )}
         </View>
 
         <SheetButton label="Delete item" onPress={remove} />

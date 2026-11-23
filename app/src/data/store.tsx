@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState } from 'react-native';
 import type { Comment } from '../domain/comments';
 import type { DisplayPhoto } from '../domain/photos';
-import { identityFor, type Identity, type SyncStatus } from '../domain/sync';
+import { identityFor, memberIdentity, statusWhileSending, type Identity, type SyncStatus } from '../domain/sync';
 import type { Item, ItemStatus, NoteKind, Person, TaskStatus } from '../domain/types';
 import { asksForPrice } from '../domain/items';
 import { diffToOps } from './diff';
@@ -11,12 +11,12 @@ import { newId } from './mappers';
 import type { Op } from './queue';
 import { reducer, type Action, type ItemPatch, type NotePatch, type State, type TaskPatch } from './reducer';
 import { loadAll, ops, subscribe } from './repo';
-import { afterUndoSnack, applyUndo, offerSnack, popUndo, pushUndo, undoEntryFor, type Snack, type UndoEntry } from './undo';
+import { afterUndoSnack, applyUndo, noticeSnack, offerSnack, popUndo, pushUndo, removalNotice, undoEntryFor, type Snack, type UndoEntry } from './undo';
 import { seedItems, seedNotes, seedRooms, seedTasks } from './seed';
 import { claimDevice } from './accountScope';
 import type { PhotoSource } from './photoFiles';
 import { db, kv } from './supabase';
-import { missListeners, syncQueue } from './syncQueue';
+import { dropListeners, missListeners, syncQueue } from './syncQueue';
 import { useItemPhotos } from './useItemPhotos';
 import { trySignOut } from './signOut';
 import { resetIosWidget, useIosWidgetSync } from './iosWidgetSync';
@@ -60,7 +60,10 @@ interface Store extends State {
   /** Soft delete: hidden at once, deleted_at in the database, and Undo brings it back. */
   deleteItem: (id: string) => void;
   addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean; group?: string }) => void;
-  updateTask: (id: string, patch: TaskPatch) => void;
+  /** Fields, and optionally who the task is for (people added or taken off; the others' parts stay). */
+  updateTask: (id: string, patch: TaskPatch, assignees?: Person[]) => void;
+  /** Soft delete with Undo. */
+  deleteTask: (id: string) => void;
   setTaskStatus: (id: string, person: Person, status: TaskStatus) => void;
   toggleStep: (id: string, person: Person, stepId: string) => void;
   addStep: (id: string, title: string) => void;
@@ -68,14 +71,18 @@ interface Store extends State {
   updateNote: (id: string, patch: NotePatch) => void;
   /** A comment by me on an item or task; sent through the offline queue. */
   addComment: (targetType: Comment['targetType'], targetId: string, body: string) => void;
+  /** Soft delete with Undo. */
+  deleteNote: (id: string) => void;
   /** The snackbar after an edit ("Kettle → Ordered. Undo") or after an Undo; null when hidden. */
   snack: Snack | null;
   /** Undo the most recent edit still on the stack (see undo.ts). */
   undo: () => void;
   /** Hide the snackbar if it still shows `key` (its timer ran out). */
   dismissSnack: (key: string) => void;
-  /** The item that has just arrived, for the optional "Paid?" prompt; null when none. */
+  /** The item that has just been ordered or arrived, for the optional "Paid?" prompt; null when none. */
   pricePrompt: string | null;
+  /** Changes each time the prompt is offered, so a second stage change (Ordered, then Delivered) restarts its timer. */
+  pricePromptKey: number;
   closePricePrompt: () => void;
 }
 
@@ -131,6 +138,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const lastUndo = useRef<{ key: string; ids: Set<string>; missed: number } | null>(null);
   const [snack, setSnack] = useState<Snack | null>(null);
   const [pricePrompt, setPricePrompt] = useState<string | null>(null);
+  const [pricePromptKey, setPricePromptKey] = useState(0);
 
   const set = useCallback((next: State) => {
     ref.current = next;
@@ -150,11 +158,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (currentAccount.current !== account) return;
     // A cached identity stays; without one the screens show a retry rather than guessing a person.
     if (error) return setIdentity((i) => (i === 'loading' ? 'failed' : i));
-    // The database derives is_person from the two assignable member keys.
-    const canDelete = data?.is_person === true;
-    const me = canDelete ? data.key as Person : undefined;
+    // No member row: not one of the household, so never shown as the test account (see memberIdentity).
+    const found = memberIdentity(data as { key: string; is_person: boolean } | null);
+    if (found.identity === 'failed') return setIdentity('failed');
+    const { me, canDelete } = found;
     set({ ...ref.current, me: me ?? DEFAULT_PERSON });
-    setIdentity(identityFor({ me, canDelete }));
+    setIdentity(found.identity);
     setMember({ account, canDelete });
     memberKnown.current = account;
     void kv.setItem(memberCacheKey(account), JSON.stringify({ me, canDelete })).catch(() => undefined);
@@ -308,7 +317,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const list = typeof out === 'function' ? await out(q) : out;
         if (list.length > 0) {
           await q.enqueueAll(list);
-          setSync('pending');
+          // Offline stays offline until a send works, so the header pill does not flip to "Sending".
+          setSync(statusWhileSending);
           await countPending();
           await q.flush();
         }
@@ -323,8 +333,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const prev = ref.current;
       const next = reducer(prev, action);
       if (next === prev) return;
-      // A delete is explicit: diffToOps never turns a missing item into a delete.
-      const out = action.type === 'deleteItem' ? [ops.softDelete('items', action.id)] : diffToOps(prev, next, roomIds.current);
+      // A delete is explicit: diffToOps never turns a missing row into a delete.
+      const out = action.type === 'deleteItem' ? [ops.softDelete('items', action.id)]
+        : action.type === 'deleteTask' ? [ops.softDelete('tasks', action.id)]
+          : action.type === 'deleteNote' ? [ops.softDelete('flat_notes', action.id)]
+            : diffToOps(prev, next, roomIds.current);
       commit(next, out);
       const entry = undoEntryFor(prev, next, action, Date.now(), newId());
       if (entry) {
@@ -334,11 +347,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (action.type === 'advanceItem' || action.type === 'setItemStatus') {
         const before = prev.items.find((i) => i.id === action.id);
         const after = next.items.find((i) => i.id === action.id);
-        if (before && after && asksForPrice(before, after)) setPricePrompt(after.id);
+        if (before && after && asksForPrice(before, after)) {
+          setPricePrompt(after.id);
+          setPricePromptKey((k) => k + 1);
+        }
       }
     },
     [commit],
   );
+
+  // Taking a person off a task did not happen on the server (their part changed since, they were the
+  // last person, or this account may not delete): say so, and load again so the screen shows them.
+  useEffect(() => {
+    const listener = (op: Op) => {
+      if (lastUndo.current?.ids.has(op.id)) return; // an Undo's own op: its snackbar says how it went
+      const message = removalNotice(op, ref.current.tasks);
+      if (!message) return;
+      setSnack(noticeSnack(message, newId()));
+      void refresh();
+    };
+    missListeners.add(listener);
+    dropListeners.add(listener);
+    return () => {
+      missListeners.delete(listener);
+      dropListeners.delete(listener);
+    };
+  }, [refresh]);
 
   // An Undo patch matched no row: the other person changed that field first, and theirs stayed.
   // Say so on the snackbar if it is still up, and load again so the screen shows their value.
@@ -390,13 +424,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setItemStatus: (id: string, status: ItemStatus) => act({ type: 'setItemStatus', id, status }),
       deleteItem: (id: string) => act({ type: 'deleteItem', id }),
       addTask: (title: string, assignees: Person[], opts?: { due?: string; urgent?: boolean; group?: string }) => act({ type: 'addTask', title, assignees, ...opts }),
-      updateTask: (id: string, patch: TaskPatch) => act({ type: 'updateTask', id, patch }),
+      updateTask: (id: string, patch: TaskPatch, assignees?: Person[]) => act({ type: 'updateTask', id, patch, ...(assignees ? { assignees } : {}) }),
+      deleteTask: (id: string) => act({ type: 'deleteTask', id }),
       setTaskStatus: (id: string, person: Person, status: TaskStatus) => act({ type: 'setTaskStatus', id, person, status }),
       toggleStep: (id: string, person: Person, stepId: string) => act({ type: 'toggleStep', id, person, stepId }),
       addStep: (id: string, title: string) => act({ type: 'addStep', id, title }),
       addNote: (title: string, opts?: { body?: string; reference?: string; kind?: NoteKind }) => act({ type: 'addNote', title, ...opts }),
       updateNote: (id: string, patch: NotePatch) => act({ type: 'updateNote', id, patch }),
       addComment: (targetType: Comment['targetType'], targetId: string, body: string) => act({ type: 'addComment', targetType, targetId, body }),
+      deleteNote: (id: string) => act({ type: 'deleteNote', id }),
       undo,
       dismissSnack: (key: string) => setSnack((cur) => (cur?.key === key ? null : cur)),
       closePricePrompt: () => setPricePrompt(null),
@@ -409,6 +445,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...state,
       snack,
       pricePrompt,
+      pricePromptKey,
       rooms,
       auth,
       sync,
@@ -456,7 +493,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       ...actions,
     }),
-    [state, snack, pricePrompt, rooms, auth, sync, pending, identity, widgetReady, actions, account, photos, canDeletePhotos, addPhoto, deletePhoto, retryPhoto, refresh, countPending, lookupMember, flushPhotos, unsentPhotos],
+    [state, snack, pricePrompt, pricePromptKey, rooms, auth, sync, pending, identity, widgetReady, actions, account, photos, canDeletePhotos, addPhoto, deletePhoto, retryPhoto, refresh, countPending, lookupMember, flushPhotos, unsentPhotos],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

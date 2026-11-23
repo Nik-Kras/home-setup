@@ -16,7 +16,7 @@ import { PushedTabBar } from '../components/PushedTabBar';
 import { TAB_BAR_SPACE } from '../components/TabBar';
 
 export default function Notes() {
-  const { notes, tasks, addNote, updateNote } = useStore();
+  const { notes, tasks, addNote, updateNote, deleteNote } = useStore();
   const { bottom } = useSafeAreaInsets();
   const [sheet, setSheet] = useState<{ open: boolean; note?: FlatNote }>({ open: false });
 
@@ -41,7 +41,7 @@ export default function Notes() {
       <ScrollView contentContainerStyle={[s.content, { paddingBottom: bottom + TAB_BAR_SPACE + 16 }]} keyboardShouldPersistTaps="handled">
         <View style={s.titleBlock}>
           <Title>Flat notes</Title>
-          <Sub>From the tenancy contract{toConfirm > 0 ? ` · ${toConfirm} to confirm` : ''}</Sub>
+          <Sub>Facts about the flat{toConfirm > 0 ? ` · ${toConfirm} to confirm` : ''}</Sub>
         </View>
         <ListGate count={notes.length}>
           {list.map((n) => (
@@ -53,7 +53,7 @@ export default function Notes() {
         </ListGate>
       </ScrollView>
       <PushedTabBar />
-      <NoteSheet visible={sheet.open} note={sheet.note} onClose={() => setSheet((v) => ({ ...v, open: false }))} onSave={save} />
+      <NoteSheet visible={sheet.open} note={sheet.note} onClose={() => setSheet((v) => ({ ...v, open: false }))} onSave={save} onDelete={(n) => deleteNote(n.id)} />
     </View>
   );
 }

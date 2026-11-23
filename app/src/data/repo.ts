@@ -77,6 +77,19 @@ export const ops = {
     }
     return out;
   },
+  /**
+   * A person added to an existing task: insert-only, so a retry or a race with the other phone never
+   * resets a part someone has already started. Never touches the other assignment.
+   */
+  addAssignment(taskId: string, person: Person, status: TaskStatus = 'todo'): Op {
+    return { id: newId(), kind: 'upsert', table: 'task_assignments', onConflict: 'task_id,person', ignoreDuplicates: true, row: { task_id: taskId, person, status } };
+  },
+  /** A person taken off a task: their part and its steps go (steps cascade). The other part stays. */
+  removeAssignment(taskId: string, person: Person, onlyIf?: { status: TaskStatus }): Op {
+    return onlyIf
+      ? { id: newId(), kind: 'delete', table: 'task_assignments', match: { task_id: taskId, person, status: onlyIf.status }, row: {}, reportMiss: true }
+      : { id: newId(), kind: 'delete', table: 'task_assignments', match: { task_id: taskId, person }, row: {} };
+  },
   /** Only the changed task columns. Never touches assignments. */
   patchTask(taskId: string, row: Record<string, unknown>): Op {
     return { id: newId(), kind: 'patch', table: 'tasks', match: { id: taskId }, row };
@@ -106,7 +119,7 @@ export const ops = {
    * Conditional patch, for Undo: changes the row only while every `match` column still has the value
    * this device set. If the other person has changed it since, their newer value stays.
    */
-  patchIf(table: 'items' | 'task_assignments' | 'task_steps', match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
+  patchIf(table: 'items' | 'tasks' | 'task_assignments' | 'task_steps', match: Record<string, string | number | boolean | null>, row: Record<string, unknown>): Op {
     return { id: newId(), kind: 'patch', table, match, row, reportMiss: true };
   },
   /** Undo of a soft delete. */
@@ -129,6 +142,12 @@ export function makeExecutor(db: SupabaseClient) {
     if (op.kind === 'upsert') {
       const opts = { ...(op.onConflict ? { onConflict: op.onConflict } : {}), ...(op.ignoreDuplicates ? { ignoreDuplicates: true } : {}) };
       ({ error } = await db.from(op.table).upsert(op.row, Object.keys(opts).length ? opts : undefined));
+    } else if (op.kind === 'delete') {
+      let q = op.reportMiss ? db.from(op.table).delete({ count: 'exact' }) : db.from(op.table).delete();
+      for (const [k, v] of Object.entries(op.match)) q = v === null ? q.is(k, null) : q.eq(k, v);
+      let count: number | null | undefined;
+      ({ error, count } = await q);
+      if (!error && op.reportMiss && count === 0) return 'missed';
     } else {
       // A conditional patch asks for the row count, to tell "kept the other person's value" apart.
       let q = op.reportMiss ? db.from(op.table).update(op.row, { count: 'exact' }) : db.from(op.table).update(op.row);

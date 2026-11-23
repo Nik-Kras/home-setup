@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '../data/store';
-import { commentsFor, relativeTime, type Comment } from '../domain/comments';
+import { commentActivity, type Comment } from '../domain/comments';
 import { colors, fonts, TARGET } from '../theme/tokens';
 import { ActivityLine } from './ActivityLine';
 import { Icon } from './ui';
 
 /** Re-render once a minute so "just now" turns into "1 min ago". */
-function useNow(): number {
+export function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
@@ -17,14 +17,14 @@ function useNow(): number {
   return now;
 }
 
-/** Comments on an item or task as activity lines: "Daryna commented: the 800 W one is enough · 2 h ago". */
+/** Comments on a task as activity lines, newest first: "Daryna commented: the 800 W one is enough, 2 h ago". */
 export function CommentLines({ targetType, targetId }: { targetType: Comment['targetType']; targetId: string }) {
   const { comments } = useStore();
   const now = useNow();
   return (
     <>
-      {commentsFor(comments, targetType, targetId).map((c) => (
-        <ActivityLine key={c.id} actor={c.author} text={`commented: ${c.body} · ${relativeTime(c.createdAt, now)}`} />
+      {commentActivity(comments, targetType, targetId, now).map((c) => (
+        <ActivityLine key={c.at} actor={c.actor} text={c.text} />
       ))}
     </>
   );

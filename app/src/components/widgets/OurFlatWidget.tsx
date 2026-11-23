@@ -66,18 +66,20 @@ function Status({ status }: { status: Row['status'] }) {
   );
 }
 
-/** One stage on per tap; the label names the stage ("Mark ordered: Kettle"). A delivered row still here needs installing. */
+/**
+ * One stage on per tap; the label names the stage ("Mark ordered: Kettle"). The glyph is an arrow in a
+ * circle ("next stage"), never a tick, so it does not read as "done".
+ */
 function GotButton({ row, height }: { row: Row; height: number }) {
-  const delivered = row.status === 'Delivered';
   return (
     <FlexWidget clickAction={ADVANCE_STAGE} clickActionData={{ id: row.id }}
       accessibilityLabel={`${row.action ?? 'Next stage'}: ${row.name}`}
       style={{ ...center, width: TARGET, height }}>
       <FlexWidget style={{
-        ...center, width: 24, height: 24, borderRadius: 12, borderWidth: 2,
-        borderColor: delivered ? colors.mint : colors.hairlineStrong,
+        ...center, width: 26, height: 26, borderRadius: 13, borderWidth: 2,
+        borderColor: colors.hairlineStrong,
       }}>
-        {delivered && <Glyph name="check" color={colors.mint} size={16} />}
+        <Glyph name="arrowRight" color={colors.text} size={14} />
       </FlexWidget>
     </FlexWidget>
   );

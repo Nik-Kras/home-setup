@@ -29,12 +29,15 @@ export function Sheet({ visible, title, onClose, children, closeLabel = 'Close' 
   );
 }
 
-/** One choice in a sheet. Selected shows a mint check. */
-export function SheetOption({ label, selected, onPress, dot }: { label: string; selected: boolean; onPress: () => void; dot?: string }) {
+/** One choice in a sheet. Selected shows a mint check. `hint` is a quieter second line under the label. */
+export function SheetOption({ label, selected, onPress, dot, hint }: { label: string; selected: boolean; onPress: () => void; dot?: string; hint?: string }) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={label} style={({ pressed }) => [s.option, pressed && s.pressed]}>
+    <Pressable onPress={onPress} accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={hint ? `${label}, ${hint}` : label} style={({ pressed }) => [s.option, pressed && s.pressed]}>
       {dot ? <View style={[s.dot, { backgroundColor: dot }]} /> : null}
-      <Text style={[s.optionText, selected && s.optionOn]}>{label}</Text>
+      <View style={s.optionBody}>
+        <Text style={[s.optionText, selected && s.optionOn]}>{label}</Text>
+        {hint ? <Text style={s.optionHint}>{hint}</Text> : null}
+      </View>
       {selected ? <Icon name="check" size={20} color={colors.mint} stroke={2.4} /> : null}
     </Pressable>
   );
@@ -126,7 +129,9 @@ const s = StyleSheet.create({
   option: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 50, paddingHorizontal: 12, borderRadius: 14 },
   pressed: { backgroundColor: colors.neutralFill },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  optionText: { flex: 1, fontFamily: fonts.regular, fontSize: 16, color: colors.text },
+  optionBody: { flex: 1, paddingVertical: 6 },
+  optionText: { fontFamily: fonts.regular, fontSize: 16, color: colors.text },
+  optionHint: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 17, color: colors.textSecondary },
   optionOn: { fontFamily: fonts.medium, color: colors.mint },
   button: { height: 52, minHeight: TARGET, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
   buttonPrimary: { backgroundColor: colors.mint },

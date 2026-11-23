@@ -13,31 +13,34 @@ name: 03 item lifecycle
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=needed" }
 
 # The row button; its label is "name, who, price". The bare name also appears in the Next up card.
+# The stepper always has five steps (Installed is optional for things that need no installing).
 - tapOn: "ZZ-e2e-lifecycle, .*"
 - extendedWaitUntil:
     visible: "Mark looking"
     timeout: 5000
 - tapOn: "Mark looking"
-- assertVisible: "Looking, step 2 of 4"
+- assertVisible: "Looking, step 2 of 5"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=looking" }
 
 - tapOn: "Mark ordered"
-- assertVisible: "Ordered, step 3 of 4"
+- assertVisible: "Ordered, step 3 of 5"
+# Marking it ordered offers the optional "Paid?" prompt (people pay online then); it stays for the next tap.
+- assertVisible: "Paid for ZZ-e2e-lifecycle.*"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-item, NAME: ZZ-e2e-lifecycle, FIELDS: "status=ordered,delivered_at=null" }
 
 # Got it, then Undo at once (the snackbar stays 6 s): back to Ordered, and the "Paid?" prompt goes too.
 - tapOn: "Got it"
-- assertVisible: "Delivered, step 4 of 4, done"
+- assertVisible: "Delivered, step 4 of 5, done"
 - assertVisible: "Paid for ZZ-e2e-lifecycle.*"
 - assertNotVisible: "Mark .*"
 # Undo ignores taps in its first 300 ms (meant for what was there before).
 - waitForAnimationToEnd
 - tapOn: "Undo: .*"
-- assertVisible: "Ordered, step 3 of 4"
+- assertVisible: "Ordered, step 3 of 5"
 - assertNotVisible: "Paid for ZZ-e2e-lifecycle.*"
 - runFlow:
     file: common/db.yaml

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describe, expect, it } from 'vitest';
-import { commentsFor, relativeTime, type Comment } from '../domain/comments';
+import { commentActivity, commentsFor, mergeActivity, type Comment } from '../domain/comments';
 import { diffToOps } from './diff';
 import { commentFromRow, commentToRow, type CommentRow } from './mappers';
 import { reducer, type State } from './reducer';
@@ -59,16 +59,21 @@ describe('commentsFor', () => {
   });
 });
 
-describe('relativeTime', () => {
+describe('comment activity lines', () => {
   const now = Date.parse('2026-11-22T12:00:00Z');
-  it('reads like a person would say it', () => {
-    expect(relativeTime('2026-11-22T11:59:30Z', now)).toBe('just now');
-    expect(relativeTime('2026-11-22T11:55:00Z', now)).toBe('5 min ago');
-    expect(relativeTime('2026-11-22T09:00:00Z', now)).toBe('3 h ago');
-    expect(relativeTime('2026-11-21T09:00:00Z', now)).toBe('yesterday');
-    expect(relativeTime('2026-11-18T12:00:00Z', now)).toBe('4 days ago');
-    expect(relativeTime('2026-11-01T12:00:00Z', now)).toBe('1 Nov');
-    expect(relativeTime('2026-11-22T12:05:00Z', now)).toBe('just now');
-    expect(relativeTime('not a date', now)).toBe('');
+  const c = (id: string, createdAt: string, author: Comment['author'] = 'daryna'): Comment => ({ id, targetType: 'item', targetId: 'i1', author, body: `note ${id}`, createdAt });
+  it('reads like the item history, newest first', () => {
+    const lines = commentActivity([c('a', '2026-11-22T09:00:00Z'), c('b', '2026-11-22T11:55:00Z', 'nikita')], 'item', 'i1', now);
+    expect(lines).toEqual([
+      { actor: 'nikita', text: 'commented: note b, 5 min ago', at: '2026-11-22T11:55:00Z' },
+      { actor: 'daryna', text: 'commented: note a, 3 h ago', at: '2026-11-22T09:00:00Z' },
+    ]);
+  });
+
+  it('sits among the changes by time; undated lines stay last', () => {
+    const history = [{ actor: 'nikita' as const, text: 'marked it ordered', at: '2026-11-22T10:00:00Z' }, { actor: 'claude' as const, text: 'added it', at: '2026-11-21T10:00:00Z' }];
+    const comments = commentActivity([c('a', '2026-11-22T09:00:00Z')], 'item', 'i1', now);
+    expect(mergeActivity(history, comments).map((l) => l.text)).toEqual(['marked it ordered', 'commented: note a, 3 h ago', 'added it']);
+    expect(mergeActivity([{ actor: 'claude', text: 'made the last change' }], comments).map((l) => l.text)).toEqual(['commented: note a, 3 h ago', 'made the last change']);
   });
 });

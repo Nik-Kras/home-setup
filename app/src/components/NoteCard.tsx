@@ -88,7 +88,7 @@ const s = StyleSheet.create({
   body: { fontFamily: fonts.regular, fontSize: 14, lineHeight: 19, color: '#C9D1CC' },
   ref: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
   pill: { height: 28, paddingHorizontal: 9, borderRadius: 12, justifyContent: 'center', backgroundColor: colors.neutralFill },
-  pillText: { fontFamily: fonts.medium, fontSize: 12, color: colors.text },
+  pillText: { fontFamily: fonts.medium, fontSize: 13, color: colors.text },
   taskBtn: { alignSelf: 'flex-start', marginLeft: TILE + 12, minHeight: TARGET, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.hairlineStrong, justifyContent: 'center' },
   taskBtnDone: { borderColor: 'rgba(94,224,184,0.40)', backgroundColor: colors.mintFill },
   taskBtnText: { fontFamily: fonts.medium, fontSize: 13, color: colors.text },

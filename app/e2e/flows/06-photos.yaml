@@ -35,10 +35,12 @@ name: 06 photos
 
 # Delivered items are "in place" and show on Home with their photo.
 - scrollUntilVisible:
-    element: "Delivered, step 4 of 4"
+    element: "Delivered, step 4 of 5"
     direction: UP
-- tapOn: "Delivered, step 4 of 4"
-- assertVisible: "Delivered, step 4 of 4, done"
+- tapOn: "Delivered, step 4 of 5"
+- assertVisible: "Delivered, step 4 of 5, done"
+# Arriving offers the optional "Paid?" prompt; skip it.
+- tapOn: "Skip, no price now"
 - tapOn: "Back to list"
 - tapOn: "Home"
 - runFlow:

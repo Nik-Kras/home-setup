@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detailState, identityFor, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
+import { detailState, identityFor, memberIdentity, statusWhileSending, syncPill, identityGate, listState, settledAnnouncement, signOutPrompt, syncView } from './sync';
 
 describe('syncView', () => {
   it('says Synced in mint when the queue is empty', () => {
@@ -83,5 +83,33 @@ describe('settledAnnouncement', () => {
     expect(settledAnnouncement(syncView('offline', 1), 'Synced')).toBe('Offline · 1 not sent');
     expect(settledAnnouncement(syncView('offline', 1), 'Offline · 1 not sent')).toBeUndefined();
     expect(settledAnnouncement(syncView('synced', 0), 'Offline · 1 not sent')).toBe('Synced');
+  });
+});
+
+describe('memberIdentity', () => {
+  it('a person is known, the Claude account a stand-in, and no member row is never a stand-in', () => {
+    expect(memberIdentity({ key: 'daryna', is_person: true })).toEqual({ identity: 'known', me: 'daryna', canDelete: true });
+    expect(memberIdentity({ key: 'claude', is_person: false })).toEqual({ identity: 'standIn', canDelete: false });
+    expect(memberIdentity(null)).toEqual({ identity: 'failed', canDelete: false });
+  });
+});
+
+describe('syncPill', () => {
+  it('shows only when something is off, in the header\'s short words', () => {
+    expect(syncPill('synced', 0)).toBeUndefined();
+    expect(syncPill('demo', 3)).toBeUndefined();
+    expect(syncPill('pending', 0)).toBeUndefined();
+    expect(syncPill('offline', 3)).toEqual({ label: 'Offline · 3 unsent', tone: 'amber', sending: false });
+    expect(syncPill('offline', 0)).toEqual({ label: 'Offline', tone: 'neutral', sending: false });
+    expect(syncPill('pending', 2)).toEqual({ label: 'Sending 2', tone: 'amber', sending: true });
+  });
+});
+
+describe('statusWhileSending', () => {
+  it('an edit made offline keeps the pill on Offline instead of flipping to Sending', () => {
+    expect(statusWhileSending('offline')).toBe('offline');
+    expect(statusWhileSending('synced')).toBe('pending');
+    expect(statusWhileSending('pending')).toBe('pending');
+    expect(syncPill(statusWhileSending('offline'), 4)).toEqual({ label: 'Offline · 4 unsent', tone: 'amber', sending: false });
   });
 });

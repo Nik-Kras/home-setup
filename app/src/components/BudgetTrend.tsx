@@ -46,6 +46,6 @@ export function BudgetTrend({ trend }: { trend: SpendTrend }) {
 const s = StyleSheet.create({
   chart: { height: HEIGHT, marginTop: 2 },
   axis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  axisText: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary },
+  axisText: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary },
   week: { fontFamily: fonts.medium, fontSize: 13, color: colors.mint },
 });

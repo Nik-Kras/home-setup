@@ -14,8 +14,8 @@ const KINDS: { value: NoteKind; label: string }[] = [
   { value: 'check', label: 'Check' },
 ];
 
-/** Bottom sheet to add a note (note undefined) or edit one. */
-export function NoteSheet({ visible, note, onClose, onSave }: { visible: boolean; note?: FlatNote; onClose: () => void; onSave: (draft: NoteDraft) => void }) {
+/** Bottom sheet to add a note (note undefined) or edit one. Editing offers Delete (soft, with Undo). */
+export function NoteSheet({ visible, note, onClose, onSave, onDelete }: { visible: boolean; note?: FlatNote; onClose: () => void; onSave: (draft: NoteDraft) => void; onDelete?: (note: FlatNote) => void }) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<NoteDraft>({ title: '', body: '', reference: '', kind: 'info' });
 
@@ -63,6 +63,11 @@ export function NoteSheet({ visible, note, onClose, onSave }: { visible: boolean
                 );
               })}
             </View>
+            {note && onDelete ? (
+              <Pressable onPress={() => { onClose(); onDelete(note); }} accessibilityRole="button" accessibilityLabel="Delete note" accessibilityHint="Undo is offered for 10 seconds" style={({ pressed }) => [s.delete, pressed && { opacity: 0.7 }]}>
+                <Text style={s.deleteText}>Delete note</Text>
+              </Pressable>
+            ) : null}
           </ScrollView>
           <Pressable onPress={save} disabled={!canSave} accessibilityRole="button" accessibilityLabel={note ? 'Save note' : 'Add note'} accessibilityState={{ disabled: !canSave }} style={[s.save, !canSave && s.saveOff]}>
             <Text style={[s.saveText, !canSave && { color: colors.textSecondary }]}>{note ? 'Save' : 'Add note'}</Text>
@@ -90,6 +95,8 @@ const s = StyleSheet.create({
   kindOn: { backgroundColor: colors.mintFill, borderColor: 'rgba(94,224,184,0.5)' },
   kindText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },
   kindTextOn: { color: colors.mint },
+  delete: { minHeight: 48, marginTop: 14, borderRadius: 24, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
+  deleteText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.text },
   save: { height: 52, borderRadius: 26, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   saveOff: { backgroundColor: colors.neutralFill },
   saveText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.onMint },

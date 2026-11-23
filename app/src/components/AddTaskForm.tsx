@@ -49,7 +49,8 @@ export function AddTaskForm({ text, setText, initialGroup, initialWho, onDone }:
 
       <ScrollView contentContainerStyle={[s.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         <Text style={s.label} accessibilityRole="header">When</Text>
-        <ChipScroller id="whenFade" label="When">
+        {/* Wraps instead of scrolling, so the selected "No date" chip is never cut to its tick at the edge. */}
+        <View style={s.wrapRow} accessibilityLabel="When">
           {whenChips.map((c) => (
             <ChoiceChip
               key={c.value}
@@ -63,7 +64,7 @@ export function AddTaskForm({ text, setText, initialGroup, initialWho, onDone }:
               }}
             />
           ))}
-        </ChipScroller>
+        </View>
 
         <Text style={[s.label, s.gapTop]} accessibilityRole="header">Group</Text>
         <ChipScroller id="groupFade" label="Group">
@@ -103,5 +104,6 @@ const s = StyleSheet.create({
   body: { paddingHorizontal: 16, gap: 8 },
   label: { marginHorizontal: 4, marginTop: 2, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 16, color: colors.textSecondary },
   gapTop: { marginTop: 4 },
+  wrapRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   hint: { marginHorizontal: 4, marginTop: -2, fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
 });

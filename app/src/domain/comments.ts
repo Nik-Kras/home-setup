@@ -1,3 +1,4 @@
+import { timeAgo, type ActivityItem } from './activity';
 import type { Actor } from './types';
 
 /** A comment on an item or a task. The author is stamped by the database from the signed-in account. */
@@ -18,20 +19,16 @@ export function commentsFor(comments: readonly Comment[] | undefined, targetType
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
 }
 
-const MIN = 60_000;
-const HOUR = 60 * MIN;
-const DAY = 24 * HOUR;
+/**
+ * Comments as activity lines, newest first, in the same words as the item history:
+ * "commented: the 800 W one is enough, 2 h ago".
+ */
+export function commentActivity(comments: readonly Comment[] | undefined, targetType: Comment['targetType'], targetId: string, now: number): ActivityItem[] {
+  return commentsFor(comments, targetType, targetId).reverse().map((c) => ({ actor: c.author, text: `commented: ${c.body}, ${timeAgo(c.createdAt, now)}`, at: c.createdAt }));
+}
 
-/** "just now", "5 min ago", "3 h ago", "yesterday", "4 days ago", then "21 Nov". */
-export function relativeTime(iso: string, now: number): string {
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return '';
-  const ago = Math.max(0, now - t);
-  if (ago < MIN) return 'just now';
-  if (ago < HOUR) return `${Math.floor(ago / MIN)} min ago`;
-  if (ago < DAY) return `${Math.floor(ago / HOUR)} h ago`;
-  const days = Math.floor(ago / DAY);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days} days ago`;
-  return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+/** History and comments together, newest first. Lines without a time keep their place after the dated ones. */
+export function mergeActivity(history: readonly ActivityItem[], comments: readonly ActivityItem[]): ActivityItem[] {
+  const dated = [...history.filter((h) => h.at), ...comments].sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''));
+  return [...dated, ...history.filter((h) => !h.at)];
 }

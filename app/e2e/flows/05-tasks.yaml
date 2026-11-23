@@ -24,7 +24,7 @@ name: 05 tasks
     env: { OP: expect-task, NAME: ZZ-e2e-own, FIELDS: "nikita=done" }
 - assertNotVisible: "ZZ-e2e-own.*"
 
-# The other person's task: only on her list, and I cannot tick it.
+# The other person's task: only on her list, and it shows her disc, not a circle I could tick.
 - tapOn:
     id: "segment-daryna"
 - runFlow:
@@ -33,9 +33,8 @@ name: 05 tasks
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-task, NAME: ZZ-e2e-other, FIELDS: "daryna=todo" }
-- assertVisible:
-    text: "Mark done: ZZ-e2e-other"
-    enabled: false
+- assertVisible: "ZZ-e2e-other"
+- assertNotVisible: "Mark done.*: ZZ-e2e-other"
 
 # Shared task: both parts to do.
 - tapOn:
@@ -46,8 +45,8 @@ name: 05 tasks
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-task, NAME: ZZ-e2e-shared, FIELDS: "nikita=todo,daryna=todo" }
-# I tick my part: only my part changes, the task stays open.
-- tapOn: "Mark done: ZZ-e2e-shared"
+# I tick my part (the circle on a shared task always ticks my part): only my part changes, the task stays open.
+- tapOn: "Mark done (your part): ZZ-e2e-shared"
 - runFlow:
     file: common/db.yaml
     env: { OP: expect-task, NAME: ZZ-e2e-shared, FIELDS: "nikita=done,daryna=todo" }

@@ -145,7 +145,8 @@ const OurFlatIosWidget = (props: IosWidgetProps, environment: WidgetEnvironment)
                       got: [...(props.got ?? []), { id: row.id, from: row.from, to: row.to, at: new Date().toISOString() }],
                       leftCount: leaves ? Math.max(0, left - 1) : left,
                     })}>
-                    <Image systemName="circle" size={24} color={c.ring} modifiers={[frame({ width: 44, height: 44 })]} />
+                    {/* "Next stage", not a tick: an arrow in a circle. */}
+                    <Image systemName="arrow.right.circle" size={24} color={c.textSecondary} modifiers={[frame({ width: 44, height: 44 })]} />
                   </Button>
                 )}
                 <Link destination={itemUrl(row.id)}

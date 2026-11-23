@@ -7,13 +7,14 @@ import { ListGate, useListState } from '../../components/LoadState';
 import { PersonFilterDiscs } from '../../components/PersonFilterDiscs';
 import { StatusChipButton } from '../../components/StatusChipButton';
 import { StatusSheet } from '../../components/StatusSheet';
+import { PriceSheet } from '../../components/PaidForm';
 import { ROW_GAP, SectionScreen } from '../../components/SectionScreen';
 import { NAME } from '../../components/TaskRow';
 import { Card, Icon, IconTile, itemGlyph, PersonDot, SectionHeading, Sub, Title, UrgentBadge } from '../../components/ui';
 import { useStore } from '../../data/store';
-import { counts, isItemDone, leftByRoom, nextActionLabel, nextUp } from '../../domain/items';
+import { counts, isItemDone, leftByRoom, needsPrice, nextUpAction, nextUpFor, rowGotIt } from '../../domain/items';
 import { itemsForPerson, type PersonFilter } from '../../domain/personFilter';
-import type { Item } from '../../domain/types';
+import type { Item, Person } from '../../domain/types';
 import { colors, fonts, glow, radius, TARGET } from '../../theme/tokens';
 
 const today = () => new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -49,41 +50,58 @@ function AddBar() {
 }
 
 /**
- * Memoised: `item` keeps its identity until it changes and `onStatus` is stable, so 300 rows stay
- * cheap. Tile and name open the item; only the status chip (every stage, forwards or backwards)
- * changes anything here.
+ * Memoised: `item` keeps its identity until it changes and the callbacks are stable, so 300 rows stay
+ * cheap. Compact as in the design: name and one meta line. Tile and name open the item; the status
+ * chip (every stage, forwards or backwards) and one small pill change things here: "Got it" (straight
+ * to Delivered) on my or an unclaimed item still Needed or Looking, or "Add price" on an ordered or got
+ * item with no paid price. An unclaimed thing shows "I'll buy it" where the owner would be (one tap
+ * claims it for me; Undo puts it back). A row just added is outlined in mint while its snackbar shows.
  */
-const ItemRow = memo(function ItemRow({ item, onStatus, onClaim }: { item: Item; onStatus: (id: string) => void; onClaim: (id: string) => void }) {
-  const open = () => router.push(`/item/${item.id}`);
+const ItemRow = memo(function ItemRow({ item, me, fresh, onStatus, onPrice, onGot, onClaim }: { item: Item; me: Person; fresh: boolean; onStatus: (id: string) => void; onPrice: (id: string) => void; onGot: (id: string) => void; onClaim: (id: string) => void }) {
   const meta = [item.assignedTo ? NAME[item.assignedTo] : 'Not claimed yet', item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ');
-  // An unclaimed thing offers "I'll buy it" where the owner would be, so one tap claims it (Undo puts it back).
-  // Its touch area reaches down more than up, so a tap on the name above still opens the item.
+  const price = needsPrice(item);
+  const got = rowGotIt(item, me);
+  const pill = price ? { label: 'Add price', action: 'addPrice', run: () => onPrice(item.id) } : got ? { label: 'Got it', action: 'gotIt', run: () => onGot(item.id) } : null;
   const claimable = !item.assignedTo && !isItemDone(item);
-  const rest = claimable ? [item.estPrice ? `£${item.estPrice}` : null].filter(Boolean).join(' · ') : meta;
+  const shown = claimable ? (item.estPrice ? `£${item.estPrice}` : '') : meta;
+  const actions = [...(claimable ? [{ name: 'claim', label: "I'll buy it" }] : []), ...(pill ? [{ name: pill.action, label: pill.label === 'Got it' ? 'Got it, straight to Delivered' : pill.label }] : [])];
   return (
-    <View style={s.row}>
+    <View style={[s.row, fresh && s.rowFresh]}>
       {/* Same target as the name; hidden from screen readers so the row is not announced twice. */}
-      <Pressable onPress={open} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" hitSlop={2}>
+      <Pressable onPress={() => router.push(`/item/${item.id}`)} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" hitSlop={2}>
         <IconTile {...itemGlyph(item)} />
       </Pressable>
-      <View style={s.rowMid}>
-        <Pressable onPress={open} accessibilityRole="button" accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta].filter(Boolean).join(', ')} accessibilityHint="Opens details">
-          <View style={s.nameLine}><Text style={s.name} numberOfLines={2}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
-        </Pressable>
+      <Pressable
+        onPress={() => router.push(`/item/${item.id}`)}
+        accessibilityRole="button"
+        accessibilityLabel={[item.name, item.urgent ? 'Urgent' : null, meta, price ? 'no price yet' : null].filter(Boolean).join(', ')}
+        accessibilityHint="Opens details"
+        // Screen readers reach the pill as an action on the row (it sits inside it).
+        accessibilityActions={actions.length > 0 ? actions : undefined}
+        onAccessibilityAction={(e) => {
+          if (e.nativeEvent.actionName === 'claim') onClaim(item.id);
+          else if (pill && e.nativeEvent.actionName === pill.action) pill.run();
+        }}
+        style={s.rowMid}
+      >
+        <View style={s.nameLine}><Text style={s.name} numberOfLines={1}>{item.name}</Text>{item.urgent ? <UrgentBadge /> : null}</View>
         <View style={s.metaLine}>
           {item.assignedTo ? <PersonDot person={item.assignedTo} /> : null}
           {claimable ? (
-            <Pressable onPress={() => onClaim(item.id)} accessibilityRole="button" accessibilityLabel={`I'll buy it: ${item.name}`} hitSlop={{ top: 6, bottom: 12, left: 4, right: 12 }} style={({ pressed }) => pressed && { opacity: 0.6 }}>
-              <Text style={s.claimText}>I'll buy it</Text>
+            // Same 44dp target as the other pill: 24 high plus 10 above and below.
+            <Pressable onPress={() => onClaim(item.id)} hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }} importantForAccessibility="no" style={({ pressed }) => [s.rowPill, s.claimPill, pressed && { opacity: 0.7 }]}>
+              <Text style={[s.rowPillText, s.claimText]}>I'll buy it</Text>
             </Pressable>
           ) : null}
-          {rest ? (
-            <Pressable onPress={open} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={s.metaPress}>
-              {item.urgent ? <UrgentMeta key={rest} meta={claimable ? `· ${rest}` : rest} /> : <Text style={s.metaOne} numberOfLines={1}>{claimable ? `· ${rest}` : rest}</Text>}
+          {!shown ? (item.urgent && !pill ? <UrgentMeta meta="" /> : null) : pill ? <Text style={s.metaOne} numberOfLines={1}>{shown}</Text> : item.urgent ? <UrgentMeta key={shown} meta={shown} /> : <Text style={s.metaOne} numberOfLines={1}>{shown}</Text>}
+          {pill ? (
+            // 24 high plus 10 above and below: a 44dp target in the compact row.
+            <Pressable onPress={pill.run} hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }} importantForAccessibility="no" style={({ pressed }) => [s.rowPill, pressed && { opacity: 0.7 }]}>
+              <Text style={s.rowPillText}>{pill.label}</Text>
             </Pressable>
-          ) : item.urgent && claimable ? <UrgentMeta meta="" /> : null}
+          ) : null}
         </View>
-      </View>
+      </Pressable>
       <StatusChipButton status={item.status} name={item.name} onPress={() => onStatus(item.id)} />
     </View>
   );
@@ -110,16 +128,22 @@ function UrgentMeta({ meta }: { meta: string }) {
 }
 
 export default function Buy() {
-  const { me, items, advanceItem, setItemStatus, updateItem } = useStore();
+  const { items, me, snack, advanceItem, setItemStatus, updateItem } = useStore();
   const claim = useCallback((id: string) => updateItem(id, { assignedTo: me }), [updateItem, me]);
+  // The item just added (its "Added to <room>" snackbar is up) is outlined so it is easy to spot.
+  const fresh = snack?.changeItemId;
   const [statusFor, setStatusFor] = useState<string | null>(null);
   const closeStatus = useCallback(() => setStatusFor(null), []);
+  const [priceFor, setPriceFor] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [person, setPerson] = useState<PersonFilter>(null);
   const ready = useListState(items.length) === 'ready';
   const { done, left, total } = useMemo(() => counts(items), [items]);
-  const next = useMemo(() => nextUp(items), [items]);
-  // The filter narrows the room list and the "Got it" list; the ring and Next up stay for the whole flat.
+  // Next up follows the person filter; with no filter it prefers what is mine or not claimed yet.
+  const next = useMemo(() => nextUpFor(items, person, me), [items, person, me]);
+  const nextAction = next ? nextUpAction(next, person, me) : null;
+  const gotIt = useCallback((id: string) => setItemStatus(id, 'delivered'), [setItemStatus]);
+  // The filter narrows Next up, the room list and the "Got it" list; the ring stays for the whole flat.
   const sections = useMemo<BuySection[]>(() => {
     const shown = itemsForPerson(items, person);
     const list: BuySection[] = leftByRoom(shown).map((g) => ({ key: g.room, title: g.room, meta: `${g.items.length} left`, data: g.items }));
@@ -147,23 +171,41 @@ export default function Buy() {
       keyExtractor={(i) => i.id}
       ListHeaderComponent={
         <View style={s.listHeader}>
-          {next ? (
+          {next && nextAction ? (
             <Card style={s.next}>
               <Ring done={done} total={total} />
               <View style={{ flex: 1 }}>
                 <Text style={[s.nextEyebrow, next.urgent && { color: colors.coral }]}>{next.urgent ? 'Next up · urgent' : 'Next up'}</Text>
                 {/* A single word stays on one line and shrinks to fit, so it never breaks mid-word beside a long button label. */}
                 <Text style={[s.nextName, next.name.length > 14 && s.nextNameLong]} numberOfLines={/\s/.test(next.name.trim()) ? 2 : 1} adjustsFontSizeToFit minimumFontScale={0.6}>{next.name}</Text>
-                <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null].filter(Boolean).join(' · ')}</Text>
+                <Text style={s.meta} numberOfLines={1}>{[next.room, next.estPrice ? `about £${next.estPrice}` : null, next.assignedTo === undefined ? 'Not claimed yet' : next.assignedTo !== me ? `For ${NAME[next.assignedTo]}` : null].filter(Boolean).join(' · ')}</Text>
               </View>
-              {/* One stage at a time, never straight to the end: "Mark looking", "Mark ordered", "Got it", "Mark installed". */}
-              <Pressable onPress={() => advanceItem(next.id)} accessibilityRole="button" accessibilityLabel={`${nextActionLabel(next)}: ${next.name}`} style={s.gotBtn}>
-                <Text style={s.gotText}>{nextActionLabel(next)}</Text>
-              </Pressable>
+              <View style={s.nextActions}>
+                {nextAction.kind === 'open' ? (
+                  // The other person's item (no filter on): not pushed on me as a step; opens it instead.
+                  <Pressable onPress={() => router.push(`/item/${next.id}`)} accessibilityRole="button" accessibilityLabel={`${nextAction.label}, open ${next.name}`} style={({ pressed }) => [s.jumpBtn, s.openBtn, pressed && { opacity: 0.7 }]}>
+                    <Text style={s.jumpText}>{nextAction.label}</Text>
+                  </Pressable>
+                ) : (
+                  <>
+                    {/* One stage at a time, never straight to the end: "Mark looking", "Mark ordered", "Got it", "Mark installed". */}
+                    <Pressable onPress={() => advanceItem(next.id)} accessibilityRole="button" accessibilityLabel={`${nextAction.label}: ${next.name}`} style={s.gotBtn}>
+                      <Text style={s.gotText}>{nextAction.label}</Text>
+                    </Pressable>
+                    {/* The shop case, clearly labelled: bought on the spot, straight to Delivered (Undo puts it back). */}
+                    {nextAction.jump ? (
+                      <Pressable onPress={() => setItemStatus(next.id, 'delivered')} accessibilityRole="button" accessibilityLabel={`Got it (straight to Delivered): ${next.name}`} hitSlop={{ top: 4, bottom: 4 }} style={({ pressed }) => [s.jumpBtn, pressed && { opacity: 0.7 }]}>
+                        <Text style={s.jumpText}>Got it</Text>
+                      </Pressable>
+                    ) : null}
+                  </>
+                )}
+              </View>
             </Card>
           ) : null}
           <AddBar />
           <StatusSheet item={items.find((i) => i.id === statusFor)} visible={statusFor !== null} onClose={closeStatus} onPick={(status) => statusFor && setItemStatus(statusFor, status)} />
+          <PriceSheet item={items.find((i) => i.id === priceFor)} onClose={() => setPriceFor(null)} />
         </View>
       }
       ListEmptyComponent={<View style={s.gap}><ListGate count={items.length}>{empty}</ListGate></View>}
@@ -177,7 +219,7 @@ export default function Buy() {
       ) : (
         <View style={s.sectionBelow}><SectionHeading meta={section.meta}>{section.title}</SectionHeading></View>
       )}
-      renderItem={({ item }) => <ItemRow item={item} onStatus={setStatusFor} onClaim={claim} />}
+      renderItem={({ item }) => <ItemRow item={item} me={me} fresh={item.id === fresh} onStatus={setStatusFor} onPrice={setPriceFor} onGot={gotIt} onClaim={claim} />}
     />
   );
 }
@@ -193,17 +235,20 @@ const s = StyleSheet.create({
   nextEyebrow: { fontFamily: fonts.medium, fontSize: 12, lineHeight: 16, color: colors.textSecondary },
   nextName: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 30, color: colors.text },
   nextNameLong: { fontSize: 24, lineHeight: 26 },
+  nextActions: { flexShrink: 0, alignItems: 'stretch', gap: 4 },
   gotBtn: { flexShrink: 0, minHeight: TARGET, paddingHorizontal: 18, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
+  jumpBtn: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.hairlineStrong, alignItems: 'center', justifyContent: 'center' },
+  jumpText: { fontFamily: fonts.semibold, fontSize: 14, color: colors.text },
+  openBtn: { minHeight: TARGET, borderRadius: 22 },
   gotText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
   ringLabel: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   ringNum: { fontFamily: fonts.serif, fontSize: 21, color: colors.text },
   ringTotal: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary },
   addBar: { flexDirection: 'row', alignItems: 'center', minHeight: 54, paddingVertical: 4, borderRadius: 27, borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)', backgroundColor: colors.surface, paddingLeft: 18, paddingRight: 5 },
   addPlaceholder: { flex: 1, fontFamily: fonts.medium, fontSize: 16, color: colors.textSecondary },
-  claimText: { fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18, color: colors.mint },
-  metaPress: { flexShrink: 1 },
   addBtn: { width: TARGET, height: TARGET, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58, paddingVertical: 6, paddingLeft: 8, paddingRight: 12, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
+  // Compact, as in the design (about six rows on a phone): 44 tile, name and one meta line.
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 5, paddingLeft: 6, paddingRight: 10, backgroundColor: colors.surface, borderRadius: radius.row, borderWidth: 1, borderColor: colors.hairline },
   rowMid: { flex: 1, gap: 1, alignSelf: 'stretch', justifyContent: 'center' },
   nameLine: { flexDirection: 'row', alignItems: 'center' },
   name: { fontFamily: fonts.medium, fontSize: 16, lineHeight: 20, color: colors.text, flexShrink: 1 },
@@ -211,6 +256,11 @@ const s = StyleSheet.create({
   meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   metaOne: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary, flexShrink: 1 },
   urgentWord: { color: colors.coral },
+  rowPill: { height: 24, minWidth: TARGET, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(94,224,184,0.5)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  rowFresh: { borderColor: colors.mint, backgroundColor: colors.surfaceRaised },
+  claimPill: { backgroundColor: colors.mintFill, borderColor: 'transparent' },
+  claimText: { fontFamily: fonts.semibold },
+  rowPillText: { fontFamily: fonts.medium, fontSize: 13, lineHeight: 17, color: colors.mint },
   emptyFilter: { fontFamily: fonts.regular, fontSize: 15, color: colors.textSecondary, padding: 16 },
   doneToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: TARGET, paddingHorizontal: 4, marginTop: 8 },
   doneText: { fontFamily: fonts.medium, fontSize: 15, color: colors.textSecondary },

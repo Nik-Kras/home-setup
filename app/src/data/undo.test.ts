@@ -62,7 +62,8 @@ describe('undo entries', () => {
     expect(msg({ type: 'advanceItem', id: 'i1' })).toBe('Kettle → Looking');
     expect(edit(start, { type: 'advanceItem', id: 'i1' }).entry.spoken).toBe('Kettle moved to Looking');
     expect(msg({ type: 'setItemStatus', id: 'i2', status: 'needed' })).toBe('Router → Needed');
-    expect(msg({ type: 'updateItem', id: 'i1', patch: { actualPrice: 24.5 } })).toBe('Kettle → paid £24.50');
+    // A price saved with no buyer counts as bought by me.
+    expect(msg({ type: 'updateItem', id: 'i1', patch: { actualPrice: 24.5 } })).toBe('Kettle → paid £24.50 by Nikita');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { actualPrice: 25, boughtBy: 'daryna' } })).toBe('Kettle → paid £25 by Daryna');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { quantity: 2, urgent: true } })).toBe('Kettle → updated');
     expect(msg({ type: 'updateItem', id: 'i1', patch: { estPrice: 30 } })).toBe('Kettle → estimate £30');
@@ -114,6 +115,7 @@ describe('applyUndo: inverse patches', () => {
       [{ id: 'i1', room_id: 'room-h' }, { room_id: 'room-k' }],
       [{ id: 'i1', actual_price: 25 }, { actual_price: null }],
       [{ id: 'i1', assigned_to: 'daryna' }, { assigned_to: null }],
+      [{ id: 'i1', bought_by: 'nikita' }, { bought_by: null }],
     ]);
   });
 
@@ -134,10 +136,10 @@ describe('applyUndo: inverse patches', () => {
 
   it('when they changed a different field, Undo still reverts mine and keeps theirs', () => {
     const { next, entry } = edit(start, { type: 'updateItem', id: 'i1', patch: { actualPrice: 25 } });
-    const theirs = otherPhone(next, 'i1', { boughtBy: 'daryna' });
+    const theirs = otherPhone(next, 'i1', { notes: 'Matte black' });
     const undone = applyUndo(theirs, entry, rooms);
     expect(undone.outcome).toBe('done');
-    expect(item(undone.state)).toMatchObject({ actualPrice: undefined, boughtBy: 'daryna' });
+    expect(item(undone.state)).toMatchObject({ actualPrice: undefined, boughtBy: undefined, notes: 'Matte black' });
   });
 
   it('partly undone when only some of the fields were changed since', () => {
@@ -145,8 +147,8 @@ describe('applyUndo: inverse patches', () => {
     const theirs = otherPhone(next, 'i1', { actualPrice: 27 });
     const undone = applyUndo(theirs, entry, rooms);
     expect(undone.outcome).toBe('partial');
-    expect(item(undone.state)).toMatchObject({ actualPrice: 27, urgent: false });
-    expect(undone.ops).toHaveLength(1);
+    expect(item(undone.state)).toMatchObject({ actualPrice: 27, urgent: false, boughtBy: undefined });
+    expect(undone.ops).toHaveLength(2); // urgent and the buyer that came with the price
   });
 
   it('an item deleted on the other phone since is not brought back by undoing a field edit', () => {
@@ -318,11 +320,11 @@ describe('the undo stack and snackbar', () => {
   });
 
   it('offers Undo after an edit and announces it', () => {
-    expect(offerSnack(entry(1))).toEqual({ key: 'e1', message: 'Kettle → quantity 2', spoken: 'Kettle, quantity 2. Undo available.', canUndo: true });
+    expect(offerSnack(entry(1))).toEqual({ key: 'e1', message: 'Kettle → quantity 2', spoken: 'Kettle, quantity 2. Undo available.', canUndo: true, ms: 6_000 });
   });
 
   it('after an Undo it only says how it went: no second Undo in the same spot, so a double tap undoes one edit', () => {
-    expect(afterUndoSnack('done', 'k')).toEqual({ key: 'k', message: 'Undone', spoken: 'Undone.', canUndo: false });
+    expect(afterUndoSnack('done', 'k')).toEqual({ key: 'k', message: 'Undone', spoken: 'Undone.', canUndo: false, ms: 6_000 });
     expect(afterUndoSnack('none', 'k')).toMatchObject({ message: 'Not undone: it was changed since', canUndo: false });
     expect(afterUndoSnack('partial', 'k')).toMatchObject({ message: 'Partly undone: some of it was changed since', canUndo: false });
   });

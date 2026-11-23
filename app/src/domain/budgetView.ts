@@ -22,8 +22,13 @@ export interface BudgetView {
   /** Whole percent of the estimate already spent. */
   percent: number;
   byPerson: Record<Person, number>;
-  /** Split-bar segments for people who paid something; empty means only the neutral track shows. */
-  split: { person: Person; share: number }[];
+  /**
+   * Split-bar segments for people who paid something, and for spend nobody is recorded as buying
+   * ('unassigned'), as shares of everything spent; empty means only the neutral track shows.
+   */
+  split: { person: Person | 'unassigned'; share: number }[];
+  /** Spend with no buyer recorded. Shown as its own line so the split always adds up to Spent. */
+  unassigned: number;
   /** Shown instead of the split when there is nothing to split. */
   splitNote?: string;
   /** Rooms with any spend or estimate, largest first; empty means the card is hidden. */
@@ -56,8 +61,11 @@ export function budgetView(items: readonly Item[]): BudgetView {
     .sort((a, c) => c.total - a.total || a.room.localeCompare(c.room));
 
   const paid = b.byPerson.nikita + b.byPerson.daryna;
-  const split = paid === 0 ? [] : (['nikita', 'daryna'] as const).filter((p) => b.byPerson[p] > 0).map((person) => ({ person, share: b.byPerson[person] / paid }));
-  const splitNote = b.spent === 0 ? 'No spending yet' : paid === 0 ? 'Nobody is recorded as the buyer yet' : undefined;
+  // Rounded to pence, so float sums never leave a "£0.00000001 unassigned".
+  const unassigned = Math.max(0, Math.round((b.spent - paid) * 100) / 100);
+  const amounts = { nikita: b.byPerson.nikita, daryna: b.byPerson.daryna, unassigned };
+  const split = b.spent === 0 ? [] : (['nikita', 'daryna', 'unassigned'] as const).filter((p) => amounts[p] > 0).map((person) => ({ person, share: amounts[person] / b.spent }));
+  const splitNote = b.spent === 0 ? 'No spending yet' : undefined;
 
   return {
     spent: b.spent,
@@ -66,6 +74,7 @@ export function budgetView(items: readonly Item[]): BudgetView {
     percent: b.estimatedTotal === 0 ? 0 : Math.round((b.spent / b.estimatedTotal) * 100),
     byPerson: b.byPerson,
     split,
+    unassigned,
     splitNote,
     rooms,
   };
