@@ -53,7 +53,7 @@ export function PaidForm({ item, onDone, onEngage, autoFocus, extra }: { item: I
           />
         </View>
         <Pressable onPress={save} disabled={!ready} accessibilityRole="button" accessibilityLabel="Save price" accessibilityState={{ disabled: !ready }} style={({ pressed }) => [s.save, !ready && s.disabled, pressed && s.pressed]}>
-          <Text style={s.saveText}>Save</Text>
+          <Text style={[s.saveText, !ready && s.saveTextOff]}>Save</Text>
         </Pressable>
         {extra}
       </View>
@@ -88,7 +88,8 @@ const s = StyleSheet.create({
   input: { flex: 1, alignSelf: 'stretch', fontFamily: fonts.regular, fontSize: 16, color: colors.text, paddingRight: 12 },
   save: { height: TARGET, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.mint, alignItems: 'center', justifyContent: 'center' },
   saveText: { fontFamily: fonts.semibold, fontSize: 15, color: colors.onMint },
-  disabled: { opacity: 0.4 },
+  disabled: { backgroundColor: colors.neutralFill },
+  saveTextOff: { color: colors.textMuted },
   pressed: { opacity: 0.72 },
   error: { fontFamily: fonts.regular, fontSize: 13, color: colors.text, paddingHorizontal: 4 },
 });

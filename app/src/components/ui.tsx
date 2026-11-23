@@ -65,7 +65,7 @@ export function PersonDisc({ person, done = true, size = 24 }: { person: Person;
   const c = personColor[person];
   return (
     <View style={[s.disc, { width: size, height: size, borderRadius: size / 2, borderColor: c, backgroundColor: done ? c : colors.surface }]} accessible accessibilityLabel={`${person}, ${done ? 'done' : 'waiting'}`}>
-      <Text style={[s.discText, { color: done ? colors.onMint : c, fontSize: size * 0.46 }]}>{person === 'nikita' ? 'N' : 'D'}</Text>
+      <Text style={[s.discText, { color: done ? colors.onMint : c, fontSize: Math.max(13, Math.round(size * 0.46)) }]}>{person === 'nikita' ? 'N' : 'D'}</Text>
     </View>
   );
 }
@@ -134,7 +134,7 @@ const s = StyleSheet.create({
   chip: { height: 28, paddingHorizontal: 12, borderRadius: 14, justifyContent: 'center' },
   chipText: { fontFamily: fonts.medium, fontSize: 13 },
   urgent: { width: 18, height: 18, borderRadius: 9, flexShrink: 0, backgroundColor: colors.coralFill, alignItems: 'center', justifyContent: 'center', marginLeft: 6 },
-  urgentText: { fontFamily: fonts.semibold, fontSize: 12, color: colors.coral, lineHeight: 14 },
+  urgentText: { fontFamily: fonts.semibold, fontSize: 13, color: colors.coral, lineHeight: 15 },
   disc: { borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   discText: { fontFamily: fonts.semibold },
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
@@ -147,6 +147,6 @@ const s = StyleSheet.create({
   segOn: { backgroundColor: colors.mintFill },
   segText: { fontFamily: fonts.medium, fontSize: 14, color: colors.textSecondary },
   segTextOn: { color: colors.mint, fontFamily: fonts.semibold },
-  segCount: { fontFamily: fonts.regular, fontSize: 12 },
+  segCount: { fontFamily: fonts.regular, fontSize: 13 },
   card: { backgroundColor: colors.surface, borderRadius: radius.card, borderWidth: 1, borderColor: colors.hairline, padding: 16 },
 });

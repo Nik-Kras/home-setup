@@ -157,12 +157,15 @@ export function renderOurFlatWidget(info: WidgetInfo, data: WidgetView | null) {
 
   const label = `Our flat. ${data.leftCount} left`;
   if (info.widgetName === 'OurFlatMedium') {
-    // Rows stay 44dp; a short widget shows fewer of them.
-    const fit = Math.max(0, Math.floor((info.height - TARGET - FRAME_INSET) / TARGET));
+    // Rows stay 44dp; the widget shows as many as its height allows, and "+n more" when that line fits too.
+    const space = info.height - TARGET - FRAME_INSET;
+    const shown = data.top.slice(0, Math.max(0, Math.floor(space / TARGET)));
+    const more = data.leftCount - shown.length;
     return (
       <Frame label={label}>
         <Header left={data.leftCount} />
-        {data.top.slice(0, fit).map((row) => <ItemRow key={row.id} row={row} icon={row.icon} tone={row.tone} height={TARGET} />)}
+        {shown.map((row) => <ItemRow key={row.id} row={row} icon={row.icon} tone={row.tone} height={TARGET} />)}
+        {more > 0 && shown.length > 0 && shown.length * TARGET + SMALL_LINE <= space && <Label text={`+${more} more`} style={{ color: colors.textSecondary }} />}
         {data.top.length === 0 && <Label text="Everything is got" style={{ color: colors.textSecondary }} />}
       </Frame>
     );

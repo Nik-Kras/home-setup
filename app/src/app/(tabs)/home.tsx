@@ -6,6 +6,7 @@ import { HomeEmpty, HomeGrid, ModeSwitch, RoomChips } from '../../components/Hom
 import { useListState, ListGate } from '../../components/LoadState';
 import { Screen } from '../../components/Screen';
 import { SectionHeading, Sub, Title } from '../../components/ui';
+import { SyncPill } from '../../components/SyncPill';
 import { useStore } from '../../data/store';
 import { homeView, placedLabel, type HomeMode } from '../../domain/home';
 
@@ -21,12 +22,16 @@ export default function Home() {
   return (
     <Screen
       header={
-        <View style={s.header}>
-          <View style={s.titleText}>
+        <View>
+          <View style={s.header}>
             <Title>Home</Title>
-            {ready ? <Sub>{placedLabel(view.total)}</Sub> : null}
+            {empty || !ready ? null : <ModeSwitch value={mode} onChange={setMode} />}
           </View>
-          {empty || !ready ? null : <ModeSwitch value={mode} onChange={setMode} />}
+          {/* The sync pill sits on the count line, right of it (the switch takes the title line's right side). */}
+          <View style={s.subRow}>
+            <Sub style={s.subText}>{ready ? placedLabel(view.total) : ''}</Sub>
+            <View style={s.pillSlot}><SyncPill compact /></View>
+          </View>
         </View>
       }
     >
@@ -53,8 +58,11 @@ export default function Home() {
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  titleText: { flexShrink: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 44 },
+  // One text line high whether or not the pill shows (the pill overhangs it a little), so the list never moves.
+  subRow: { flexDirection: 'row', alignItems: 'center', gap: 10, height: 18, marginTop: 6 },
+  subText: { flex: 1 },
+  pillSlot: { height: 18, justifyContent: 'center', alignItems: 'flex-end', flexShrink: 0 },
   groups: { gap: 14, paddingTop: 4 },
   group: { gap: 10 },
 });

@@ -7,8 +7,13 @@ import type { Item, Person, Task } from './types';
 /** The item fields the widgets need: what they draw, plus status, needsInstall and addedAt to order and count. */
 export type WidgetItem = Pick<Item, 'id' | 'name' | 'room' | 'status' | 'urgent' | 'needsInstall' | 'addedAt'>;
 
-/** Rows the large widget shows at most. */
-export const WIDGET_MAX_ROWS = 4;
+/**
+ * Rows stored for the large widget. It draws as many as its height allows (fitRooms), then "+n more";
+ * 12 rows of 44dp fill even a tall launcher cell.
+ */
+export const WIDGET_MAX_ROWS = 12;
+/** Rows stored for the medium widget (with glyph tiles); it draws as many as fit its height. */
+export const WIDGET_TOP_ROWS = 6;
 
 /**
  * Keep at most `max` rows across room groups, chosen by priority: urgent rows first (in room order),
@@ -55,7 +60,7 @@ export function buildWidgetItemData(items: readonly WidgetItem[]) {
     left,
     leftCount: left.length,
     // Glyph and its room colour, as on the list rows (the room is guessed from the name when unset).
-    top: left.slice(0, 3).map((item) => {
+    top: left.slice(0, WIDGET_TOP_ROWS).map((item) => {
       const room = item.room ?? guessRoom(item.name);
       return { ...row(item), icon: glyphFor(item.name, room), tone: roomTone(room) };
     }),

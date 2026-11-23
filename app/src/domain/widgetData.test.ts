@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { localDate } from './taskOptions';
 import type { Item, Person, Task } from './types';
-import { buildWidgetData, capRows, fitRooms } from './widgetData';
+import { buildWidgetData, capRows, fitRooms, WIDGET_MAX_ROWS } from './widgetData';
 
 const me = 'member' as Person;
 const other = 'other' as Person;
@@ -18,7 +18,7 @@ const task = (id: string, patch: Partial<Task> = {}): Task => ({
 });
 
 describe('buildWidgetData', () => {
-  it('counts what is left, takes urgent items first and groups up to four left rows', () => {
+  it('counts what is left, takes urgent items first and groups the left rows by room', () => {
     const data = buildWidgetData([
       item('kettle', { room: 'Kitchen', status: 'looking' }),
       item('sofa', { room: 'Living room', urgent: true }),
@@ -35,11 +35,13 @@ describe('buildWidgetData', () => {
         { id: 'sofa', status: 'Needed', urgent: true, icon: 'sofa' },
         { id: 'curtains', status: 'Ordered', urgent: true, icon: 'curtain' },
         { id: 'kettle', status: 'Looking', urgent: false, icon: 'kettle' },
+        { id: 'router', status: 'Delivered' },
+        { id: 'towels', status: 'Needed' },
       ],
       rooms: [
         { room: 'Kitchen', items: [{ id: 'kettle', status: 'Looking' }] },
         { room: 'Living room', items: [{ id: 'sofa' }, { id: 'router', status: 'Delivered' }] },
-        { room: 'Other', items: [{ id: 'curtains' }] },
+        { room: 'Other', items: [{ id: 'curtains' }, { id: 'towels' }] },
       ],
     });
   });
@@ -61,19 +63,19 @@ describe('buildWidgetData', () => {
     expect(data.rooms).toEqual([]);
   });
 
-  it('keeps an urgent item in a later room when the four-row cap applies, grouped in room order', () => {
+  it('keeps an urgent item in a later room when the row cap applies, grouped in room order', () => {
+    const kitchen = Array.from({ length: WIDGET_MAX_ROWS - 1 }, (_, n) => item(`k${String(n).padStart(2, '0')}`, { room: 'Kitchen' }));
     const data = buildWidgetData([
-      item('kettle', { room: 'Kitchen' }),
-      item('mugs', { room: 'Kitchen' }),
-      item('toaster', { room: 'Kitchen' }),
+      ...kitchen,
       item('lamp', { room: 'Living room' }),
       item('rug', { room: 'Living room' }),
       item('bed', { room: 'Bedroom', urgent: true }),
     ], [], me, now);
-    expect(data.rooms).toEqual([
-      { room: 'Kitchen', items: [expect.objectContaining({ id: 'kettle' }), expect.objectContaining({ id: 'mugs' }), expect.objectContaining({ id: 'toaster' })] },
-      { room: 'Bedroom', items: [expect.objectContaining({ id: 'bed', urgent: true })] },
-    ]);
+    expect(data.rooms.map(({ room, items }) => [room, items.length])).toEqual([['Kitchen', WIDGET_MAX_ROWS - 1], ['Bedroom', 1]]);
+    expect(data.rooms[1]!.items[0]).toMatchObject({ id: 'bed', urgent: true });
+    // The medium widget's rows: up to six, urgent first.
+    expect(data.top).toHaveLength(6);
+    expect(data.top[0]).toMatchObject({ id: 'bed' });
   });
 });
 

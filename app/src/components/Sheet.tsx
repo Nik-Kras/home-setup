@@ -46,8 +46,8 @@ export function SheetOption({ label, selected, onPress, dot, hint }: { label: st
 /** Full-width sheet button. Primary is mint, the other is a hairline outline. */
 export function SheetButton({ label, onPress, primary, disabled }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean }) {
   return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} style={[s.button, primary ? s.buttonPrimary : s.buttonPlain, disabled && s.disabled]}>
-      <Text style={[s.buttonText, primary && s.buttonTextPrimary]}>{label}</Text>
+    <Pressable onPress={onPress} disabled={disabled} accessibilityRole="button" accessibilityState={{ disabled: !!disabled }} style={[s.button, primary ? s.buttonPrimary : s.buttonPlain, disabled && (primary ? s.primaryOff : s.disabled)]}>
+      <Text style={[s.buttonText, primary && s.buttonTextPrimary, disabled && s.buttonTextOff]}>{label}</Text>
     </Pressable>
   );
 }
@@ -137,6 +137,8 @@ const s = StyleSheet.create({
   buttonPrimary: { backgroundColor: colors.mint },
   buttonPlain: { borderWidth: 1, borderColor: colors.hairlineStrong },
   disabled: { opacity: 0.4 },
+  primaryOff: { backgroundColor: colors.neutralFill },
+  buttonTextOff: { color: colors.textMuted },
   buttonText: { fontFamily: fonts.semibold, fontSize: 16, color: colors.text },
   buttonTextPrimary: { color: colors.onMint },
 });

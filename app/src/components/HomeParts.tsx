@@ -148,7 +148,7 @@ const s = StyleSheet.create({
   chip: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: TARGET, paddingHorizontal: 14, borderRadius: radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)', backgroundColor: colors.surface },
   chipOn: { backgroundColor: colors.text, borderColor: colors.text },
   chipText: { fontFamily: fonts.medium, fontSize: 14, color: '#D5DBD7' },
-  chipCount: { fontFamily: fonts.regular, fontSize: 12, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
+  chipCount: { fontFamily: fonts.regular, fontSize: 13, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   chipTextOn: { color: colors.bg },
   fade: { position: 'absolute', top: 0, bottom: 0, right: 0, width: 40 },
   grid: { gap: 10 },
